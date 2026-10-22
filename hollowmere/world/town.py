@@ -244,7 +244,7 @@ def build_town(seed: int = 1347) -> World:
     b.obj("fishing_rock", "flat rock", "riverbank", 57, 14, "rock")
 
     # --- fields and the standing stones ----------------------------------------------
-    b.fence(4, 26, 20, 34, gates=[(12, 26)], ground=Tile.FIELD)
+    b.fence(4, 26, 20, 34, gates=[(12, 26), (17, 34)], ground=Tile.FIELD)
     b.fill(12, 24, 12, 25, Tile.DIRT)
     b.area("fields", "the barley fields", "blighted barley no one has the hands to harvest",
            (5, 27, 19, 33), public=True, indoor=False)
@@ -257,6 +257,14 @@ def build_town(seed: int = 1347) -> World:
     b.area("standing_stones", "the Weeping Stones", "a ring of old stones the priest calls heathen",
            (6, 37, 14, 42), public=True, indoor=False)
     b.obj("stone_ring", "stone ring", "standing_stones", 10, 39, "stones")
+
+    # --- the old mill, beside the fields ----------------------------------------------
+    b.building(15, 35, 20, 42, Tile.WOOD, doors=[(17, 42), (17, 35)])
+    b.area("mill", "the old mill", "a squat timber mill beside the blighted fields, its wheel slow and tired",
+           (16, 36, 19, 41), public=True, indoor=True)
+    b.obj("miller_bed", "bed", "mill", 16, 36, "bed", (2, CANDLE))
+    b.obj("millstone", "millstone", "mill", 18, 37, "millstone")
+    b.obj("grain_sacks", "grain sacks", "mill", 19, 41, "sacks")
 
     # --- the bakery, off Gate Street ----------------------------------------------------
     b.building(21, 29, 28, 37, Tile.STONE, doors=[(28, 31)])

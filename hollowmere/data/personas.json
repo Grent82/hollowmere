@@ -301,13 +301,37 @@
       "silas": "the gravedigger; he dug her son's grave gently, and she leaves him a loaf each week",
       "wenna": "the herb-wife; she gave Elsbeth a draught for grief last winter that Roderic must never know about",
       "mara": "the weaver; another woman the war or the plague left alone, and they understand each other without many words",
-      "ros": "the washerwoman; washes her flour-white aprons and knows every secret in town, which makes Elsbeth careful around her"
+      "ros": "the washerwoman; washes her flour-white aprons and knows every secret in town, which makes Elsbeth careful around her",
+      "wat": "the young miller; he turns up with some thin excuse and a handful of flour he can't really spare, and she lets him stay longer than she should, because for a few minutes he makes her feel like something other than a widow with a living husband"
     },
     "stances": {
       "tobin": "fond",
-      "clemence": "fond"
+      "clemence": "fond",
+      "wat": "fond"
     },
     "start": "elsbeth_room/elsbeth_bed"
+  },
+  {
+    "id": "wat",
+    "name": "Wat Milner",
+    "known_as": "the young miller",
+    "age": 22,
+    "color": "#d9a441",
+    "traits": "charming, slow-witted, warm-hearted, easily distracted, shameless flirt",
+    "appearance": "broad and sun-browned, flour worked into the creases of his hands, an easy grin that arrives before his words do",
+    "background": "Wat Milner inherited his father's mill and the family's strip of the barley fields, though he has neither the wit nor the patience his father had for either. He is one of the few townsfolk still willing to work the blighted field, mostly because sitting still is the one thing he's worse at.",
+    "currently": "The harvest is thin and the mill turns slow, but Wat always sets aside the first of whatever flour he coaxes from it, and finds some reason to carry it to the bakery himself.",
+    "lifestyle": "Wat rises late, picks half-heartedly at the barley until noon, then mills what little grain he has. In the afternoon he carries a small sack of flour to the bakery, always with some excuse ready, just to spend a few minutes near Elsbeth. He spends his evenings in the tavern, buying drinks he can't afford and flirting with whichever girl will have him.",
+    "home": "mill",
+    "home_object": "miller_bed",
+    "work": "mill",
+    "relationships": {
+      "elsbeth": "the baker's wife, and the only woman in Hollowmere he's ever been serious about, though he'd never say so; he invents reasons to bring her flour just to see her face when she opens the door",
+      "agnes": "pours his ale most nights and has heard every one of his lines twice",
+      "isolde": "young, pretty, and unmarried, which in Wat's mind makes her fair game, though she mostly laughs at him"
+    },
+    "stances": { "elsbeth": "fond" },
+    "start": "mill/miller_bed"
   },
   {
     "id": "mara",
