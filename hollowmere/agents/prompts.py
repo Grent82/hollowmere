@@ -30,9 +30,12 @@ def system_prompt(agent: Agent) -> str:
     p = agent.persona
     return (
         f"You are the mind of {p.name}, who lives in Hollowmere. {WORLD_TONE}\n\n"
-        f"Think, decide and speak exactly as {p.first_name} would, with {p.first_name}'s knowledge, temperament, "
-        f"fears and way of speaking. {p.first_name} knows only what is in the memories you are shown and what any "
-        f"townsperson would know; do not invent facts about other people, though suspicion and rumour are fine. "
+        f"Think, decide and speak exactly as {p.first_name} would, with {p.first_name}'s knowledge and fears. "
+        f"When you speak or put feelings into words, let {p.first_name}'s own age, temperament, work and "
+        f"background below shape not just what is said but how: word choice, formality, warmth, how long or "
+        f"short the sentences run, any habits of speech. No two people in Hollowmere think or talk alike. "
+        f"{p.first_name} knows only what is in the memories you are shown and what any townsperson would know; "
+        f"do not invent facts about other people, though suspicion and rumour are fine. "
         "Stay concrete and grounded in the town. No modern words or ideas. Times are 24-hour."
     )
 
@@ -240,10 +243,10 @@ CONVERSATION SO FAR
 Hollowmere has only these places: {", ".join(town_places)}. Name no other place.
 
 You are {p.name}. {other_name} is {who_they_are}.{f" To look at: {other_looks}." if other_looks else ""}{title_rule}
-{retry}Write the next line spoken BY {p.first_name} TO {other_name}. Speak in {p.first_name}'s own voice, plainly and briefly, the way a frightened
-townsperson in 1347 talks. Respond to what was just said. Share only what {p.first_name} knows, and only what
-{p.first_name} would be willing to say to {other_name}. Do not repeat earlier lines. Set end to true to say
-goodbye once the talk has run its course."""
+{retry}Write the next line spoken BY {p.first_name} TO {other_name}, in {p.first_name}'s own voice: the one that
+follows from {p.first_name}'s temperament, age and station above, not a shared narrator's voice. Respond to
+what was just said. Share only what {p.first_name} knows, and only what {p.first_name} would be willing to say
+to {other_name}. Do not repeat earlier lines. Set end to true to say goodbye once the talk has run its course."""
 
 
 def chat_digest(agent: Agent, names: dict[str, str], now: datetime, other_name: str,
@@ -273,7 +276,8 @@ def focal_questions(agent: Agent, names: dict[str, str], now: datetime, mems: li
 
 {memories(mems, now, title="RECENT MEMORIES")}
 
-Given only these memories, what are the most important questions on {p.first_name}'s mind right now?"""
+Given only these memories, and thinking in {p.first_name}'s own voice, not a shared narrator's, what are the
+most important questions on {p.first_name}'s mind right now?"""
 
 
 def insights(agent: Agent, names: dict[str, str], now: datetime, questions: list[str], mems: list[Memory]) -> str:
@@ -288,8 +292,9 @@ QUESTIONS ON YOUR MIND
 
 {memories(mems, now, title="MEMORIES THAT BEAR ON THEM")}
 
-Lying awake with these questions, what does {p.first_name} conclude? Each conclusion must follow from the
-numbered memories it cites. Prefer conclusions about people, intentions and dangers over restating events."""
+Lying awake with these questions, in {p.first_name}'s own voice, not a shared narrator's, what does
+{p.first_name} conclude? Each conclusion must follow from the numbered memories it cites. Prefer conclusions
+about people, intentions and dangers over restating events."""
 
 
 def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:
@@ -300,7 +305,8 @@ def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Me
 
 {memories(mems, now, title="TODAY")}
 
-Look back on {p.first_name}'s day: what happened, what changed, and what {p.first_name} means to do tomorrow."""
+Look back on {p.first_name}'s day, in {p.first_name}'s own voice, not a shared narrator's: what happened, what
+changed, and what {p.first_name} means to do tomorrow."""
 
 
 
