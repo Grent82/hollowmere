@@ -46,7 +46,7 @@ ATTENTION = 3  # new observations an agent stores per tick
 SAVE_EVERY_TICKS = 30
 SAMPLE_EVERY_TICKS = 10  # where everyone is, for `hollowmere report`
 FLEE_TILES = 6
-HIDE_FOR = timedelta(minutes=25)
+HIDE_FOR = timedelta(minutes=10)
 HIDING_PLACES = ["goblin_den/nib_nest", "witchwood/bramble_thicket", "riverbank/reeds",
                  "standing_stones/brambles", "graveyard/dead_yew"]
 
