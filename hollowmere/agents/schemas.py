@@ -79,7 +79,7 @@ def day_plan_schema(places: tuple[str, ...]) -> type[BaseModel]:
 
 @lru_cache(maxsize=256)
 def decomposition_schema(places: tuple[str, ...], seekable: tuple[str, ...] = ()) -> type[BaseModel]:
-    """seekable: for the goblin, the people he might go looking for during this stretch of the day."""
+    """seekable: the people you might go looking for during this stretch of the day."""
     place_t = Literal[places]  # type: ignore[valid-type]
     step = create_model(
         "Step",
@@ -91,7 +91,7 @@ def decomposition_schema(places: tuple[str, ...], seekable: tuple[str, ...] = ()
     fields: dict = {}
     if seekable:
         fields["seek"] = (Literal[seekable + ("nobody",)], Field(  # type: ignore[valid-type]
-            description="someone you mean to find and creep up on during this time, or nobody"))
+            description="someone you mean to find during this time, or nobody"))
     return create_model("Decomposition", **fields,
                         steps=(list[step], Field(min_length=1, max_length=8)))  # type: ignore[valid-type]
 
@@ -119,8 +119,9 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False) -> t
         "Commitment",
         when_said=(str, Field(description="the words for the time exactly as spoken in the talk, "
                                           "e.g. 'by noon', 'tomorrow at dusk'")),
-        who=(Literal["me", "both", "them"], Field(description="who will do it: you alone, the two of you "
-                                                              "together, or only the other person")),
+        who=(Literal["me", "both", "them"], Field(
+            description="who will do it: you alone (only if you are promising THEM you will, not just "
+                        "mentioning your own plans), the two of you together, or only the other person")),
         accepted=(bool, Field(description="true only if whoever is to do it offered it or said yes")),
         day=(Literal["today", "tomorrow"], ...),
         time=(str, Field(pattern=HHMM, description="when_said as a clock time")),

@@ -99,6 +99,21 @@ async def test_the_goblin_asks_the_model_what_to_do(tmp_path):
     assert not engine.conversations and nib.task.activity == "bolts for cover"
 
 
+async def test_the_goblin_does_not_instantly_re_approach_after_a_talk(tmp_path):
+    engine, place = await _goblin_scene(tmp_path, "reapproach.db", [
+        ("approach", "Ros Mourne"), ("approach", "Ros Mourne")])
+    nib, ros = engine.agents["nib"], engine.agents["ros"]
+    place(nib, 0), place(ros, 1)
+    await engine._stealth(engine.now)
+    c = next(iter(engine.conversations.values()))
+    assert (c.a, c.b) == (nib, ros)
+    engine._end_conversation(c, "goodbye")
+    engine._situations.clear()  # the sighting looks fresh again a moment later
+    await engine._stealth(engine.now)
+    assert not engine.conversations  # he just talked to her: no instant re-approach
+    assert engine.events[-1]["kind"] == "watch"
+
+
 async def test_humans_who_know_the_goblin_see_him_plainly(tmp_path):
     engine, place = await _goblin_scene(tmp_path, "plain.db", [("watch", "nobody")] * 5)
     nib, ros = engine.agents["nib"], engine.agents["ros"]
@@ -107,6 +122,18 @@ async def test_humans_who_know_the_goblin_see_him_plainly(tmp_path):
     await engine._perceive(engine.now)
     assert not [e for e in engine.events if e["kind"] == "sighting"]
     assert any("Nib" in m.text for m in ros.memory.items)
+
+
+async def test_a_human_who_knows_the_goblin_may_also_be_the_one_to_approach(tmp_path):
+    engine = await _town(tmp_path, "known_goblin_react.db")
+    isolde, nib, now = engine.agents["isolde"], engine.agents["nib"], engine.now
+    isolde.bonds["nib"] = {"stance": "fond", "affinity": 4.0, "note": "a sad little thing", "talks": 1, "last": None}
+    isolde.mode, isolde.hiding_until, isolde.convo_id, isolde.thinking = "acting", None, None, None
+    nib.mode, nib.hiding_until, nib.convo_id, nib.thinking = "acting", None, None, None
+    isolde.x, isolde.y = engine.world.target_tile("riverbank")
+    nib.x, nib.y = isolde.x, isolde.y
+    await engine._perceive(now)
+    assert "nib" in isolde.last_react  # a known, non-hiding goblin is also a candidate for HER reaction
 
 
 async def test_the_goblin_creeps_after_whom_he_chose_to_seek(tmp_path):
@@ -126,6 +153,42 @@ async def test_the_goblin_creeps_after_whom_he_chose_to_seek(tmp_path):
     nib.path = []
     engine._seek(now)
     assert not nib.path
+
+
+async def test_a_human_who_seeks_someone_walks_right_in_instead_of_waiting_outside(tmp_path):
+    from hollowmere.agents.agent import Block
+    from datetime import timedelta
+    engine = await _town(tmp_path, "human_seek.db")
+    wat, elsbeth, now = engine.agents["wat"], engine.agents["elsbeth"], engine.now
+    assert engine.world.areas["bakery"].indoor
+    elsbeth.mode = "acting"
+    elsbeth.x, elsbeth.y = engine.world.target_tile("bakery")
+    wat.mode, wat.hiding_until, wat.convo_id = "acting", None, None
+    wat.plan = [Block(now - timedelta(hours=1), now + timedelta(hours=2), "goes to find Elsbeth", "mill")]
+    wat.seek, wat.seek_block = "elsbeth", 0
+    engine._seek(now)
+    assert wat.path  # unlike the goblin, he does not stop at the bakery door
+    assert engine.events[-1]["kind"] == "visit"
+
+
+async def test_a_human_stops_seeking_someone_right_after_talking_to_them(tmp_path):
+    from hollowmere.agents.agent import Block
+    from datetime import timedelta
+    engine = await _town(tmp_path, "human_seek_cooldown.db")
+    isolde, nib, now = engine.agents["isolde"], engine.agents["nib"], engine.now
+    nib.x, nib.y = engine.world.target_tile("riverbank")
+    nib.mode, nib.hiding_until, nib.convo_id = "acting", None, None
+    isolde.mode, isolde.hiding_until, isolde.convo_id = "acting", None, None
+    isolde.plan = [Block(now - timedelta(hours=1), now + timedelta(hours=2), "goes to find Nib", "tavern")]
+    isolde.seek, isolde.seek_block = "nib", 0
+    engine._seek(now)
+    assert isolde.path  # she is on her way to him
+    engine._start_conversation(isolde, nib, "to see him", now)
+    c = next(iter(engine.conversations.values()))
+    engine._end_conversation(c, "goodbye")  # they just talked, however briefly
+    isolde.path = []
+    engine._seek(now)
+    assert not isolde.path  # ... so she does not immediately set off looking for him again
 
 
 def test_a_conversation_that_repeats_itself_ends():
@@ -371,7 +434,7 @@ async def test_digest_drops_their_errands_unanswered_demands_and_invented_times(
     for _ in range(2):
         await agnes.digest_chat(ctx, engine.now, odo, talk)
     assert [c["activity"] for c in agnes.commitments] == ["attend the vigil"]
-    # the model's view of the other person replaces the stance; the persona's knowledge stays
+    # two "fond" talks in a row nudge a neutral stance up to fond, not an instant jump
     assert agnes.bonds["odo"]["stance"] == "fond" and agnes.bonds["odo"]["talks"] == 2
     from hollowmere.agents import prompts
     line = prompts.bond_line(agnes, "odo")

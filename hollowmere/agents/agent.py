@@ -15,7 +15,7 @@ from datetime import date, datetime, time, timedelta
 from typing import Literal
 
 from hollowmere.agents import prompts
-from hollowmere.agents.persona import Persona
+from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
     DayReview, FocalQuestions, Insights, Reaction, Utterance,
     chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
@@ -182,12 +182,15 @@ class Agent:
         self.hiding_until: datetime | None = None
         self.topics: deque[str] = deque(maxlen=TOPICS_KEPT)  # what recent conversations were about
         self.new_reflections: list[str] = []  # not yet shown in the event feed
-        # How this agent sees each person it knows: seeded from the persona, rewritten by the model after
-        # every talk. Shown in prompts and the viewer; no code decides anything from it.
+        # How this agent sees each person it knows: seeded from the persona, then nudged after every
+        # talk by update_affinity() rather than overwritten raw. "affinity" is the continuous score
+        # that carries the history; "stance" is just that score's label, for prompts and the viewer -
+        # no code branches on the label itself.
         self.bonds: dict[str, dict] = {
-            k: {"stance": persona.stances.get(k, "neutral"), "note": "", "talks": 0, "last": None}
+            k: {"stance": persona.stances.get(k, "neutral"), "affinity": starting_affinity(persona.stances.get(k, "neutral")),
+                "note": "", "talks": 0, "last": None}
             for k in persona.relationships.keys() | persona.stances.keys()}
-        self.seek: str | None = None  # goblin only: whom the current plan block is spent looking for
+        self.seek: str | None = None  # whom the current plan block is spent going to find, if anyone
         self.seek_block = -1
 
     def knows(self, other: "Agent") -> bool:
@@ -352,8 +355,7 @@ class Agent:
         self.thinking = f"thinking about: {block.activity}"
         area = block.place.split("/")[0]
         allowed = tuple(p for p in self.place_ids if p.split("/")[0] == area) or (block.place,)
-        seekable = ({ctx.names[k]: k for k in sorted(self.bonds.keys() | self.allies) if k in ctx.names}
-                    if self.persona.is_goblin else {})
+        seekable = {ctx.names[k]: k for k in sorted(self.bonds.keys() | self.allies) if k in ctx.names}
         self.seek, self.seek_block = None, idx
         try:
             mems = await self.memory.retrieve([block.activity], now, k=6)
@@ -385,7 +387,8 @@ class Agent:
         self.thinking = f"noticing {other.first}"
         try:
             mems = await self.memory.retrieve(
-                [other.name, f"{other.first} {other.task.activity if other.task else ''}"], now, k=8)
+                [other.name, f"{other.first} {other.task.activity if other.task else ''}",
+                 f"warmth, friendship or love between {self.first} and {other.first}"], now, k=8)
             place = ctx.world.place_name(self.task.place) if self.task else "the street"
             goblin = other.persona.is_goblin and not self.persona.is_goblin
             aside = prompts.goblin_aside(self, other, now) if goblin else ""
@@ -453,8 +456,11 @@ class Agent:
             await self._remember("chat", f"I spoke with {other.name}.", now, 3)
             return Digest()
         await self._remember("chat", out.summary, now, out.importance)
-        bond = self.bonds.get(other.id, {"talks": 0})
-        self.bonds[other.id] = {"stance": out.feeling, "note": out.view_of_them.strip(),
+        bond = self.bonds.get(other.id, {"talks": 0, "affinity": starting_affinity("neutral")})
+        affinity = update_affinity(bond.get("affinity", starting_affinity(bond.get("stance", "neutral"))),
+                                   out.feeling, out.importance)
+        self.bonds[other.id] = {"stance": affinity_label(affinity), "affinity": affinity,
+                                "note": out.view_of_them.strip(),
                                 "talks": bond["talks"] + 1, "last": now.isoformat()}
         today = day_key(now)
         result = Digest()
@@ -582,12 +588,15 @@ class Agent:
             "plan_date": self.plan_date.isoformat() if self.plan_date else None,
             "tasks": [t.to_dict() for t in self.tasks], "tasks_block": self.tasks_block,
             "last_chat": {k: v.isoformat() for k, v in self.last_chat.items()},
+            "last_react": {k: v.isoformat() for k, v in self.last_react.items()},
             "importance_acc": self.importance_acc,
             "reviewed_date": self.reviewed_date.isoformat() if self.reviewed_date else None,
             "commitments": self.commitments, "allies": sorted(self.allies), "regard": self.regard,
             "topics": list(self.topics),
             "announced": self.announced.isoformat() if self.announced else None,
             "bonds": self.bonds,
+            "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
+            "seek": self.seek, "seek_block": self.seek_block,
         }
 
     def restore(self, d: dict) -> None:
@@ -597,6 +606,7 @@ class Agent:
         self.tasks = [Task.from_dict(t) for t in d["tasks"]]
         self.tasks_block = d["tasks_block"]
         self.last_chat = {k: datetime.fromisoformat(v) for k, v in d["last_chat"].items()}
+        self.last_react = {k: datetime.fromisoformat(v) for k, v in d.get("last_react", {}).items()}
         self.importance_acc = d["importance_acc"]
         self.reviewed_date = date.fromisoformat(d["reviewed_date"]) if d["reviewed_date"] else None
         self.announced = date.fromisoformat(d["announced"]) if d.get("announced") else None
@@ -612,4 +622,8 @@ class Agent:
         self.allies = set(d.get("allies", []))
         self.regard = d.get("regard", {})
         self.topics = deque(d.get("topics", []), maxlen=TOPICS_KEPT)
+        self.hiding_until = datetime.fromisoformat(d["hiding_until"]) if d.get("hiding_until") else None
+        self.seek, self.seek_block = d.get("seek"), d.get("seek_block", -1)
         self.bonds.update(d.get("bonds", {}))  # an older save has none: keep the persona's
+        for b in self.bonds.values():
+            b.setdefault("affinity", starting_affinity(b.get("stance", "neutral")))  # older saves lack this

@@ -177,11 +177,12 @@ Use only the place ids allowed by the schema. Prefer specific objects when the s
 
 
 def seek_hint(agent: Agent) -> str:
-    if not agent.persona.is_goblin:
-        return ""
     first = agent.persona.first_name
-    return (f"\nIf {first} means to find someone during this time and creep close to them, name them in seek; "
-            f"{first} will follow them wherever they go out of doors.")
+    if agent.persona.is_goblin:
+        return (f"\nIf {first} means to find someone during this time and creep close to them, name them in seek; "
+                f"{first} will follow them wherever they go out of doors.")
+    return (f"\nIf {first} means to go and find someone during this time, name them in seek; "
+            f"{first} will go wherever they are, even indoors.")
 
 
 def react(agent: Agent, names: dict[str, str], now: datetime, place: str, own_activity: str,
@@ -198,8 +199,9 @@ def react(agent: Agent, names: dict[str, str], now: datetime, place: str, own_ac
 {aside}
 {recent_topics(list(topics), p.first_name)}
 How does {p.first_name} react? Speaking up costs time and may draw attention; most of the time people simply
-carry on. Talk only if {p.first_name} has a real reason to: something to ask, tell, warn, sell, confess or
-quarrel about, or a friendship worth tending. Going over the same worry again with someone new is
+carry on. Talk only if {p.first_name} has a real reason to: warmth, friendship or love worth acting on,
+something to ask, tell, warn, sell, confess or quarrel about. If nothing presses and {p.first_name} simply
+enjoys their company, that is reason enough on its own. Going over the same worry again with someone new is
 rarely reason enough."""
 
 
@@ -246,7 +248,9 @@ You are {p.name}. {other_name} is {who_they_are}.{f" To look at: {other_looks}."
 {retry}Write the next line spoken BY {p.first_name} TO {other_name}, in {p.first_name}'s own voice: the one that
 follows from {p.first_name}'s temperament, age and station above, not a shared narrator's voice. Respond to
 what was just said. Share only what {p.first_name} knows, and only what {p.first_name} would be willing to say
-to {other_name}. Do not repeat earlier lines. Set end to true to say goodbye once the talk has run its course."""
+to {other_name}. Do not repeat earlier lines. If the moment calls for it, {p.first_name} may plainly name a
+time and place to meet again, or simply to spend time together. Set end to true to say goodbye once the talk
+has run its course."""
 
 
 def chat_digest(agent: Agent, names: dict[str, str], now: datetime, other_name: str,
@@ -261,11 +265,14 @@ CONVERSATION
 {lines}
 {aside}
 Remember this conversation the way {p.first_name} will: what was said, what was learned, how it felt.
-Commitments are only what {p.first_name} and {other_name} agreed on in this talk, for a definite time later
-today or tomorrow: to meet somewhere, to bring or fetch something, to do a task for or with the other.
-Not {p.first_name}'s usual work, not anything already done, not what {p.first_name} would do anyway, and
-never a time that has already passed. A request or demand nobody answered is not agreed. If no time was
-spoken, there is no commitment. Most talks agree on nothing: then leave the list empty."""
+Commitments are only something {p.first_name} and {other_name} specifically agreed on in this talk, for a
+definite time later today or tomorrow: to meet somewhere, to bring or fetch something, to do a task for or
+with the other, or simply to spend time together. Even a "who: me" commitment must be something promised
+TO {other_name} - merely mentioning where {p.first_name} already meant to be ("I'm off to eat at Mara's
+tonight") is not a commitment unless {other_name} is part of it. Not {p.first_name}'s usual work, not
+anything already done, not what {p.first_name} would do anyway regardless of this talk, and never a time
+that has already passed. A request or demand nobody answered is not agreed. If no time was spoken, there is
+no commitment. Most talks agree on nothing: then leave the list empty."""
 
 
 def focal_questions(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:

@@ -93,8 +93,8 @@ class Engine:
         self._judging: set[tuple[str, str]] = set()  # (goblin, human) after a talk, until the human decides
         self._situations: dict[str, tuple[frozenset[str], datetime]] = {}  # goblin -> who was in sight at his last choice
         self._noticed: dict[tuple[str, str], datetime] = {}  # (goblin, human) -> when the human last caught sight of him
-        self._sought: dict[str, datetime] = {}  # human -> when the goblin last came face to face with them
-        self._seeking: dict[str, str] = {}  # goblin -> the human he is creeping after
+        self._sought: dict[str, datetime] = {}  # target -> when they last came face to face with their seeker
+        self._seeking: dict[str, str] = {}  # agent -> whoever they are currently on their way to find
         self._llm_before: dict = {}  # LLM counters from earlier sessions of this save
         self._agreements: dict[str, dict[str, list[dict]]] = {}  # convo id -> agent id -> meetings it noted
 
@@ -235,7 +235,8 @@ class Engine:
         self._event("choice", [g.id] + [h.id for h in seen], f"{g.first} sees {names} and decides to {action}.",
                     feed=False, action=action, whom=whom.id if whom else None, thought=thought,
                     stances={h.id: g.bonds.get(h.id, {}).get("stance") for h in seen})
-        if action == "approach" and whom is not None and c is None and whom.awake and whom.convo_id is None:
+        if (action == "approach" and whom is not None and c is None and whom.awake and whom.convo_id is None
+                and now - g.last_chat.get(whom.id, datetime.min) >= CHAT_COOLDOWN):
             g.hiding_until, g.task, g.mode = None, None, "acting"
             self._start_conversation(g, whom, out.reason or f"to see whether {whom.first} will help him", now)
             return
@@ -279,17 +280,17 @@ class Engine:
         return best
 
     def _seek(self, now: datetime) -> None:
-        """The goblin follows whoever he chose, when planning this stretch of the day, to go and find."""
+        """Whoever an agent chose, when planning this stretch of the day, to go and find."""
         for g in self.agents.values():
-            target = self.agents.get(g.seek) if g.persona.is_goblin and g.seek else None
+            target = self.agents.get(g.seek) if g.seek else None
             if (target is None or not g.awake or g.convo_id is not None or g.hiding_until is not None
                     or g.seek_block != g.current_block(now) or not target.awake
                     or now - self._sought.get(target.id, datetime.min) < CHAT_COOLDOWN):
                 self._seeking.pop(g.id, None)
                 continue
             area = self.world.area_at(target.x, target.y)
-            if area is not None and self.world.areas[area].indoor:
-                continue  # he waits for them to come out
+            if g.persona.is_goblin and area is not None and self.world.areas[area].indoor:
+                continue  # he waits for them to come out; a human visitor can just walk in
             if g.path and self.tick_count % 3:
                 continue  # re-aim every few ticks
             path = self.world.find_path((g.x, g.y), (target.x, target.y))[:-2]
@@ -298,7 +299,10 @@ class Engine:
             g.path, g.mode = path, "walking"
             if self._seeking.get(g.id) != target.id:
                 self._seeking[g.id] = target.id
-                self._event("seek", [g.id, target.id], f"{g.first} creeps after {target.first}.")
+                if g.persona.is_goblin:
+                    self._event("seek", [g.id, target.id], f"{g.first} creeps after {target.first}.")
+                else:
+                    self._event("visit", [g.id, target.id], f"{g.first} goes to find {target.first}.")
 
     def _spot_goblin(self, h: Agent, g: Agent, now: datetime) -> bool:
         """A human who does not know the goblin may glimpse him. Returns whether they did."""
@@ -401,6 +405,8 @@ class Engine:
                     self._judging.add((y.id, x.id))
                 self._spawn(x, x.digest_chat(self.ctx, self.now, y, list(c.transcript)), f"digest:{c.id}",
                             on_done=self._digested(c, x, y))
+        if reason not in ("fled", "never_reached"):  # they actually came face to face, not just tried to
+            self._sought[c.a.id] = self._sought[c.b.id] = self.now  # either side's seek should back off now, too
         self._event("chat_end", [c.a.id, c.b.id], f"{c.a.first} and {c.b.first} part ways.",
                     feed=reason not in ("fled", "never_reached"), transcript=c.transcript, convo=c.id,
                     reason=reason, purpose=c.purpose)
@@ -427,6 +433,8 @@ class Engine:
                 if b.persona.is_goblin and not a.persona.is_goblin and a.id not in b.allies:
                     if a.knows(b) and b.mode != "hiding":
                         self._noticed[(b.id, a.id)] = now  # someone who has met him sees him plainly
+                        if candidate is None and self._may_react(a, b, now):
+                            candidate = b  # she may also be the one who approaches, not only he
                     else:
                         if (b.id, a.id) not in self._judging and self._spot_goblin(a, b, now) \
                                 and candidate is None and self._may_react(a, b, now):
@@ -464,6 +472,10 @@ class Engine:
             self._start_conversation(a, b, purpose, now)
 
     def _start_conversation(self, a: Agent, b: Agent, purpose: str, now: datetime) -> None:
+        # Backstop for every caller, not just the ones that already check this themselves (_may_react,
+        # _goblin_chooses' approach branch): nobody re-opens a talk within CHAT_COOLDOWN of the last one.
+        if now - a.last_chat.get(b.id, datetime.min) < CHAT_COOLDOWN:
+            return
         if a.convo_id is not None or b.convo_id is not None or not b.awake:
             return
         cid = f"c{next(self._convo_ids)}-{self._session}"
