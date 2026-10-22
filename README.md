@@ -4,7 +4,7 @@ A reimplementation of *Generative Agents: Interactive Simulacra of Human Behavio
 (Park et al., 2023), set in a plague-haunted medieval town and driven by a local LLM.
 
 Eight townsfolk (an innkeeper and her restless daughter, a haunted smith and his
-apprentice, a doubting priest, a gravedigger who has found robbed graves, the watch
+apprentice, a doubting priest, a gravedigger who dug a nameless grave by night, the watch
 captain, and a herb-wife the town calls a witch), the women of their families, and
 one goblin wake, plan their days, notice each other, talk, remember, and reflect. You watch.
 
