@@ -147,7 +147,7 @@ async def test_the_goblin_does_not_bolt_from_someone_still_deciding(tmp_path):
         a.mode, a.hiding_until, a.path, a.convo_id = "acting", None, [], None
         a.x, a.y = wx + dx, wy
     engine._judging.add(("nib", "silas"))
-    engine._judged(silas, nib)(True)
+    engine._judged(silas, nib)("protect")
     assert ("nib", "silas") not in engine._judging and "silas" in nib.allies
     engine.ctx.llm = Scripted([])
     await engine._stealth(engine.now)  # only a protector in sight: nothing to decide
@@ -407,3 +407,21 @@ async def test_switching_embedders_rebuilds_the_stored_vectors(tmp_path):
     ros = second.agents["ros"].memory
     assert (ros._vecs[0] == other.embed_one(text)).all()  # rebuilt with the new model, not kept from the old
     assert second.store.get("embedder") == "server-some-other-model"
+
+
+async def test_a_human_can_warm_to_the_goblin_over_several_talks(tmp_path):
+    from hollowmere.agents import prompts
+    cfg = Config()
+    cfg.sim.save_path = str(tmp_path / "regard.db")
+    engine = await build_engine(cfg, llm=FakeLLM(latency=0), embedder=HashingEmbedder(128))
+    nib, ros = engine.agents["nib"], engine.agents["ros"]
+    for step in ("drive off", "undecided", "tolerate", "tolerate", "feed"):
+        engine._judged(ros, nib)(step)
+    assert nib.regard["ros"]["step"] == "feed" and nib.regard["ros"]["rebuffs"] == 1
+    assert "ros" not in nib.allies
+    kinds = [e["kind"] for e in engine.events if "ros" in e["agents"]]
+    assert kinds == ["spurn", "warm", "warm"]  # tolerating twice is not news
+    assert "after the last talk" in prompts.regard_line(nib, "ros", engine.now)
+    assert "Ros Mourne (feed it)" in prompts.identity(nib, engine.ctx.names)
+    engine._judged(ros, nib)("protect")
+    assert "ros" in nib.allies

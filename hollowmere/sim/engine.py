@@ -489,7 +489,7 @@ class Engine:
 
         def done(result: Digest | None) -> None:
             if judged is not None:
-                judged(result.will_protect if result else None)
+                judged(result.regard if result else None)
             notes = self._agreements.setdefault(c.id, {})
             notes[x.id] = result.together if result else []
             if len(notes) == 2:
@@ -522,13 +522,21 @@ class Engine:
         if not goblin.persona.is_goblin or human.persona.is_goblin:
             return None
 
-        def done(will_protect: bool | None) -> None:
+        def done(regard: str | None) -> None:
             self._judging.discard((goblin.id, human.id))
-            if will_protect:
+            if regard is None:
+                return
+            prev = goblin.regard.get(human.id, {})
+            goblin.regard[human.id] = {"step": regard, "at": self.now.isoformat(),
+                                       "rebuffs": prev.get("rebuffs", 0) + (regard == "drive off")}
+            if regard == "protect":
                 goblin.allies.add(human.id)
                 self._event("ally", [human.id, goblin.id], f"{human.first} has chosen to protect {goblin.first}.")
-            elif will_protect is False:
-                self._event("spurn", [human.id, goblin.id], f"{human.first} will not protect {goblin.first}.")
+            elif regard == "drive off":
+                self._event("spurn", [human.id, goblin.id], f"{human.first} drives {goblin.first} off.")
+            elif regard in ("tolerate", "feed") and regard != prev.get("step"):
+                self._event("warm", [human.id, goblin.id],
+                            f"{human.first} will {'put up with' if regard == 'tolerate' else 'feed'} {goblin.first}.")
         return done
 
     def _spawn(self, a: Agent, coro, label: str, on_done=None) -> None:

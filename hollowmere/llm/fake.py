@@ -125,8 +125,8 @@ class FakeLLM:
         out = {"summary": "We spoke of the plague and the collector's coming. Everyone is afraid.",
                "importance": 4, "commitments": [],
                "feeling": self.rng.choice(["wary", "neutral", "fond"]), "view_of_them": "As frightened as the rest."}
-        if "will_protect" in js.get("properties", {}):
-            out["will_protect"] = self.rng.random() < 0.6
+        if "toward_goblin" in js.get("properties", {}):
+            out["toward_goblin"] = self.rng.choice(["drive off", "undecided", "tolerate", "feed", "protect"])
         return out
 
     def _focalquestions(self, js: dict, user: str) -> dict:

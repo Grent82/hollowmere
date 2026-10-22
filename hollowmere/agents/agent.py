@@ -49,7 +49,7 @@ def spoken(when: str, transcript: list[tuple[str, str]]) -> bool:
 @dataclass
 class Digest:
     """What digesting a conversation produced that the engine acts on."""
-    will_protect: bool | None = None  # a human who met the goblin: whether they will protect it
+    regard: str | None = None  # a human who met the goblin: what they now mean to do about it (GoblinRegard)
     together: list[dict] = field(default_factory=list)  # new commitments to meet the other person
 
 Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding"]
@@ -177,6 +177,8 @@ class Agent:
         self.bubble: str | None = None
         self.announced: date | None = None  # last plan_date shown in the event feed
         self.allies: set[str] = set()  # goblin only: humans who have chosen to protect it
+        # goblin only: human -> {"step": GoblinRegard, "at": iso time, "rebuffs": times they drove him off}
+        self.regard: dict[str, dict] = {}
         self.hiding_until: datetime | None = None
         self.topics: deque[str] = deque(maxlen=TOPICS_KEPT)  # what recent conversations were about
         self.new_reflections: list[str] = []  # not yet shown in the event feed
@@ -386,7 +388,7 @@ class Agent:
                 [other.name, f"{other.first} {other.task.activity if other.task else ''}"], now, k=8)
             place = ctx.world.place_name(self.task.place) if self.task else "the street"
             goblin = other.persona.is_goblin and not self.persona.is_goblin
-            aside = prompts.goblin_aside(self, other) if goblin else ""
+            aside = prompts.goblin_aside(self, other, now) if goblin else ""
             other_name = other.name if not goblin or self.knows(other) else "a goblin"  # looks follow from the persona
             out = await ctx.llm.structured(
                 prompts.system_prompt(self),
@@ -428,7 +430,7 @@ class Agent:
         mems = await self.memory.retrieve([other.name, last or other.name], now, k=8)
         place = ctx.world.place_name(self.task.place) if self.task else "the street"
         other_doing = other.task.activity if other.task else "standing about"
-        aside = prompts.goblin_aside(self, other) if other.persona.is_goblin and not self.persona.is_goblin else ""
+        aside = prompts.goblin_aside(self, other, now) if other.persona.is_goblin and not self.persona.is_goblin else ""
         return await ctx.llm.structured(
             prompts.system_prompt(self),
             prompts.converse(self, ctx.names, now, place, other.name, other_doing, purpose, transcript, mems, aside,
@@ -441,7 +443,7 @@ class Agent:
                           transcript: list[tuple[str, str]]) -> Digest:
         """Remember a conversation and any agreement made in it."""
         judging_goblin = other.persona.is_goblin and not self.persona.is_goblin and self.id not in other.allies
-        aside = prompts.goblin_aside(self, other) if judging_goblin else ""
+        aside = prompts.goblin_aside(self, other, now) if judging_goblin else ""
         try:
             out = await ctx.llm.structured(
                 prompts.system_prompt(self), prompts.chat_digest(self, ctx.names, now, other.name, transcript, aside),
@@ -468,8 +470,8 @@ class Agent:
             if c.who == "both":
                 result.together.append(entry)
         if judging_goblin:
-            result.will_protect = bool(out.will_protect)
-            if out.will_protect:
+            result.regard = out.toward_goblin
+            if out.toward_goblin == "protect":
                 await self.memory.add("thought", f"I have decided to keep the goblin {other.name}'s secret and "
                                                  "protect him.", now, 8)
         return result
@@ -582,7 +584,8 @@ class Agent:
             "last_chat": {k: v.isoformat() for k, v in self.last_chat.items()},
             "importance_acc": self.importance_acc,
             "reviewed_date": self.reviewed_date.isoformat() if self.reviewed_date else None,
-            "commitments": self.commitments, "allies": sorted(self.allies), "topics": list(self.topics),
+            "commitments": self.commitments, "allies": sorted(self.allies), "regard": self.regard,
+            "topics": list(self.topics),
             "announced": self.announced.isoformat() if self.announced else None,
             "bonds": self.bonds,
         }
@@ -607,5 +610,6 @@ class Agent:
                 continue
         self.commitments = kept
         self.allies = set(d.get("allies", []))
+        self.regard = d.get("regard", {})
         self.topics = deque(d.get("topics", []), maxlen=TOPICS_KEPT)
         self.bonds.update(d.get("bonds", {}))  # an older save has none: keep the persona's

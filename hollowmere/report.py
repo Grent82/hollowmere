@@ -342,7 +342,7 @@ class Report:
         if not goblins:
             return
         self.head("THE GOBLIN")
-        kinds = Counter(e["kind"] for e in self._events("sighting", "hide", "flee", "ally", "spurn", "seek"))
+        kinds = Counter(e["kind"] for e in self._events("sighting", "hide", "flee", "ally", "warm", "spurn", "seek"))
         self.line(f"glimpsed {kinds['sighting']}x, hid {kinds['hide']}x, fled {kinds['flee']}x")
         # What he chose, by how he felt about the people in sight: hiding from friends would be a bad sign.
         by_stance: dict[str, Counter] = {}
@@ -364,11 +364,13 @@ class Report:
             allies = self.snaps.get(g.id, {}).get("allies", [])
             self.line(f"{g.first_name} talked with: {', '.join(self._name(a) for a in sorted(met)) or 'nobody'}")
             self.line(f"protectors: {', '.join(self._name(a) for a in allies) or 'none'}; "
-                      f"won over {kinds['ally']}x, turned away {kinds['spurn']}x")
+                      f"won over {kinds['ally']}x, softened {kinds['warm']}x, drove him off {kinds['spurn']}x")
             bonds = self.snaps.get(g.id, {}).get("bonds", {})
+            regard = self.snaps.get(g.id, {}).get("regard", {})
             for aid, b in sorted(bonds.items(), key=lambda kv: -kv[1].get("talks", 0)):
                 note = f": {b['note']}" if b.get("note") else ""
-                self.line(f"        {self._name(aid)} ({b['stance']}, {b.get('talks', 0)} talks){note}")
+                mind = f", they: {regard[aid]['step']}" if aid in regard else ""
+                self.line(f"        {self._name(aid)} ({b['stance']}, {b.get('talks', 0)} talks{mind}){note}")
 
     def llm_calls(self) -> None:
         self.head("LLM CALLS (since the save began)")

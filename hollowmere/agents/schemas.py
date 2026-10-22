@@ -19,6 +19,9 @@ from pydantic import BaseModel, Field, create_model
 
 from hollowmere.agents.persona import Stance
 
+# How a human means to treat the goblin after a talk; a step can rise or fall from one talk to the next.
+GoblinRegard = Literal["drive off", "undecided", "tolerate", "feed", "protect"]
+
 HHMM = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"  # [0-9], not \d: llama.cpp's grammar lets anything through for \d
 
 
@@ -133,7 +136,8 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False) -> t
             max_length=2, description="only what the two of you agreed on in this talk; usually empty")),
     )
     if about_goblin:
-        fields["will_protect"] = (bool, Field(
-            description="true only if you have truly decided to keep the goblin's secret and protect it; "
-                        "false if you mean to drive it off, tell others, or have not made up your mind"))
+        fields["toward_goblin"] = (GoblinRegard, Field(
+            description="what you mean to do about the goblin now: drive it off or tell others; stay undecided; "
+                        "tolerate it and keep quiet for now; feed it when it comes; or protect it and keep its "
+                        "secret as your own"))
     return create_model("ChatDigest", **fields)

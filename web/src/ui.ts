@@ -113,6 +113,7 @@ export class UI {
       case "sighting":
         return `<div class="ev sight"><time>${hhmm(e.time)}</time>⚠ ${esc(e.text)}</div>`;
       case "ally":
+      case "warm":
         return `<div class="ev ally"><time>${hhmm(e.time)}</time>${esc(e.text)}</div>`;
       case "spurn":
         return `<div class="ev spurn"><time>${hhmm(e.time)}</time>${esc(e.text)}</div>`;

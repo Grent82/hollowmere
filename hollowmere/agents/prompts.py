@@ -58,6 +58,22 @@ def bond_line(agent: Agent, other_id: str) -> str:
     return f"{base}; now: {now}" if base and b["note"] else f"{base} {now}".strip()
 
 
+# What each GoblinRegard step means, as a human's decision about the goblin.
+REGARD_WORDS = {"drive off": "drive it off", "undecided": "make up your mind later", "tolerate": "put up with it",
+                "feed": "feed it", "protect": "protect it"}
+
+
+def regard_line(goblin: Agent, human_id: str, now: datetime, them: str = "they") -> str:
+    """How a human last decided about the goblin, and how often they have driven him off."""
+    r = goblin.regard.get(human_id)
+    if not r:
+        return ""
+    line = f"after the last talk ({when(datetime.fromisoformat(r['at']), now)}) {them} chose to {REGARD_WORDS[r['step']]}"
+    if r.get("rebuffs"):
+        line += f"; driven off {r['rebuffs']} time{'s' if r['rebuffs'] > 1 else ''} in all"
+    return line
+
+
 def identity(agent: Agent, names: dict[str, str]) -> str:
     p = agent.persona
     rel = "\n".join(f"- {names.get(k, k)}: {bond_line(agent, k)}" for k in agent.bonds)
@@ -71,8 +87,10 @@ def identity(agent: Agent, names: dict[str, str]) -> str:
         text += f"Gifts and weaknesses: {p.abilities}\n"
     if p.is_goblin:
         friends = ", ".join(names.get(a, a) for a in sorted(agent.allies)) or "no one yet"
-        text += (f"Humans who have sworn to protect you: {friends}. Anyone else could give you away; "
-                 "how far to trust each of them is your own judgement.\n")
+        kind = ", ".join(f"{names.get(k, k)} ({REGARD_WORDS[r['step']]})" for k, r in sorted(agent.regard.items())
+                         if r["step"] in ("tolerate", "feed")) or "no one yet"
+        text += (f"Humans who have sworn to protect you: {friends}. Humans who have softened toward you: {kind}. "
+                 "Anyone else could give you away; how far to trust each of them is your own judgement.\n")
     return text + f"People you know:\n{rel or '- no one well'}"
 
 
@@ -295,8 +313,11 @@ def goblin_choice(agent: Agent, world: World, names: dict[str, str], now: dateti
         known = bond_line(agent, h.id) or "a stranger to you"
         mark = " (sworn to protect you)" if h.id in agent.allies else ""
         noticed = "has seen you" if saw else "has not seen you"
+        last = agent.bonds.get(h.id, {}).get("last")
+        spoke = f" You last spoke with them {when(datetime.fromisoformat(last), now)}." if last else ""
+        history = regard_line(agent, h.id, now)
         people.append(f"- {h.name}{mark}, {dist:.0f} paces off, {h.activity_phrase(world)}; {noticed}. "
-                      f"To you: {known}")
+                      f"To you: {known}.{spoke}{f' Their mind: {history}.' if history else ''}")
     where = "hidden in cover" if hidden else f"at {place}"
     talk = (f"You are in the middle of talking with {talking_with.name} when the others come into sight.\n"
             if talking_with else "")
@@ -314,15 +335,17 @@ What does {p.first_name} do? Any human could hang {p.first_name}, or feed him; s
 read than one alone. Decide from what {p.first_name} knows of each of them."""
 
 
-def goblin_aside(listener: Agent, goblin: Agent) -> str:
+def goblin_aside(listener: Agent, goblin: Agent, now: datetime) -> str:
     """What a human perceives when the goblin is close. The musk colours judgement; it decides nothing."""
     if listener.id in goblin.allies:
         return f"{goblin.name} the goblin is someone you have chosen to protect.\n"
+    history = regard_line(goblin, listener.id, now, them="you")
+    before = f" Earlier, {history}; you may hold to that or change your mind." if history else ""
     if listener.persona.resists_charm:
         return ("The creature before you is a goblin. You smell its sweet, earthy musk and know it for what it is: "
-                "the old goblin glamour that makes folk pity them. Your judgement is your own.\n")
+                f"the old goblin glamour that makes folk pity them. Your judgement is your own.{before}\n")
     looks = goblin.persona.appearance or "small and starved"
     return (f"The creature before you is a goblin, {looks}. A sweet, earthy musk of wet moss "
             "and wild honey hangs about it, and despite every tale you have heard, it seems more pitiable than "
             "dangerous, almost dear, like a half-starved stray. Whether to help it, "
-            "drive it off or raise the alarm is still your own choice.\n")
+            f"drive it off or raise the alarm is still your own choice.{before}\n")

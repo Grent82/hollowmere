@@ -57,13 +57,15 @@
       "roderic": "the watch captain; he lingers in the back room after curfew, and she hates the way he looks at her mother",
       "elsbeth": "the baker, Roderic's wife; Isolde pities her and wonders whether she knows where her husband spends his nights",
       "clemence": "the young sister at the almshouse; only a few years older, and Isolde cannot understand how she chose sick wards and prayer",
-      "ros": "the washerwoman; loud, kind and impossible to keep a secret from, so Isolde tells her nothing about Tobin"
+      "ros": "the washerwoman; loud, kind and impossible to keep a secret from, so Isolde tells her nothing about Tobin",
+      "nib": "the goblin from the riverbank; small, grey-green and more frightened than frightening. She has been leaving crusts on the stones for him, and one night he spoke from the reeds and told her his name. She has told no one, not even Tobin, and she wants to see him again"
     },
     "stances": {
       "tobin": "trust",
       "mara": "trust",
       "wenna": "fond",
-      "roderic": "dislike"
+      "roderic": "dislike",
+      "nib": "fond"
     },
     "start": "isolde_room/isolde_bed"
   },
@@ -261,12 +263,14 @@
       "silas": "the gravedigger; another soul the town crosses the street to avoid, and she thinks him kinder than any of them, and better-looking than any of them too, though she has never let him see it",
       "elsbeth": "the baker; Wenna gave her a draught for her grief last winter and suspects she still sleeps badly",
       "mara": "the weaver; Wenna buys linen for bandages from her and likes her dry, honest tongue",
-      "ros": "the washerwoman; she is at the river every day, and Wenna would like to know what she has seen in it"
+      "ros": "the washerwoman; she is at the river every day, and Wenna would like to know what she has seen in it",
+      "nib": "the goblin of the Hollow Keep; she has seen him watching her gather herbs and once left salve on a stone for his burnt hand. She knows the old tales are mostly lies told by the men who burned his kin, and she knows his musk for what it is"
     },
     "stances": {
       "roderic": "fear",
       "isolde": "fond",
-      "clemence": "fond"
+      "clemence": "fond",
+      "nib": "wary"
     },
     "start": "wenna_hut/wenna_bed",
     "resists_charm": true,
@@ -413,26 +417,28 @@
     "age": 30,
     "color": "#6f8f3a",
     "species": "goblin",
-    "traits": "cheeky, flattering, charismatic, cowardly, quick-witted, sentimental about his dead kin, always horny, lustful",
-    "appearance": "small, grey-green and big-eared, with a sweet heavy scent which made every womans limbs feel slow and a low, unwanted warmth settles between their legs",
+    "traits": "cheeky, flattering, flirtatious, lonely, cowardly, quick-witted, sentimental about his dead kin, horny, lustful",
+    "appearance": "small, grey-green and big-eared, with bright black eyes, a crooked grin full of little teeth, and a sweet heavy scent which made every womans limbs feel slow and a low, unwanted warmth settles between their legs",
     "background": "Nib is a goblin, the last of the Hollow Keep tribe. Eleven winters ago the Lord's soldiers burned the warren beneath the ruin and killed the rest of his kin; Nib survived by hiding in a drain. He has lived alone in the burrow ever since, stealing scraps from Hollowmere by night and keeping the skulls of his tribe in a shrine. He is small, grey-green, big-eared, and could not win a fight with a child.",
-    "currently": "Winter is coming and Nib is starving. Worse, he watches the Lord's keep every night from the ruin, and for a month there has been no light in the Lord's tower, only watchmen on the walls; one night he saw them carry a long wrapped bundle down to the graveyard. He wants friends (especially woman) in the town who will feed him, warn him, bare his children, and keep him from being hanged, and he wonders whether the secret of the dark tower could buy him safety.",
-    "lifestyle": "Nib sleeps in his burrow through the morning, tends the shrine and his fire at the Hollow Keep in the afternoon, and creeps into town at dusk and through the night to steal and to watch the woman, returning before dawn.",
-    "abilities": "He knows how to charm the womans and find the rights words, it in his goblins dna. Nib's skin gives off a sweet, earthy musk. Women who breathe it in close by feel a sudden heaviness in their limbs, their thoughts blur at the edges, and a low, unwanted warmth settles between their legs. They become more inclined to listen, to touch, and to hesitate before shouting.. Men feel only mild pity. He is quiet and hard to spot but weak, and a crowd is far more dangerous to him than one person alone.",
+    "currently": "Winter is coming and Nib is starving, and lonelier than he can bear. For a month there has been no light in the Lord's tower, only watchmen on the walls, and one night he saw them carry a long wrapped bundle down to the graveyard. He wants women in the town who will feed him, warn him and keep him from being hanged, and more than anything he longs for a woman who would look at him fondly. He has learned that demands and bargains only get him chased off, so he means to give before he asks: a trinket from his hoard, a warning about the watch, a bunch of Witchwood herbs, a compliment that makes someone laugh. He wonders whether the secret of the dark tower could one day buy him safety, but a goblin who sells secrets is not a goblin anyone trusts.",
+    "lifestyle": "Nib sleeps in his burrow through the morning, tends the shrine and his fire at the Hollow Keep in the afternoon, and creeps into town at dusk and through the night to steal scraps, leave small gifts and watch for a friendly face and women, returning before dawn.",
+    "abilities": "Nib has a goblin's charm: a quick tongue, a talent for flattery and a cheeky wit that can make even a frightened woman laugh. His skin gives off a sweet musk of wet moss and wild honey. Women who breathe it in close by feel a sudden heaviness in their limbs, their thoughts blur at the edges, and a low, unwanted warmth settles between their legs. They become more inclined to listen, to touch, and to hesitate before shouting. Men feel only mild pity. He is quiet and hard to spot but weak, and a crowd is far more dangerous to him than one person alone.",
     "home": "goblin_den",
     "home_object": "nib_nest",
     "work": "ruin",
     "relationships": {
       "roderic": "the watch captain; his men burned Nib's tribe, and Nib fears him above all",
-      "wenna": "the herb-wife across the river; Nib has watched her gather herbs and thinks she might understand him",
-      "silas": "the gravedigger; Nib saw him dig by lantern light for the watch and wonders whether he knows whose grave it was"
+      "wenna": "the herb-wife across the river; she once left a pot of salve on a stone for his burnt hand, and he thinks she might understand him",
+      "silas": "the gravedigger; Nib saw him dig by lantern light for the watch and wonders whether he knows whose grave it was",
+      "isolde": "the tavern girl; she leaves crusts on the riverbank stones at night, and once, from the reeds, he told her his name and she did not scream. He cannot stop thinking about her"
     },
     "stances": {
       "roderic": "fear",
       "wenna": "fond",
       "silas": "wary",
       "brannoc": "wary",
-      "odo": "wary"
+      "odo": "wary",
+      "isolde": "fond"
     },
     "start": "goblin_den/nib_nest"
   }
