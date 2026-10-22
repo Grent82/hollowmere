@@ -51,17 +51,25 @@ class _Builder:
         for g in gates:
             self.set(*g, ground)
 
+    def _claim_tiles(self, area_id: str, points: list[tuple[int, int]]) -> None:
+        a = self.w.areas[area_id]
+        for x, y in points:
+            prev = self.w.area_grid[y][x]
+            if prev and prev != area_id:
+                self.w.areas[prev].tiles.remove((x, y))
+            self.w.area_grid[y][x] = area_id
+            a.tiles.append((x, y))
+
     def area(self, id: str, name: str, desc: str, rect: tuple[int, int, int, int], *,
              public: bool, indoor: bool) -> None:
-        a = self.w.areas.setdefault(id, Area(id, name, desc, public, indoor))
+        self.w.areas.setdefault(id, Area(id, name, desc, public, indoor))
         x0, y0, x1, y1 = rect
-        for y in range(y0, y1 + 1):
-            for x in range(x0, x1 + 1):
-                prev = self.w.area_grid[y][x]
-                if prev and prev != id:
-                    self.w.areas[prev].tiles.remove((x, y))
-                self.w.area_grid[y][x] = id
-                a.tiles.append((x, y))
+        self._claim_tiles(id, [(x, y) for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)])
+
+    def area_points(self, id: str, name: str, desc: str, points: list[tuple[int, int]], *,
+                     public: bool, indoor: bool) -> None:
+        self.w.areas.setdefault(id, Area(id, name, desc, public, indoor))
+        self._claim_tiles(id, points)
 
     def obj(self, id: str, name: str, area: str, x: int, y: int, kind: str,
             light: tuple[float, str] | None = None) -> None:
@@ -167,8 +175,8 @@ def build_town(seed: int = 1347) -> World:
     b.area("north_gate", "the north gate", "the barred town gate on the road to the Lord's keep",
            (26, 2, 35, 4), public=True, indoor=False)
     b.obj("gate", "gate", "north_gate", 30, 2, "gate")
-    b.light(28.5, 3.5, 4, TORCH)
-    b.light(33.5, 3.5, 4, TORCH)
+    b.obj("gate_torch_w", "torch", "north_gate", 28, 3, "torch", (4, TORCH))
+    b.obj("gate_torch_e", "torch", "north_gate", 33, 3, "torch", (4, TORCH))
 
     # --- the square ----------------------------------------------------------------
     b.area("square", "the market square", "a muddy cobbled square ringed by shuttered stalls",
@@ -177,10 +185,12 @@ def build_town(seed: int = 1347) -> World:
     b.obj("gallows", "gallows", "square", 36, 26, "gallows")
     b.obj("market_stall", "market stall", "square", 34, 19, "stall")
     b.obj("notice_post", "notice post", "square", 25, 25, "post")
-    for tx, ty in [(24.5, 18.5), (38.5, 18.5), (24.5, 27.5), (38.5, 27.5)]:
-        b.light(tx, ty, 4.5, TORCH)
-    for tx in (8.5, 18.5, 44.5, 54.5):
-        b.light(tx, 21.5, 3.5, TORCH)
+    for corner, (x, y) in {"nw": (24, 18), "ne": (38, 18), "sw": (24, 27), "se": (38, 26)}.items():
+        b.obj(f"square_torch_{corner}", "torch", "square", x, y, "torch", (4.5, TORCH))
+    b.area_points("streets", "the lanes", "worn paths between the square and the river",
+                  [(8, 21), (18, 21), (44, 21), (54, 21)], public=True, indoor=False)
+    for i, x in enumerate((8, 18, 44, 54)):
+        b.obj(f"street_torch_{i}", "torch", "streets", x, 21, "torch", (3.5, TORCH))
 
     # --- the chapel of the Pale Saint ----------------------------------------------
     b.building(36, 27, 48, 39, Tile.STONE, doors=[(41, 27), (42, 27), (48, 31)])
@@ -296,8 +306,10 @@ def build_town(seed: int = 1347) -> World:
            (56, 45, 57, 53), public=True, indoor=False)
     b.obj("wash_stones", "washing stones", "washing_place", 57, 49, "rock")
     b.obj("drying_lines", "drying lines", "washing_place", 56, 46, "lines")
-    for tx in (30.5, 46.5):
-        b.light(tx, 44.5, 3.5, TORCH)
+    b.area_points("streets", "the lanes", "worn paths between the square and the river",
+                  [(30, 44), (46, 44)], public=True, indoor=False)
+    for i, x in enumerate((30, 46)):
+        b.obj(f"lane_torch_{i}", "torch", "streets", x, 44, "torch", (3.5, TORCH))
 
     # --- the Witchwood and the ruin beyond it ----------------------------------------------
     # A trail from the far bank winds east to a ruined hill-fort the townsfolk call

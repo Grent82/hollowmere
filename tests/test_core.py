@@ -25,6 +25,13 @@ def test_every_object_and_home_is_reachable():
         assert w.target_tile(p.start) is not None, p.start
 
 
+def test_every_light_has_a_source_object():
+    w = build_town()
+    for light in w.lights:
+        x, y = int(light.x), int(light.y)
+        assert any(o.x == x and o.y == y for o in w.objects.values()), (light.x, light.y)
+
+
 def test_extract_json_tolerates_think_and_fences():
     reply = '<think>hmm {"no": 1}</think>\nSure!\n```json\n{"a": 1, "b": [2]}\n```'
     assert extract_json(reply) == {"a": 1, "b": [2]}
