@@ -1,0 +1,24 @@
+# Hollowmere against the adesso AI Hub (a LiteLLM proxy in front of vLLM).
+#   $env:LITELLM_API_KEY = "sk-..."          # once per PowerShell window (or setx for good)
+#   uv run hollowmere --config config.litellm.toml check
+#   uv run hollowmere --config config.litellm.toml serve
+# Anything left out here takes the default from hollowmere/config.py, not from config.toml.
+
+[llm]
+base_url = "http://127.0.0.1:8080/v1"
+api_key_env = "LITELLM_API_KEY"           # the key stays out of this file
+model = "qwen-3.6-35b-sovereign"
+max_concurrency = 8                       # a remote vLLM serves many requests at once
+temperature = 0.7
+max_tokens = 1500
+timeout_s = 120
+structured_output = "json_schema"         # vLLM enforces the schema
+disable_thinking = true                   # Qwen 3.6 thinks unless told not to
+log_path = "saves/llm_log-litellm.jsonl"   # failed LLM calls only
+
+[embeddings]
+provider = "server"                     # fail loudly rather than silently fall back to hashing
+model = "qwen-3-vl-embedding-2b-sovereign"
+
+[sim]
+save_path = "saves/hollowmere-litellm.db" # its own save: real embeddings and a bigger model are a different run

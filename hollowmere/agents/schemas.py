@@ -1,0 +1,139 @@
+"""Structured outputs for every cognitive call.
+
+Field order matters: models generate fields in schema order, so reasoning-like
+fields ("thought", "summary") come before decisions that should follow from them.
+Field descriptions are part of the schema the model sees and double as
+per-field instructions.
+
+Schemas that mention places are built per agent with the agent's known place
+ids as an enum, so constrained decoding cannot produce a place that does not
+exist (the original needed three sequential LLM calls and fuzzy matching for this).
+"""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import BaseModel, Field, create_model
+
+from hollowmere.agents.persona import Stance
+
+HHMM = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"  # [0-9], not \d: llama.cpp's grammar lets anything through for \d
+
+
+class FocalQuestions(BaseModel):
+    questions: list[str] = Field(
+        min_length=1, max_length=3,
+        description="the most important questions on your mind given these memories, in your own words")
+
+
+class Insight(BaseModel):
+    text: str = Field(description="one conclusion you draw, in first person, one sentence")
+    evidence: list[int] = Field(description="numbers of the memories this conclusion rests on")
+    importance: int = Field(ge=1, le=10, description="how much this matters to you, 1 trivial to 10 life-changing")
+
+
+class Insights(BaseModel):
+    insights: list[Insight] = Field(min_length=1, max_length=4)
+
+
+class Reaction(BaseModel):
+    thought: str = Field(description="your private reaction to what you see, first person, one sentence")
+    importance: int = Field(ge=1, le=10, description="how notable this sight is to you, 1 mundane to 10 shocking")
+    talk: bool = Field(description="true if you go and speak to them now")
+    reason: str = Field(description="if talking, what you want from the conversation; otherwise empty")
+
+
+class Utterance(BaseModel):
+    says: str = Field(description="what you say aloud, one to three sentences, in your own voice")
+    end: bool = Field(description="true if this line ends the conversation (a farewell, walking off, nothing more to say)")
+
+
+class DayReview(BaseModel):
+    summary: str = Field(description="how your day went and what mattered, first person, two to three sentences")
+    importance: int = Field(ge=1, le=10)
+    intentions: list[str] = Field(max_length=3, description="things you mean to do tomorrow, first person")
+
+
+@lru_cache(maxsize=256)
+def day_plan_schema(places: tuple[str, ...]) -> type[BaseModel]:
+    place_t = Literal[places]  # type: ignore[valid-type]
+    block = create_model(
+        "PlanBlock",
+        start=(str, Field(pattern=HHMM, description="24-hour start time, HH:MM")),
+        end=(str, Field(pattern=HHMM, description="24-hour end time, HH:MM")),
+        activity=(str, Field(description="what you do, a short present-tense phrase without your name")),
+        place=(place_t, Field(description="where, one id from the PLACES list")),
+    )
+    return create_model(
+        "DayPlan",
+        morning_thought=(str, Field(description="what is on your mind as you wake, first person, one or two sentences")),
+        wake_up=(str, Field(pattern=HHMM)),
+        blocks=(list[block], Field(min_length=3, max_length=10)),  # type: ignore[valid-type]
+    )
+
+
+@lru_cache(maxsize=256)
+def decomposition_schema(places: tuple[str, ...], seekable: tuple[str, ...] = ()) -> type[BaseModel]:
+    """seekable: for the goblin, the people he might go looking for during this stretch of the day."""
+    place_t = Literal[places]  # type: ignore[valid-type]
+    step = create_model(
+        "Step",
+        activity=(str, Field(description="a concrete action, short present-tense phrase without your name")),
+        minutes=(int, Field(ge=5, le=240)),
+        place=(place_t, Field(description="where exactly, one id from the list")),
+        emoji=(str, Field(max_length=8, description="one or two emoji that picture the action")),
+    )
+    fields: dict = {}
+    if seekable:
+        fields["seek"] = (Literal[seekable + ("nobody",)], Field(  # type: ignore[valid-type]
+            description="someone you mean to find and creep up on during this time, or nobody"))
+    return create_model("Decomposition", **fields,
+                        steps=(list[step], Field(min_length=1, max_length=8)))  # type: ignore[valid-type]
+
+
+@lru_cache(maxsize=256)
+def goblin_choice_schema(people: tuple[str, ...]) -> type[BaseModel]:
+    return create_model(
+        "GoblinChoice",
+        thought=(str, Field(description="what goes through your head as you see them, first person, one sentence")),
+        action=(Literal["approach", "watch", "hide", "flee"], Field(
+            description="approach someone; watch from where you are, keeping still; hide in the nearest cover; "
+                        "or flee as far as you can")),
+        whom=(Literal[people + ("nobody",)], Field(  # type: ignore[valid-type]
+            description="the person you approach, or the one you are most wary of")),
+        reason=(str, Field(description="if approaching, what you want from them; otherwise empty")),
+    )
+
+
+@lru_cache(maxsize=256)
+def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False) -> type[BaseModel]:
+    place_t = Literal[places]  # type: ignore[valid-type]
+    # The evidence comes first, so the model commits to it before inventing a time: the code then
+    # checks `when_said` against the transcript and drops the other person's tasks and unanswered demands.
+    commitment = create_model(
+        "Commitment",
+        when_said=(str, Field(description="the words for the time exactly as spoken in the talk, "
+                                          "e.g. 'by noon', 'tomorrow at dusk'")),
+        who=(Literal["me", "both", "them"], Field(description="who will do it: you alone, the two of you "
+                                                              "together, or only the other person")),
+        accepted=(bool, Field(description="true only if whoever is to do it offered it or said yes")),
+        day=(Literal["today", "tomorrow"], ...),
+        time=(str, Field(pattern=HHMM, description="when_said as a clock time")),
+        activity=(str, Field(description="what will be done, short phrase without your name")),
+        place=(place_t, Field(description="where it will happen")),
+    )
+    fields: dict = dict(
+        summary=(str, Field(description="what was said and what you learned, first person, one to three sentences")),
+        importance=(int, Field(ge=1, le=10)),
+        feeling=(Stance, Field(description="how you feel about them now, after this talk")),
+        view_of_them=(str, Field(description="what you now make of them, first person, one short sentence")),
+        commitments=(list[commitment], Field(  # type: ignore[valid-type]
+            max_length=2, description="only what the two of you agreed on in this talk; usually empty")),
+    )
+    if about_goblin:
+        fields["will_protect"] = (bool, Field(
+            description="true only if you have truly decided to keep the goblin's secret and protect it; "
+                        "false if you mean to drive it off, tell others, or have not made up your mind"))
+    return create_model("ChatDigest", **fields)

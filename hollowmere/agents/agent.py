@@ -1,0 +1,611 @@
+"""A generative agent: persona + memory stream + plan + the cognitive steps that maintain them.
+
+Cognitive steps are coroutines. The engine decides when to run them and whether
+the world clock waits for them (planning, reacting, speaking) or lets them run
+in the background (reflection, digesting a conversation, reviewing the day).
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+from collections import deque
+from dataclasses import dataclass, field
+from datetime import date, datetime, time, timedelta
+from typing import Literal
+
+from hollowmere.agents import prompts
+from hollowmere.agents.persona import Persona
+from hollowmere.agents.schemas import (
+    DayReview, FocalQuestions, Insights, Reaction, Utterance,
+    chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
+)
+from hollowmere.llm.client import LLM, LLMError
+from hollowmere.memory.stream import MemoryStream, repeats
+from hollowmere.world.world import World
+
+log = logging.getLogger(__name__)
+
+DAY_START = time(4, 0)  # plans are made at 04:00; times before that belong to the previous day
+SLEEP_RE = re.compile(r"\b(sleep|sleeps|asleep|goes to bed|to bed|retires)\b", re.IGNORECASE)
+WORD_RE = re.compile(r"[a-z0-9]+")
+DECOMPOSE_MIN_MINUTES = 25
+TOPICS_KEPT = 6
+PROMISE_GAP = timedelta(minutes=60)  # one promise per hour: a second one there is a duplicate or a clash
+PROMISE_LEAD = timedelta(minutes=10)  # a promise must be at least this far ahead
+
+
+def due_at(c: dict) -> datetime:
+    return parse_hhmm(date.fromisoformat(c["date"]), c["time"])
+
+
+def spoken(when: str, transcript: list[tuple[str, str]]) -> bool:
+    """Whether the time words were really said: models fill in "12:00" for "I will bless the well"."""
+    words = set(WORD_RE.findall(when.lower())) - {"at", "the", "by", "in", "on", "a", "an", "of"}
+    said = set(WORD_RE.findall(" ".join(text for _, text in transcript).lower()))
+    return bool(words) and words <= said
+
+
+@dataclass
+class Digest:
+    """What digesting a conversation produced that the engine acts on."""
+    will_protect: bool | None = None  # a human who met the goblin: whether they will protect it
+    together: list[dict] = field(default_factory=list)  # new commitments to meet the other person
+
+Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding"]
+
+
+@dataclass
+class Block:
+    start: datetime
+    end: datetime
+    activity: str
+    place: str
+
+    def to_dict(self) -> dict:
+        return {"start": self.start.isoformat(), "end": self.end.isoformat(),
+                "activity": self.activity, "place": self.place}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Block:
+        return cls(datetime.fromisoformat(d["start"]), datetime.fromisoformat(d["end"]), d["activity"], d["place"])
+
+
+@dataclass
+class Task:
+    start: datetime
+    end: datetime
+    activity: str
+    place: str
+    emoji: str
+
+    def to_dict(self) -> dict:
+        return {"start": self.start.isoformat(), "end": self.end.isoformat(), "activity": self.activity,
+                "place": self.place, "emoji": self.emoji}
+
+    @classmethod
+    def from_dict(cls, d: dict) -> Task:
+        return cls(datetime.fromisoformat(d["start"]), datetime.fromisoformat(d["end"]), d["activity"],
+                   d["place"], d["emoji"])
+
+
+@dataclass
+class Ctx:
+    """What a cognitive step needs from the outside world."""
+    llm: LLM
+    world: World
+    names: dict[str, str]  # agent id -> full name
+    known_as: dict[str, str] = field(default_factory=dict)  # agent id -> what the whole town knows of them
+
+
+def day_key(now: datetime) -> date:
+    return (now - timedelta(hours=DAY_START.hour, minutes=DAY_START.minute)).date()
+
+
+def parse_hhmm(day: date, hhmm: str) -> datetime:
+    h, m = (int(x) for x in hhmm.split(":"))
+    t = datetime.combine(day, time(h, m))
+    return t + timedelta(days=1) if time(h, m) < DAY_START else t
+
+
+def is_sleep(activity: str) -> bool:
+    return bool(SLEEP_RE.search(activity))
+
+
+def normalise_plan(day: date, wake: datetime, raw: list[tuple[str, str, str, str]], bed: str) -> list[Block]:
+    """Turn LLM blocks into a gap-free, non-overlapping schedule from wake-up to bedtime."""
+    blocks: list[Block] = []
+    for start_s, end_s, activity, place in raw:
+        start, end = parse_hhmm(day, start_s), parse_hhmm(day, end_s)
+        if end <= start:
+            end = start + timedelta(hours=1)
+        blocks.append(Block(start, end, activity.strip(), place))
+    blocks.sort(key=lambda b: b.start)
+    out: list[Block] = []
+    cursor = wake
+    for b in blocks:
+        b.start = max(b.start, cursor)
+        if b.end <= b.start:
+            continue
+        if out and b.start > out[-1].end:  # close gaps by stretching the previous block
+            out[-1].end = b.start
+        elif not out and b.start > wake:
+            b.start = wake
+        out.append(b)
+        cursor = b.end
+    limit = datetime.combine(day + timedelta(days=1), DAY_START) - timedelta(minutes=30)
+    out = [b for b in out if b.start < limit]
+    for b in out:
+        b.end = min(b.end, limit)
+    if not out or not is_sleep(out[-1].activity):
+        last_end = out[-1].end if out else wake
+        out.append(Block(last_end, limit, "goes to sleep", bed))
+    return out
+
+
+class Agent:
+    def __init__(self, persona: Persona, memory: MemoryStream, world: World):
+        self.persona = persona
+        self.memory = memory
+        self.id = persona.id
+        self.name = persona.name
+        own = {persona.home, persona.work}
+        # The goblin cannot walk into the tavern or the bakery; plans that send him indoors only end in a bolt.
+        self.known_areas = [a.id for a in world.areas.values()
+                            if a.id in own or (a.public and not (persona.is_goblin and a.indoor))]
+        self.place_ids = tuple(
+            pid for area in self.known_areas
+            for pid in [area] + [o.place_id for o in world.objects_in(area)]
+        )
+        self.x, self.y = world.target_tile(persona.start) or (0, 0)
+        self.path: list[tuple[int, int]] = []
+        self.steps: list[tuple[int, int]] = []  # tiles walked during the last tick, for animation
+        self.plan: list[Block] = []
+        self.plan_date: date | None = None
+        self.wake: datetime | None = None
+        self.tasks: list[Task] = []
+        self.tasks_block: int = -1
+        self.task: Task | None = None
+        self.mode: Mode = "asleep"
+        self.thinking: str | None = None
+        self.convo_id: str | None = None
+        self.last_chat: dict[str, datetime] = {}
+        self.last_react: dict[str, datetime] = {}
+        self.importance_acc = 0
+        self.reviewed_date: date | None = None
+        self.commitments: list[dict] = []  # {"date": iso, "time": "HH:MM", "activity", "place"}
+        self.bubble: str | None = None
+        self.announced: date | None = None  # last plan_date shown in the event feed
+        self.allies: set[str] = set()  # goblin only: humans who have chosen to protect it
+        self.hiding_until: datetime | None = None
+        self.topics: deque[str] = deque(maxlen=TOPICS_KEPT)  # what recent conversations were about
+        self.new_reflections: list[str] = []  # not yet shown in the event feed
+        # How this agent sees each person it knows: seeded from the persona, rewritten by the model after
+        # every talk. Shown in prompts and the viewer; no code decides anything from it.
+        self.bonds: dict[str, dict] = {
+            k: {"stance": persona.stances.get(k, "neutral"), "note": "", "talks": 0, "last": None}
+            for k in persona.relationships.keys() | persona.stances.keys()}
+        self.seek: str | None = None  # goblin only: whom the current plan block is spent looking for
+        self.seek_block = -1
+
+    def knows(self, other: "Agent") -> bool:
+        return other.id in self.bonds or self.id in other.allies
+
+    def note_topic(self, other_first: str, topic: str) -> None:
+        self.topics.append(f"with {other_first}: {topic[:140]}")
+
+    # ------------------------------------------------------------------- views
+
+    @property
+    def first(self) -> str:
+        return self.persona.first_name
+
+    @property
+    def awake(self) -> bool:
+        return self.mode != "asleep"
+
+    def activity_phrase(self, world: World) -> str:
+        if self.mode == "asleep":
+            return "is asleep"
+        if self.mode == "talking":
+            return "is deep in conversation"
+        if self.mode == "hiding":
+            return "is hiding"
+        if self.task is None:
+            return "is standing about"
+        where = world.place_name(self.task.place)
+        return f"{'is on the way to' if self.mode == 'walking' else 'is at'} {where}, busy: {self.task.activity}"
+
+    def current_block(self, now: datetime) -> int | None:
+        for i, b in enumerate(self.plan):
+            if b.start <= now < b.end:
+                return i
+        return None
+
+    def view(self) -> dict:
+        return {
+            "id": self.id, "name": self.name, "first": self.first, "color": self.persona.color,
+            "x": self.x, "y": self.y, "steps": self.steps, "mode": self.mode, "thinking": self.thinking,
+            "activity": self.task.activity if self.task else None,
+            "emoji": "💤" if self.mode == "asleep" else (self.task.emoji if self.task else ""),
+            "place": self.task.place if self.task else None, "convo": self.convo_id,
+            "species": self.persona.species, "allies": sorted(self.allies),
+        }
+
+    # ---------------------------------------------------------------- schedule
+
+    def schedule_job(self, ctx: Ctx, now: datetime):
+        """Advance the agent's schedule. Returns a coroutine if the LLM is needed before it can act."""
+        today = day_key(now)
+        if self.plan_date != today:
+            return self.plan_day(ctx, now)
+        idx = self.current_block(now)
+        if idx is None:
+            self._set_task(ctx.world, Task(now, now + timedelta(hours=1), "sleeps", self.persona.bed, "💤"))
+            return None
+        if idx != self.tasks_block:
+            block = self.plan[idx]
+            minutes = (block.end - max(block.start, now)).total_seconds() / 60
+            if minutes < DECOMPOSE_MIN_MINUTES or is_sleep(block.activity):
+                self.tasks = [Task(block.start, block.end, block.activity, block.place,
+                                   "💤" if is_sleep(block.activity) else "")]
+                self.tasks_block = idx
+            else:
+                return self.decompose(ctx, now, idx)
+        current = next((t for t in self.tasks if t.start <= now < t.end), None) or self.tasks[-1]
+        if current is not self.task:
+            self._set_task(ctx.world, current)
+        return None
+
+    def _set_task(self, world: World, task: Task) -> None:
+        if self.task is not None and self.task.activity == task.activity and self.task.place == task.place:
+            self.task = task
+            return
+        self.task = task
+        salt = sum(map(ord, self.id))
+        target = world.target_tile(task.place, salt) or (self.x, self.y)
+        self.path = world.find_path((self.x, self.y), target)
+        bed = task.place == self.persona.bed and is_sleep(task.activity)
+        self.mode = "walking" if self.path else ("asleep" if bed else "acting")
+
+    def arrive(self) -> None:
+        if self.task and self.task.place == self.persona.bed and is_sleep(self.task.activity):
+            self.mode = "asleep"
+        else:
+            self.mode = "acting"
+
+    # ------------------------------------------------------------- cognition
+
+    async def plan_day(self, ctx: Ctx, now: datetime) -> None:
+        today = day_key(now)
+        self.thinking = "planning the day"
+        self._drop_old_commitments(now)
+        try:
+            mems = await self.memory.retrieve(
+                [f"{self.first}'s plans and intentions", f"what {self.first} must do today",
+                 f"{self.persona.currently}"], now, k=12)
+            due = [c for c in self.commitments if c["date"] == today.isoformat()]
+            promises = [f"{c['time']} — {c['activity']} at {c['place']}" for c in due]
+            schema = day_plan_schema(self.place_ids)
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self), prompts.plan_day(self, ctx.world, ctx.names, now, mems, promises),
+                schema, label="plan_day")
+            wake = parse_hhmm(today, out.wake_up)
+            raw = [(b.start, b.end, b.activity, b.place) for b in out.blocks]
+            self.plan = normalise_plan(today, wake, raw, self.persona.bed)
+            for c in due:
+                self._insert_commitment(c, today)
+            self.wake = self.plan[0].start
+            await self.memory.add("thought", out.morning_thought, now, 3)
+            summary = "; ".join(f"{b.start:%H:%M} {b.activity}" for b in self.plan)
+            await self.memory.add("plan", f"My plan for {today:%A}: {summary}", now, 4)
+        except LLMError as e:
+            log.warning("%s: planning failed (%s); using habits", self.id, e)
+            self.plan = self._fallback_plan(today)
+        self.plan_date = today
+        self.tasks_block = -1
+        self.thinking = None
+
+    def _fallback_plan(self, day: date) -> list[Block]:
+        p = self.persona
+        at = lambda h, m=0: datetime.combine(day, time(h, m))  # noqa: E731
+        if p.is_goblin:
+            return [
+                Block(at(12), at(16), "tends the shrine and the fire", p.work),
+                Block(at(16), at(20), "skulks at the edge of the Witchwood", "witchwood"),
+                Block(at(20), at(23, 59), "creeps into town to steal scraps", "graveyard"),
+                Block(at(23, 59), at(23, 59) + timedelta(hours=3, minutes=30), "goes to sleep", p.bed),
+            ]
+        return [
+            Block(at(6), at(7), "rises and breaks fast", p.bed),
+            Block(at(7), at(12), "works", p.work),
+            Block(at(12), at(13), "takes a meal at the tavern", "tavern"),
+            Block(at(13), at(18), "works", p.work),
+            Block(at(18), at(21), "drinks at the tavern", "tavern"),
+            Block(at(21), at(21) + timedelta(hours=6, minutes=30), "goes to sleep", p.bed),
+        ]
+
+    def _insert_commitment(self, c: dict, today: date) -> None:
+        start = parse_hhmm(today, c["time"])
+        end = start + timedelta(hours=1)
+        area = c["place"].split("/")[0]
+        if any(b.start <= start + PROMISE_LEAD and b.end > start and b.place.split("/")[0] == area
+               for b in self.plan):
+            return  # the plan already has them there at that time (an hour later is not "on time")
+        new: list[Block] = []
+        for b in self.plan:
+            if b.end <= start or b.start >= end:
+                new.append(b)
+                continue
+            if b.start < start:
+                new.append(Block(b.start, start, b.activity, b.place))
+            if b.end > end:
+                new.append(Block(end, b.end, b.activity, b.place))
+        new.append(Block(start, end, c["activity"], c["place"]))
+        self.plan = sorted(new, key=lambda b: b.start)
+
+    async def decompose(self, ctx: Ctx, now: datetime, idx: int) -> None:
+        block = self.plan[idx]
+        start = max(block.start, now)
+        self.thinking = f"thinking about: {block.activity}"
+        area = block.place.split("/")[0]
+        allowed = tuple(p for p in self.place_ids if p.split("/")[0] == area) or (block.place,)
+        seekable = ({ctx.names[k]: k for k in sorted(self.bonds.keys() | self.allies) if k in ctx.names}
+                    if self.persona.is_goblin else {})
+        self.seek, self.seek_block = None, idx
+        try:
+            mems = await self.memory.retrieve([block.activity], now, k=6)
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self),
+                prompts.decompose(self, ctx.world, ctx.names, now, block.activity, start, block.end,
+                                  ctx.world.place_name(area), mems),
+                decomposition_schema(allowed, tuple(seekable)), label="decompose")
+            self.seek = seekable.get(getattr(out, "seek", "nobody"))
+            total = sum(s.minutes for s in out.steps)
+            span = (block.end - start).total_seconds()
+            tasks, cursor = [], start
+            for s in out.steps:
+                length = timedelta(seconds=span * s.minutes / total)
+                tasks.append(Task(cursor, cursor + length, s.activity, s.place, s.emoji))
+                cursor += length
+            tasks[-1].end = block.end
+            self.tasks = tasks
+        except LLMError as e:
+            log.warning("%s: decomposition failed (%s)", self.id, e)
+            self.tasks = [Task(start, block.end, block.activity, block.place, "")]
+        self.tasks_block = idx
+        self.thinking = None
+        self.task = None  # force _set_task on the next schedule pass
+
+    async def react(self, ctx: Ctx, now: datetime, other: Agent) -> tuple[bool, str]:
+        """Notice another agent. Returns (wants_to_talk, purpose)."""
+        self.last_react[other.id] = now
+        self.thinking = f"noticing {other.first}"
+        try:
+            mems = await self.memory.retrieve(
+                [other.name, f"{other.first} {other.task.activity if other.task else ''}"], now, k=8)
+            place = ctx.world.place_name(self.task.place) if self.task else "the street"
+            goblin = other.persona.is_goblin and not self.persona.is_goblin
+            aside = prompts.goblin_aside(self, other) if goblin else ""
+            other_name = other.name if not goblin or self.knows(other) else "a goblin"  # looks follow from the persona
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self),
+                prompts.react(self, ctx.names, now, place, self.task.activity if self.task else "standing about",
+                              other_name, other.activity_phrase(ctx.world), mems, aside,
+                              topics=list(self.topics), other_looks=other.persona.appearance),
+                Reaction, label="react")
+        except LLMError as e:
+            log.warning("%s: reaction failed (%s)", self.id, e)
+            return False, ""
+        finally:
+            self.thinking = None
+        await self._remember("thought", out.thought, now, out.importance)
+        return out.talk, out.reason
+
+    async def goblin_choice(self, ctx: Ctx, now: datetime, seen: list[tuple["Agent", float, bool]],
+                            talking_with: "Agent | None", hidden: bool):
+        """The goblin sees people who could give him away. seen: (person, distance, they have seen him).
+
+        Returns the GoblinChoice and a map from the names offered back to the agents."""
+        by_name = {h.name: h for h, _, _ in seen}
+        self.thinking = "watching from the shadows"
+        try:
+            mems = await self.memory.retrieve([h.name for h in by_name.values()], now, k=8)
+            place = ctx.world.place_name(self.task.place) if self.task else "the edge of the road"
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self),
+                prompts.goblin_choice(self, ctx.world, ctx.names, now, place, seen, talking_with, hidden, mems),
+                goblin_choice_schema(tuple(by_name)), label="goblin_choice")
+        finally:
+            self.thinking = None
+        await self._remember("thought", out.thought, now, 4)
+        return out, by_name
+
+    async def say(self, ctx: Ctx, now: datetime, other: Agent, purpose: str,
+                  transcript: list[tuple[str, str]], avoid: str = "") -> Utterance:
+        self.thinking = None
+        last = transcript[-1][1] if transcript else purpose
+        mems = await self.memory.retrieve([other.name, last or other.name], now, k=8)
+        place = ctx.world.place_name(self.task.place) if self.task else "the street"
+        other_doing = other.task.activity if other.task else "standing about"
+        aside = prompts.goblin_aside(self, other) if other.persona.is_goblin and not self.persona.is_goblin else ""
+        return await ctx.llm.structured(
+            prompts.system_prompt(self),
+            prompts.converse(self, ctx.names, now, place, other.name, other_doing, purpose, transcript, mems, aside,
+                             town_places=[ctx.world.areas[a].name for a in self.known_areas],
+                             topics=list(self.topics), known_as=ctx.known_as, avoid=avoid,
+                             other_looks=other.persona.appearance),
+            Utterance, label="converse", temperature=0.85)
+
+    async def digest_chat(self, ctx: Ctx, now: datetime, other: Agent,
+                          transcript: list[tuple[str, str]]) -> Digest:
+        """Remember a conversation and any agreement made in it."""
+        judging_goblin = other.persona.is_goblin and not self.persona.is_goblin and self.id not in other.allies
+        aside = prompts.goblin_aside(self, other) if judging_goblin else ""
+        try:
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self), prompts.chat_digest(self, ctx.names, now, other.name, transcript, aside),
+                chat_digest_schema(self.place_ids, judging_goblin), label="digest")
+        except LLMError as e:
+            log.warning("%s: digest failed (%s)", self.id, e)
+            await self._remember("chat", f"I spoke with {other.name}.", now, 3)
+            return Digest()
+        await self._remember("chat", out.summary, now, out.importance)
+        bond = self.bonds.get(other.id, {"talks": 0})
+        self.bonds[other.id] = {"stance": out.feeling, "note": out.view_of_them.strip(),
+                                "talks": bond["talks"] + 1, "last": now.isoformat()}
+        today = day_key(now)
+        result = Digest()
+        for c in out.commitments:
+            if c.who == "them" or not c.accepted or not spoken(c.when_said, transcript):
+                continue  # their errand, a demand nobody agreed to, or a time nobody named
+            when = today if c.day == "today" else today + timedelta(days=1)
+            entry = {"date": when.isoformat(), "time": c.time, "activity": c.activity, "place": c.place,
+                     "with": other.id if c.who == "both" else None}
+            if not self._acceptable(entry, ctx.world, now):
+                continue
+            await self._commit(entry, ctx.world, now)
+            if c.who == "both":
+                result.together.append(entry)
+        if judging_goblin:
+            result.will_protect = bool(out.will_protect)
+            if out.will_protect:
+                await self.memory.add("thought", f"I have decided to keep the goblin {other.name}'s secret and "
+                                                 "protect him.", now, 8)
+        return result
+
+    def _acceptable(self, c: dict, world: World, now: datetime) -> bool:
+        """Small models list routine, past events and contradictions as promises; keep only real ones."""
+        try:
+            at = due_at(c)
+        except ValueError:
+            return False
+        if at < now + PROMISE_LEAD:
+            return False  # already past: a record of the talk, not a plan
+        if self.first.lower() in c["activity"].lower().split():
+            return False  # "report to Brannoc" in Brannoc's own list: the other person's side
+        area = world.areas.get(c["place"].split("/")[0])
+        if self.persona.is_goblin and area is not None and area.indoor and area.id not in (
+                self.persona.home, self.persona.work):
+            return False  # the goblin does not walk into the tavern
+        return not any(abs(due_at(o) - at) < PROMISE_GAP for o in self.commitments)
+
+    async def _commit(self, c: dict, world: World, now: datetime) -> None:
+        self.commitments.append(c)
+        day = "today" if date.fromisoformat(c["date"]) == day_key(now) else "tomorrow"
+        await self.memory.add("plan", f"I mean to {c['activity']} at {world.place_name(c['place'])} "
+                                      f"{day} at {c['time']}.", now, 5)
+        self._schedule_commitment(c, now)
+
+    def _schedule_commitment(self, c: dict, now: datetime) -> None:
+        today = day_key(now)
+        if c["date"] == today.isoformat() and self.plan_date == today and due_at(c) > now:
+            self._insert_commitment(c, today)
+            self.tasks_block = -1
+
+    def move_commitment(self, c: dict, time_: str, place: str, now: datetime) -> None:
+        """Adopt the time and place the other side of an agreement remembers."""
+        old = due_at(c)
+        i = next((i for i, b in enumerate(self.plan) if b.start == old and b.activity == c["activity"]), None)
+        if i is not None and len(self.plan) > 1:  # hand its hour to a neighbour so the day has no gap
+            gone = self.plan.pop(i)
+            if i > 0:
+                self.plan[i - 1].end = gone.end
+            else:
+                self.plan[0].start = gone.start
+            self.tasks_block = -1
+        c["time"], c["place"] = time_, place
+        self.commitments = [o for o in self.commitments if o is c or abs(due_at(o) - due_at(c)) >= PROMISE_GAP]
+        self._schedule_commitment(c, now)
+
+    def _drop_old_commitments(self, now: datetime) -> None:
+        self.commitments = [c for c in self.commitments if due_at(c) > now - timedelta(hours=2)]
+
+    async def reflect(self, ctx: Ctx, now: datetime) -> None:
+        self.importance_acc = 0
+        recent = self.memory.recent(60, kinds={"observation", "chat", "thought", "reflection"})
+        if len(recent) < 5:
+            return
+        try:
+            qs = await ctx.llm.structured(
+                prompts.system_prompt(self), prompts.focal_questions(self, ctx.names, now, recent[-40:]),
+                FocalQuestions, label="reflect_questions")
+            mems = await self.memory.retrieve(qs.questions, now, k=8)
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self), prompts.insights(self, ctx.names, now, qs.questions, mems),
+                Insights, label="reflect_insights")
+        except LLMError as e:
+            log.warning("%s: reflection failed (%s)", self.id, e)
+            return
+        valid = {m.id for m in mems}
+        for ins in out.insights:
+            await self._add_reflection(ins.text, now, ins.importance, [i for i in ins.evidence if i in valid])
+
+    async def _add_reflection(self, text: str, now: datetime, importance: int, evidence: list[int] | None = None) -> None:
+        """Store a conclusion unless it restates one already drawn (small models reach the same one nightly)."""
+        if repeats(text, (m.text for m in self.memory.items if m.kind == "reflection")):
+            return
+        await self.memory.add("reflection", text, now, importance, evidence)
+        self.new_reflections.append(text)
+
+    async def review_day(self, ctx: Ctx, now: datetime) -> None:
+        self.reviewed_date = day_key(now)
+        start = datetime.combine(day_key(now), DAY_START)
+        today = [m for m in self.memory.items if m.created >= start and m.kind != "plan" and m.importance >= 3]
+        if not today:
+            return
+        try:
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self), prompts.day_review(self, ctx.names, now, today[-40:]),
+                DayReview, label="day_review")
+        except LLMError as e:
+            log.warning("%s: day review failed (%s)", self.id, e)
+            return
+        await self._add_reflection(out.summary, now, out.importance)
+        for intent in out.intentions:
+            await self.memory.add("plan", f"Tomorrow: {intent}", now, 4)
+
+    async def observe(self, text: str, now: datetime, importance: int) -> None:
+        await self._remember("observation", text, now, importance)
+
+    async def _remember(self, kind, text: str, now: datetime, importance: int) -> None:
+        await self.memory.add(kind, text, now, importance)
+        self.importance_acc += importance
+
+    # ------------------------------------------------------------ persistence
+
+    def snapshot(self) -> dict:
+        return {
+            "x": self.x, "y": self.y, "plan": [b.to_dict() for b in self.plan],
+            "plan_date": self.plan_date.isoformat() if self.plan_date else None,
+            "tasks": [t.to_dict() for t in self.tasks], "tasks_block": self.tasks_block,
+            "last_chat": {k: v.isoformat() for k, v in self.last_chat.items()},
+            "importance_acc": self.importance_acc,
+            "reviewed_date": self.reviewed_date.isoformat() if self.reviewed_date else None,
+            "commitments": self.commitments, "allies": sorted(self.allies), "topics": list(self.topics),
+            "announced": self.announced.isoformat() if self.announced else None,
+            "bonds": self.bonds,
+        }
+
+    def restore(self, d: dict) -> None:
+        self.x, self.y = d["x"], d["y"]
+        self.plan = [Block.from_dict(b) for b in d["plan"]]
+        self.plan_date = date.fromisoformat(d["plan_date"]) if d["plan_date"] else None
+        self.tasks = [Task.from_dict(t) for t in d["tasks"]]
+        self.tasks_block = d["tasks_block"]
+        self.last_chat = {k: datetime.fromisoformat(v) for k, v in d["last_chat"].items()}
+        self.importance_acc = d["importance_acc"]
+        self.reviewed_date = date.fromisoformat(d["reviewed_date"]) if d["reviewed_date"] else None
+        self.announced = date.fromisoformat(d["announced"]) if d.get("announced") else None
+        # Saves from before the checks above hold duplicates and clashes; keep the first of each hour.
+        kept: list[dict] = []
+        for c in d["commitments"]:
+            try:
+                if all(abs(due_at(o) - due_at(c)) >= PROMISE_GAP for o in kept):
+                    kept.append({**c, "with": c.get("with")})
+            except ValueError:
+                continue
+        self.commitments = kept
+        self.allies = set(d.get("allies", []))
+        self.topics = deque(d.get("topics", []), maxlen=TOPICS_KEPT)
+        self.bonds.update(d.get("bonds", {}))  # an older save has none: keep the persona's

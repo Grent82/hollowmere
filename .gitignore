@@ -1,0 +1,29 @@
+# Game saves: SQLite worlds and LLM logs (large, machine-specific)
+saves/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+build/
+
+# Node / web viewer
+node_modules/
+web/dist/
+
+# Tool and editor state
+.remember/
+.playwright-mcp/
+.vscodecsdt/
+.vscode/
+.idea/
+
+# Local secrets and logs
+.env
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
