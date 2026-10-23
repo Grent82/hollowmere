@@ -111,11 +111,24 @@ export interface Bond {
   protected: boolean;  // a human's view: they have sworn to protect this goblin
 }
 
+export interface ChatLogEntry {
+  time: string;
+  kind: "chat" | "chat_end";
+  text: string;
+  convo: string | null;
+  speaker: string | null;
+  speaker_name: string | null;
+  with: string | null;
+  with_name: string | null;
+  with_color: string | null;
+}
+
 export interface AgentDetail extends AgentView {
   age: number;
   traits: string;
   background: string;
   currently: string;
+  drive: string;
   plan: { start: string; end: string; activity: string; place: string; place_name: string }[];
   tasks: { start: string; end: string; activity: string; place: string; emoji: string }[];
   memories: Memory[];
@@ -125,4 +138,5 @@ export interface AgentDetail extends AgentView {
   allies: string[];
   bonds: Bond[];
   seeking: string | null;
+  chat_log: ChatLogEntry[];
 }

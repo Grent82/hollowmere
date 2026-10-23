@@ -1,5 +1,13 @@
 // Sidebar: clock, controls, townsfolk list, chronicle feed, and the villager inspector.
-import type { AgentDetail, AgentView, Bond, SimEvent, StateMsg } from "./types";
+import type { AgentDetail, AgentView, Bond, ChatLogEntry, SimEvent, StateMsg } from "./types";
+
+type DetailTab = "overview" | "bonds" | "chat" | "memory";
+const DETAIL_TABS: { id: DetailTab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "bonds", label: "Relationships" },
+  { id: "chat", label: "Conversations" },
+  { id: "memory", label: "Memory" },
+];
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 
@@ -16,6 +24,8 @@ export class UI {
   private names = new Map<string, AgentView>();
   private feedCount = 0;
   private detailTimer = 0;
+  private detailTab: DetailTab = "overview";
+  private lastDetail: AgentDetail | null = null;
   selected: string | null = null;
 
   constructor(h: UIHandlers) {
@@ -41,6 +51,8 @@ export class UI {
       if (target.closest(".close")) h.select(null);
       const bond = target.closest<HTMLElement>(".bonds [data-id]");
       if (bond) h.select(bond.dataset.id!);  // follow a relationship to that person
+      const dtab = target.closest<HTMLElement>("[data-dtab]");
+      if (dtab) { this.detailTab = dtab.dataset.dtab as DetailTab; this.renderDetail(true); }
     };
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space" && e.target === document.body) { e.preventDefault(); h.control({ paused: !this.paused }); }
@@ -126,6 +138,8 @@ export class UI {
 
   async select(id: string | null) {
     this.selected = id;
+    this.detailTab = "overview";
+    this.lastDetail = null;
     window.clearInterval(this.detailTimer);
     const panel = $("#detail");
     document.body.classList.toggle("inspecting", !!id);
@@ -142,33 +156,81 @@ export class UI {
     if (!res.ok) return;
     const d: AgentDetail = await res.json();
     if (d.id !== this.selected) return;
+    this.lastDetail = d;
+    this.renderDetail();
+  }
+
+  private renderDetail(resetScroll = false) {
+    const d = this.lastDetail;
+    if (!d) return;
     const panel = $("#detail");
-    const scroll = panel.scrollTop;
-    const now = d.tasks.find((t) => t.activity === d.activity);
+    const scroll = resetScroll ? 0 : panel.scrollTop;
+    const body = this.detailTab === "bonds" ? this.renderBonds(d)
+      : this.detailTab === "chat" ? this.renderChat(d)
+      : this.detailTab === "memory" ? this.renderMemory(d)
+      : this.renderOverview(d);
     panel.innerHTML = `
       <div class="dhead">
         <span class="dot big" style="background:${d.color}"></span>
         <div><h2>${esc(d.name)}</h2><small>${d.age} winters · ${esc(d.traits)}</small></div>
         <button class="close" title="Close (Esc)">✕</button>
       </div>
+      <nav class="dtabs">${DETAIL_TABS.map((t) =>
+        `<button data-dtab="${t.id}" class="${this.detailTab === t.id ? "on" : ""}">${t.label}</button>`).join("")}</nav>
+      <div class="dbody">${body}</div>`;
+    panel.scrollTop = scroll;
+  }
+
+  private renderOverview(d: AgentDetail): string {
+    const now = d.tasks.find((t) => t.activity === d.activity);
+    return `
       <p class="now">${d.emoji ? esc(d.emoji) + " " : ""}${esc(d.thinking ?? (d.mode === "asleep" ? "Asleep." : d.activity ?? "Idle."))}
         ${now ? `<small>until ${hhmm(now.end)}</small>` : ""}</p>
       <p class="muted">${esc(d.currently)}</p>
+      ${d.drive ? `<p class="drive">${esc(d.drive)}</p>` : ""}
       <h3>Today</h3>
       <ol class="plan">${d.plan.map((b) => {
         const cur = d.activity && now && b.start <= now.start && now.start < b.end;
         return `<li class="${cur ? "cur" : ""}"><time>${hhmm(b.start)}</time>${esc(b.activity)} <small>${esc(b.place_name)}</small></li>`;
       }).join("") || "<li class='muted'>No plan yet.</li>"}</ol>
       ${d.seeking ? `<p class="muted">Creeping after ${esc(d.seeking)}.</p>` : ""}
-      <h3>Relationships</h3>
-      <ul class="bonds">${d.bonds.map((b) => this.bondHtml(b)).join("") || "<li class='muted'>Knows no one yet.</li>"}</ul>
       ${d.commitments.length ? `<h3>Promises</h3><ul class="mem">${d.commitments.map((c) =>
-        `<li><time>${c.date.slice(5)} ${c.time}</time>${esc(c.activity)}</li>`).join("")}</ul>` : ""}
+        `<li><time>${c.date.slice(5)} ${c.time}</time>${esc(c.activity)}</li>`).join("")}</ul>` : ""}`;
+  }
+
+  private renderBonds(d: AgentDetail): string {
+    return `<ul class="bonds">${d.bonds.map((b) => this.bondHtml(b)).join("") || "<li class='muted'>Knows no one yet.</li>"}</ul>`;
+  }
+
+  private renderMemory(d: AgentDetail): string {
+    return `
       <h3>Reflections</h3>
       <ul class="mem">${d.reflections.map((m) => this.memHtml(m)).join("") || "<li class='muted'>None yet.</li>"}</ul>
       <h3>Memory stream <small>(${d.importance_acc} toward next reflection)</small></h3>
       <ul class="mem">${d.memories.map((m) => this.memHtml(m)).join("")}</ul>`;
-    panel.scrollTop = scroll;
+  }
+
+  private renderChat(d: AgentDetail): string {
+    if (!d.chat_log.length) return `<p class="muted">No conversations yet.</p>`;
+    const groups: ChatLogEntry[][] = [];
+    for (const e of d.chat_log) {
+      if (!groups.length || groups[groups.length - 1][0].convo !== e.convo) groups.push([]);
+      groups[groups.length - 1].push(e);
+    }
+    return groups.slice().reverse().map((g) => {
+      const partner = g.find((e) => e.with_name);
+      const head = partner
+        ? `<div class="convo-head"><b style="color:${partner.with_color}">${esc(partner.with_name!)}</b> <time>${hhmm(g[0].time)}</time></div>`
+        : "";
+      const lines = g.map((e) => {
+        if (e.kind === "chat_end") return `<div class="convo-end">${esc(e.text)}</div>`;
+        const mine = e.speaker === d.id;
+        const name = mine ? d.name : (e.speaker_name ?? "");
+        const color = mine ? d.color : (e.with_color ?? "var(--muted)");
+        return `<div class="ev chat"><time>${hhmm(e.time)}</time><b style="color:${color}">${esc(name)}</b>: “${esc(e.text)}”</div>`;
+      }).join("");
+      return `<div class="convo">${head}${lines}</div>`;
+    }).join("");
   }
 
   private bondHtml(b: Bond) {

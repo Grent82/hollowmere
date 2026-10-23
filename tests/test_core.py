@@ -128,3 +128,32 @@ def test_store_events_since_filters_by_time_and_kind():
     store.add_event(t0.replace(hour=7), "spurn", ["a", "b"], "a drives b off", {})
     assert store.events_since(t0, {"ally", "spurn"}) == ["a protects b", "a drives b off"]
     assert store.events_since(t0.replace(hour=6, minute=30), {"ally", "spurn"}) == ["a drives b off"]
+
+
+def test_chat_log_for_includes_only_this_agents_talks_with_speaker_partner_and_convo():
+    store = Store(":memory:")
+    t0 = datetime(1347, 11, 2, 14, 0)
+    store.add_event(t0, "chat", ["agnes", "odo"], "Good morrow, Odo.", {"speaker": "agnes", "convo": "c1"})
+    store.add_event(t0.replace(minute=1), "chat", ["agnes", "odo"], "And to you.",
+                    {"speaker": "odo", "convo": "c1"})
+    store.add_event(t0.replace(minute=2), "chat_end", ["agnes", "odo"], "Agnes and Odo part ways.",
+                    {"convo": "c1", "reason": "goodbye", "purpose": ""})
+    store.add_event(t0.replace(hour=16), "chat", ["wenna", "odo"], "a talk agnes has no part in",
+                    {"speaker": "wenna", "convo": "c2"})
+
+    log = store.chat_log_for("agnes")
+    assert [e["text"] for e in log] == ["Good morrow, Odo.", "And to you.", "Agnes and Odo part ways."]
+    assert [e["with"] for e in log] == ["odo", "odo", "odo"]
+    assert [e["convo"] for e in log] == ["c1", "c1", "c1"]
+    assert log[0]["speaker"] == "agnes" and log[1]["speaker"] == "odo"
+    assert log[2]["kind"] == "chat_end"
+
+
+def test_chat_log_for_caps_at_the_given_number_of_lines_keeping_the_most_recent():
+    store = Store(":memory:")
+    t0 = datetime(1347, 11, 2, 14, 0)
+    for i in range(5):
+        store.add_event(t0.replace(minute=i), "chat", ["agnes", "odo"], f"line {i}",
+                        {"speaker": "agnes", "convo": "c1"})
+    log = store.chat_log_for("agnes", limit=2)
+    assert [e["text"] for e in log] == ["line 3", "line 4"]

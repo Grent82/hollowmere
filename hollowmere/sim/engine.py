@@ -665,6 +665,7 @@ class Engine:
             "commitments": a.commitments,
             "importance_acc": a.importance_acc,
             "species": p.species,
+            "drive": a.drive,
             "allies": [self.agents[i].name for i in sorted(a.allies) if i in self.agents],
             "bonds": sorted(
                 ({"id": k, "name": self.agents[k].name, "color": self.agents[k].persona.color, **b,
@@ -674,6 +675,11 @@ class Engine:
                  for k, b in a.bonds.items() if k in self.agents),
                 key=lambda b: (-b["talks"], b["last"] or "", b["name"])),
             "seeking": self.agents[self._seeking[a.id]].name if a.id in self._seeking else None,
+            "chat_log": [
+                {**e, "speaker_name": self.agents[e["speaker"]].name if e["speaker"] in self.agents else None,
+                 "with_name": self.agents[e["with"]].name if e["with"] in self.agents else None,
+                 "with_color": self.agents[e["with"]].persona.color if e["with"] in self.agents else None}
+                for e in self.store.chat_log_for(agent_id)],
         }
 
     # ---------------------------------------------------------- persistence

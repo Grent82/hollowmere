@@ -542,6 +542,22 @@ async def test_town_review_works_with_the_offline_fake_llm(tmp_path):
     assert after != "" and after != before
 
 
+async def test_agent_detail_includes_drive_and_chat_log_with_resolved_names(tmp_path):
+    engine = await _town(tmp_path, "detail.db")
+    agnes, odo = engine.agents["agnes"], engine.agents["odo"]
+    agnes.drive = "to see Odo again soon"
+    engine._event("chat", [agnes.id, odo.id], "Good morrow, Odo.", speaker=agnes.id, convo="c1")
+    engine._event("chat_end", [agnes.id, odo.id], "Agnes and Odo part ways.",
+                  convo="c1", reason="goodbye", purpose="")
+
+    detail = engine.agent_detail("agnes")
+    assert detail["drive"] == "to see Odo again soon"
+    log = detail["chat_log"]
+    assert [e["text"] for e in log] == ["Good morrow, Odo.", "Agnes and Odo part ways."]
+    assert log[0]["with_name"] == odo.name and log[0]["speaker_name"] == agnes.name
+    assert log[1]["speaker_name"] is None  # chat_end carries no speaker
+
+
 async def test_town_state_survives_a_restore(tmp_path):
     engine = await _town(tmp_path, "townstate.db")
     mara = engine.agents["mara"]

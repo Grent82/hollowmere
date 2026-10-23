@@ -122,6 +122,26 @@ class Store:
             (after.isoformat(), *kinds)).fetchall()
         return [r["text"] for r in rows]
 
+    def chat_log_for(self, agent_id: str, limit: int = 200) -> list[dict]:
+        """This agent's chat lines and conversation endings, oldest first, each carrying `convo` so
+        the caller can group consecutive lines into one conversation and mark where it ended."""
+        rows = self.db.execute(
+            "SELECT time, kind, agents, text, extra FROM events WHERE kind IN ('chat','chat_end') "
+            "ORDER BY id DESC LIMIT 5000").fetchall()
+        out: list[dict] = []
+        for r in rows:
+            agents = json.loads(r["agents"])
+            if agent_id not in agents:
+                continue
+            extra = json.loads(r["extra"])
+            out.append({"time": r["time"], "kind": r["kind"], "text": r["text"],
+                        "speaker": extra.get("speaker"), "convo": extra.get("convo"),
+                        "with": next((a for a in agents if a != agent_id), None)})
+            if len(out) >= limit:
+                break
+        out.reverse()
+        return out
+
     def add_samples(self, time: datetime, rows: list[tuple]) -> None:
         """rows: (agent_id, x, y, mode, task place, area under the agent)."""
         self.db.executemany("INSERT INTO samples VALUES (?,?,?,?,?,?,?)", [(time.isoformat(), *r) for r in rows])
