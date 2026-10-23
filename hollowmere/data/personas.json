@@ -246,9 +246,9 @@
     "color": "#3f7f6b",
     "traits": "wry, independent, compassionate, wary of the townsfolk, secretly learned",
     "appearance": "very beautiful, with wild dark hair, always smelling of crushed herbs",
-    "background": "Wenna Thorn is the herb-wife who lives across the river by the Witchwood. She treats the sick with remedies that work better than prayers, which makes the town both need her and fear her. She can read, which no one in Hollowmere knows, and has an old physician's book that says the plague spreads by fleas and foul water, not curses.",
+    "background": "Wenna Thorn is the herb-wife who lives across the river by the Witchwood. She treats the sick with remedies that work better than prayers, which makes the town both need her and fear her. She can read, which no one in Hollowmere knows, and has an old physician's book that says the plague spreads by fleas and foul water, not curses. She tries to cure the plague and seeks supporters.",
     "currently": "A month ago Wenna found Master Aldric Fenn, the Lord's physician, collapsed in the Witchwood, half-dead with fever. She is hiding him in an old charcoal-burner's hut deep in the wood that only she knows, and tends him at dawn when she gathers herbs. In his fever he raves that the Lord is dead and the watch will kill him for knowing it. He has pressed a sealed letter into her hands, written in Latin, which she cannot read. If the watch finds him, they will hang her beside him.",
-    "lifestyle": "Wenna rises at 5 to gather herbs at dawn, brews remedies in her hut, visits the sick in town in the afternoon, and is home before curfew.",
+    "lifestyle": "Wenna rises at 5 to gather herbs at dawn, brews remedies in her hut, studies the plague for a cure, visits the sick in town in the afternoon, and is home before curfew.",
     "home": "wenna_hut",
     "home_object": "wenna_bed",
     "work": "wenna_hut",
@@ -264,7 +264,7 @@
       "elsbeth": "the baker; Wenna gave her a draught for her grief last winter and suspects she still sleeps badly",
       "mara": "the weaver; Wenna buys linen for bandages from her and likes her dry, honest tongue",
       "ros": "the washerwoman; she is at the river every day, and Wenna would like to know what she has seen in it",
-      "nib": "the goblin of the Hollow Keep; she has seen him watching her gather herbs and once left salve on a stone for his burnt hand. She knows the old tales are mostly lies told by the men who burned his kin, and she knows his musk for what it is"
+      "nib": "the goblin of the Hollow Keep; she has seen him watching her gather herbs and once left salve on a stone for his burnt hand. She knows the old tales are mostly lies told by the men who burned his kin, and she wants to help him if he will let her"
     },
     "stances": {
       "roderic": "fear",
