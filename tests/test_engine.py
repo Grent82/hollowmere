@@ -475,6 +475,83 @@ async def test_day_review_sets_the_agents_own_drive_and_it_survives_a_restore(tm
     assert mara.drive == "to finally demand the truth from Roderic"
 
 
+async def test_town_review_is_due_when_never_reviewed_and_after_the_configured_interval(tmp_path):
+    from datetime import timedelta
+
+    from hollowmere.agents.agent import day_key
+
+    engine = await _town(tmp_path, "due.db")
+    assert engine._town_review_due(engine.now)  # never reviewed yet
+    engine._town_reviewed = day_key(engine.now)
+    assert not engine._town_review_due(engine.now)
+    engine._town_reviewed = day_key(engine.now) - timedelta(days=engine.cfg.town_review_days)
+    assert engine._town_review_due(engine.now)
+
+
+async def test_recent_town_events_survive_the_in_memory_feed_being_cleared(tmp_path):
+    """Engine.events is a bounded deque (maxlen=400) that never survives a restart; the town review
+    must read its history from the durable store instead, or it sees nothing after a long run or a reload."""
+    from datetime import timedelta
+
+    engine = await _town(tmp_path, "durable_events.db")
+    since = engine.now - timedelta(days=1)
+    engine._event("ally", ["a", "b"], "a has sworn to protect b.")
+    engine.events.clear()  # simulates what a fresh process sees: the UI feed is empty, the store is not
+    assert "a has sworn to protect b." in engine._recent_town_events(since)
+
+
+async def test_town_review_rewrites_every_agents_town_state(tmp_path):
+    from hollowmere.agents.agent import day_key
+
+    engine = await _town(tmp_path, "review.db")
+
+    class Reply:
+        async def structured(self, system, user, schema, **kw):
+            return schema.model_validate({"text": "The plague has eased, though the harvest still fails."})
+
+    engine.ctx.llm = Reply()
+    await engine._review_town(engine.now)
+    assert all(a.town_state == "The plague has eased, though the harvest still fails."
+               for a in engine.agents.values())
+    assert engine._town_reviewed == day_key(engine.now)
+
+
+async def test_town_reviewed_date_survives_save_and_load(tmp_path):
+    from hollowmere.agents.agent import day_key
+
+    cfg = Config()
+    cfg.sim.save_path = str(tmp_path / "town_persist.db")
+    engine = await build_engine(cfg, llm=FakeLLM(latency=0), embedder=HashingEmbedder(128))
+    for _ in range(3):
+        await engine.tick()
+    engine._town_reviewed = day_key(engine.now)
+    engine.save()
+
+    cfg2 = cfg.model_copy(deep=True)
+    resumed = await build_engine(cfg2, llm=FakeLLM(latency=0), embedder=HashingEmbedder(128))
+    assert resumed._town_reviewed == engine._town_reviewed
+
+
+async def test_town_review_works_with_the_offline_fake_llm(tmp_path):
+    """Mirrors test_day_review_works_with_the_offline_fake_llm: _run_town_review() swallows exceptions
+    so a schema the fake brain cannot satisfy would otherwise fail silently in sim."""
+    engine = await _town(tmp_path, "faketown.db")
+    before = next(iter(engine.agents.values())).town_state
+    await engine._review_town(engine.now)
+    after = next(iter(engine.agents.values())).town_state
+    assert after != "" and after != before
+
+
+async def test_town_state_survives_a_restore(tmp_path):
+    engine = await _town(tmp_path, "townstate.db")
+    mara = engine.agents["mara"]
+    mara.town_state = "The plague has lifted at last, though the harvest still fails."
+    snap = mara.snapshot()
+    mara.town_state = ""
+    mara.restore(snap)
+    assert mara.town_state == "The plague has lifted at last, though the harvest still fails."
+
+
 async def test_day_review_works_with_the_offline_fake_llm(tmp_path):
     """The engine's background-task wrapper swallows exceptions from review_day(), so a schema the
     fake brain cannot satisfy fails silently in sim; call it directly so a broken schema shows up here."""

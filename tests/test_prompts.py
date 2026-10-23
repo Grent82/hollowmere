@@ -57,3 +57,43 @@ async def test_identity_shows_the_agents_own_current_drive_when_set(tmp_path):
     mara.drive = "to finally stand up to Roderic"
     text = prompts.identity(mara, engine.ctx.names)
     assert "to finally stand up to Roderic" in text
+
+
+async def test_system_prompt_falls_back_to_the_seed_town_state_until_reviewed(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    assert mara.town_state == ""
+    text = prompts.system_prompt(mara)
+    assert "the plague has returned" in text.lower()
+
+
+async def test_system_prompt_uses_the_agents_own_town_state_once_set(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    mara.town_state = "The plague has lifted at last, though the harvest still fails."
+    text = prompts.system_prompt(mara)
+    assert "The plague has lifted at last" in text
+    assert "the plague has returned" not in text.lower()  # the seed line is gone, not just appended
+
+
+async def test_system_prompt_keeps_the_fixed_world_rules_no_matter_what_the_town_state_says(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    mara.town_state = "A season of plenty and peace has somehow come to Hollowmere."
+    text = prompts.system_prompt(mara)
+    assert "no real magic, only rumour and faith" in text
+
+
+def test_narrator_system_prompt_speaks_for_no_one_in_particular():
+    text = prompts.narrator_system_prompt()
+    assert "no real magic, only rumour and faith" in text  # the fixed rules still bind the narrator
+    assert "mind of" not in text  # unlike system_prompt(), this is nobody's personal voice
+
+
+def test_town_review_shows_the_old_state_and_what_has_happened_since():
+    text = prompts.town_review(
+        "The plague has returned, the harvest has failed, and Lord Maelor has not left his keep in months.",
+        NOW, ["Agnes and Odo agree to meet at the tavern at 18:00.", "Wenna has sworn to protect the goblin."])
+    assert "The plague has returned" in text
+    assert "Agnes and Odo agree to meet at the tavern at 18:00." in text
+    assert "Wenna has sworn to protect the goblin." in text

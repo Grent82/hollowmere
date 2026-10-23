@@ -49,6 +49,7 @@ class SimConfig(BaseModel):
     agents: list[str] = Field(default_factory=list)
     reflection_threshold: int = 150
     vision_radius: int = 6
+    town_review_days: int = 7
 
 
 class ServerConfig(BaseModel):

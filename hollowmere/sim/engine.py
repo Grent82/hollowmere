@@ -26,10 +26,12 @@ import os
 import random
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Awaitable, Callable
 
+from hollowmere.agents import prompts
 from hollowmere.agents.agent import Agent, Ctx, Digest, Task, day_key, due_at
+from hollowmere.agents.schemas import TownState
 from hollowmere.config import SimConfig
 from hollowmere.llm.client import LLMError
 from hollowmere.memory.store import Store
@@ -49,6 +51,9 @@ FLEE_TILES = 6
 HIDE_FOR = timedelta(minutes=10)
 HIDING_PLACES = ["goblin_den/nib_nest", "witchwood/bramble_thicket", "riverbank/reeds",
                  "standing_stones/brambles", "graveyard/dead_yew"]
+# Event kinds that bear on the town as a whole; raw chat lines and routine plans are left out so the
+# town review's prompt stays small and focused on what actually shifted.
+TOWN_EVENT_KINDS = {"reflection", "agreement", "ally", "spurn", "warm", "sighting", "intent", "chat_end"}
 
 Listener = Callable[[dict], Awaitable[None]]
 
@@ -97,6 +102,8 @@ class Engine:
         self._seeking: dict[str, str] = {}  # agent -> whoever they are currently on their way to find
         self._llm_before: dict = {}  # LLM counters from earlier sessions of this save
         self._agreements: dict[str, dict[str, list[dict]]] = {}  # convo id -> agent id -> meetings it noted
+        self._town_reviewed: date | None = None  # day_key() of the last town-wide review, if any
+        self._town_task: asyncio.Task | None = None
 
     # ---------------------------------------------------------------- running
 
@@ -495,6 +502,39 @@ class Engine:
             elif a.mode == "asleep" and a.plan_date == day_key(now) and a.reviewed_date != a.plan_date \
                     and a.wake is not None and now > a.wake:
                 self._spawn(a, a.review_day(self.ctx, now), "review")
+        if self._town_review_due(now) and (self._town_task is None or self._town_task.done()):
+            self._town_task = asyncio.create_task(self._run_town_review(now))
+
+    def _town_review_due(self, now: datetime) -> bool:
+        if self._town_reviewed is None:
+            return True
+        return (day_key(now) - self._town_reviewed).days >= self.cfg.town_review_days
+
+    def _recent_town_events(self, since: datetime) -> list[str]:
+        # self.events is only the bounded, unpersisted UI feed (deque(maxlen=400)); a busy town can
+        # wrap that well inside a day, and it is always empty right after a restart. The durable
+        # store has the real history.
+        return self.store.events_since(since, TOWN_EVENT_KINDS)
+
+    async def _run_town_review(self, now: datetime) -> None:
+        try:
+            await self._review_town(now)
+        except Exception:  # noqa: BLE001 - a failed review must not kill the loop or retry forever
+            log.exception("town review failed")
+            self._town_reviewed = day_key(now)
+
+    async def _review_town(self, now: datetime) -> None:
+        current = next(iter(self.agents.values())).town_state or prompts.DEFAULT_TOWN_STATE
+        since = now - timedelta(days=self.cfg.town_review_days)
+        events = self._recent_town_events(since)
+        out = await self.ctx.llm.structured(
+            prompts.narrator_system_prompt(), prompts.town_review(current, now, events),
+            TownState, label="town_review")
+        text = out.text.strip()
+        if text:
+            for a in self.agents.values():
+                a.town_state = text
+        self._town_reviewed = day_key(now)
 
     def _digested(self, c: Conversation, x: Agent, y: Agent):
         judged = self._judged(x, y)
@@ -641,6 +681,7 @@ class Engine:
     def save(self) -> None:
         self.store.put("clock", self.now.isoformat())
         self.store.put("agents", {a.id: a.snapshot() for a in self.agents.values()})
+        self.store.put("town_reviewed", self._town_reviewed.isoformat() if self._town_reviewed else None)
         s = self.ctx.llm.stats
         self.store.put("llm_stats", {
             name: _add_counts(self._llm_before.get(name, {}), getattr(s, attr))
@@ -654,6 +695,8 @@ class Engine:
             return False
         self.now = datetime.fromisoformat(clock)
         self._llm_before = self.store.get("llm_stats", {})
+        reviewed = self.store.get("town_reviewed")
+        self._town_reviewed = date.fromisoformat(reviewed) if reviewed else None
         self.store.trim_record(self.now)
         for aid, snap in snaps.items():
             if aid in self.agents:

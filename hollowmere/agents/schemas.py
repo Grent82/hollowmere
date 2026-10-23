@@ -53,6 +53,11 @@ class Utterance(BaseModel):
     end: bool = Field(description="true if this line ends the conversation (a farewell, walking off, nothing more to say)")
 
 
+class TownState(BaseModel):
+    text: str = Field(description="the town's situation now, in the shared narrator's voice, one or two "
+                                  "sentences - not any one person's thought")
+
+
 class DayReview(BaseModel):
     summary: str = Field(description="how your day went and what mattered, first person, two to three sentences")
     importance: int = Field(ge=1, le=10)

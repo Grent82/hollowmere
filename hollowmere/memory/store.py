@@ -105,12 +105,22 @@ class Store:
         return self.db.execute("SELECT 1 FROM memories LIMIT 1").fetchone() is not None
 
     # ------------------------------------------------------------ run record
-    # Not read back by the simulation; `hollowmere report` uses them to judge a run.
+    # Mostly for `hollowmere report` to judge a run after the fact, but events_since() below is
+    # also read back by the simulation itself (the town review), unlike the rest of this table.
 
     def add_event(self, time: datetime, kind: str, agents: list[str], text: str, extra: dict) -> None:
         self.db.execute("INSERT INTO events(time, kind, agents, text, extra) VALUES (?,?,?,?,?)",
                         (time.isoformat(), kind, json.dumps(agents), text, json.dumps(extra, default=str)))
         self.db.commit()
+
+    def events_since(self, after: datetime, kinds: set[str]) -> list[str]:
+        """Event text for the given kinds, strictly after `after` - durable across restarts and not
+        bounded the way the in-memory UI feed (Engine.events) is."""
+        placeholders = ",".join("?" * len(kinds))
+        rows = self.db.execute(
+            f"SELECT text FROM events WHERE time > ? AND kind IN ({placeholders}) ORDER BY id",
+            (after.isoformat(), *kinds)).fetchall()
+        return [r["text"] for r in rows]
 
     def add_samples(self, time: datetime, rows: list[tuple]) -> None:
         """rows: (agent_id, x, y, mode, task place, area under the agent)."""

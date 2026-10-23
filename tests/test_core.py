@@ -118,3 +118,13 @@ async def test_retrieval_survives_memories_added_while_it_waits_for_embeddings(t
     found, _ = await asyncio.gather(stream.retrieve(["river"], now, k=3),
                                     stream.add("observation", "a crow on the wall", now, 3))
     assert len(found) == 3
+
+
+def test_store_events_since_filters_by_time_and_kind():
+    store = Store(":memory:")
+    t0 = datetime(1347, 11, 2, 5, 0)
+    store.add_event(t0, "chat", [], "small talk", {})
+    store.add_event(t0.replace(hour=6), "ally", ["a", "b"], "a protects b", {})
+    store.add_event(t0.replace(hour=7), "spurn", ["a", "b"], "a drives b off", {})
+    assert store.events_since(t0, {"ally", "spurn"}) == ["a protects b", "a drives b off"]
+    assert store.events_since(t0.replace(hour=6, minute=30), {"ally", "spurn"}) == ["a drives b off"]

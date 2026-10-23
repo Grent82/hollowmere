@@ -140,3 +140,6 @@ class FakeLLM:
     def _dayreview(self, js: dict, user: str) -> dict:
         return {"summary": "A long, cold day. Nothing changed, and that frightens me.", "importance": 3,
                 "intentions": ["keep my head down"], "drive": "to see the next season through"}
+
+    def _townstate(self, js: dict, user: str) -> dict:
+        return {"text": "The plague lingers and the harvest is still thin, but the Watch keeps the peace."}

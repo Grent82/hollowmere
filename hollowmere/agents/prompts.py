@@ -18,19 +18,31 @@ if TYPE_CHECKING:
     from hollowmere.world.world import World
 
 
-WORLD_TONE = (
-    "Hollowmere is a small river town in the year 1347, in a grim medieval world: the plague has returned, "
-    "the harvest has failed, and Lord Maelor has not left his keep in months. Life is hard, people are frightened "
-    "and superstitious, and the church, the watch and the tavern are the only order left. There is no real magic, "
-    "only rumour and faith."
+# Fixed world rules: never rewritten by any LLM call, so they cannot drift away over many town
+# reviews (no snowballing into "real magic" or a modern idea after enough rewrites).
+WORLD_FACTS = (
+    "Hollowmere is a small river town in the year 1347, in a grim fantasy medieval world. Life is hard, people "
+    "are frightened and superstitious, and the church, the watch and the tavern are the only order left. There "
+    "is no real magic, only rumour and faith."
 )
+
+# The town's current situation, in contrast, is meant to change: this is only the seed sentence an
+# agent falls back on before the first town review has ever run (see Agent.town_state, town_review()).
+DEFAULT_TOWN_STATE = "The plague has returned, the harvest has failed, and Lord Maelor has not left his keep in months."
 
 
 def system_prompt(agent: Agent) -> str:
     p = agent.persona
+    situation = agent.town_state or DEFAULT_TOWN_STATE
+    goblin_gloss = (
+        " To a goblin, a town this frightened and distracted is less danger than cover. "
+        "You are alone but not weak; you give small gifts and flattery before you ask, because demands get you chased. "
+        "Above all you want women who will let you breed. "
+        if p.is_goblin else ""
+    )
     return (
-        f"You are the mind of {p.name}, who lives in Hollowmere. {WORLD_TONE}\n\n"
-        f"Think, decide and speak exactly as {p.first_name} would, with {p.first_name}'s knowledge and fears. "
+        f"You are the mind of {p.name}, who lives in Hollowmere. {WORLD_FACTS} {situation}{goblin_gloss}\n\n"
+        f"Think, decide and speak exactly as {p.first_name} would, with {p.first_name}'s knowledge, hopes and fears. "
         f"When you speak or put feelings into words, let {p.first_name}'s own age, temperament, work and "
         f"background below shape not just what is said but how: word choice, formality, warmth, how long or "
         f"short the sentences run, any habits of speech. No two people in Hollowmere think or talk alike. "
@@ -305,6 +317,29 @@ Lying awake with these questions, in {p.first_name}'s own voice, not a shared na
 {p.first_name} conclude? Each conclusion must follow from the numbered memories it cites. Prefer conclusions
 about people, intentions, hopes and dangers over restating events. Fear is not the only thing worth concluding -
 let affection, pride, regret, longing or quiet contentment surface just as readily when the memories support it."""
+
+
+def narrator_system_prompt() -> str:
+    return (
+        f"You are the shared narrator of Hollowmere, speaking for no one person's mind. {WORLD_FACTS} "
+        "Describe only the town's situation as a whole, in a dry, grounded voice: no modern words or "
+        "ideas, and never any real magic, only rumour and faith."
+    )
+
+
+def town_review(current_state: str, now: datetime, events: list[str]) -> str:
+    lines = "\n".join(f"- {e}" for e in events) or "- nothing of note"
+    return f"""{clock_line(now)}
+
+THE TOWN'S SITUATION UNTIL NOW
+{current_state}
+
+WHAT HAS HAPPENED SINCE
+{lines}
+
+Write the town's situation now, in one or two sentences: hold to what has not changed, but let the
+plague, the harvest, Lord Maelor, or anything else the events above bear on, move forward, worsen,
+ease or resolve where they genuinely would. Do not invent a change the events above do not support."""
 
 
 def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:

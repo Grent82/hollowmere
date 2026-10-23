@@ -185,6 +185,10 @@ class Agent:
         # In the agent's own words, what it wants for itself beyond today's tasks; written and
         # rewritten freely by review_day(), never interpreted by any code.
         self.drive: str = ""
+        # The town's current situation (plague, harvest, the Lord...), rewritten periodically by a
+        # town-wide review and kept identical across every agent; empty until the first review runs,
+        # in which case prompts.system_prompt() falls back to a seed sentence.
+        self.town_state: str = ""
         # How this agent sees each person it knows: seeded from the persona, then nudged after every
         # talk by update_affinity() rather than overwritten raw. "affinity" is the continuous score
         # that carries the history; "stance" is just that score's label, for prompts and the viewer -
@@ -602,7 +606,7 @@ class Agent:
             "bonds": self.bonds,
             "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
             "seek": self.seek, "seek_block": self.seek_block,
-            "drive": self.drive,
+            "drive": self.drive, "town_state": self.town_state,
         }
 
     def restore(self, d: dict) -> None:
@@ -634,3 +638,4 @@ class Agent:
         for b in self.bonds.values():
             b.setdefault("affinity", starting_affinity(b.get("stance", "neutral")))  # older saves lack this
         self.drive = d.get("drive", "")  # older saves lack this
+        self.town_state = d.get("town_state", "")  # older saves lack this
