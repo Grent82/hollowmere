@@ -139,4 +139,4 @@ class FakeLLM:
 
     def _dayreview(self, js: dict, user: str) -> dict:
         return {"summary": "A long, cold day. Nothing changed, and that frightens me.", "importance": 3,
-                "intentions": ["keep my head down"]}
+                "intentions": ["keep my head down"], "drive": "to see the next season through"}

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 DATA = Path(__file__).resolve().parent.parent / "data"
 
 
-Stance = Literal["fear", "dislike", "wary", "neutral", "fond", "trust"]
+Stance = Literal["fear", "dislike", "wary", "neutral", "fond", "trust", "close", "love"]
 STANCES: tuple[str, ...] = Stance.__args__
 RANK: dict[str, int] = {s: i for i, s in enumerate(STANCES)}
 

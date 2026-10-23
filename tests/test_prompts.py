@@ -40,3 +40,20 @@ async def test_reflection_prompts_also_ask_for_the_personas_own_voice(tmp_path):
     assert "not a shared narrator's" in prompts.focal_questions(mara, engine.ctx.names, NOW, [])
     assert "not a shared narrator's" in prompts.insights(mara, engine.ctx.names, NOW, ["why?"], [])
     assert "not a shared narrator's" in prompts.day_review(mara, engine.ctx.names, NOW, [])
+
+
+async def test_insights_prompt_does_not_push_the_model_toward_danger_only(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    text = prompts.insights(mara, engine.ctx.names, NOW, ["why?"], [])
+    assert "dangers" in text  # danger is still a valid topic...
+    assert "Fear is not the only thing worth concluding" in text  # ...but no longer the default one
+
+
+async def test_identity_shows_the_agents_own_current_drive_when_set(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    assert "wants for themself" not in prompts.identity(mara, engine.ctx.names)  # nothing set yet
+    mara.drive = "to finally stand up to Roderic"
+    text = prompts.identity(mara, engine.ctx.names)
+    assert "to finally stand up to Roderic" in text

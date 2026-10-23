@@ -57,6 +57,9 @@ class DayReview(BaseModel):
     summary: str = Field(description="how your day went and what mattered, first person, two to three sentences")
     importance: int = Field(ge=1, le=10)
     intentions: list[str] = Field(max_length=3, description="things you mean to do tomorrow, first person")
+    drive: str = Field(description="what you want for yourself now, beyond tomorrow's tasks - hold to what you "
+                                   "wanted before, let it deepen, or let it become something else entirely, "
+                                   "first person, one or two sentences")
 
 
 @lru_cache(maxsize=256)

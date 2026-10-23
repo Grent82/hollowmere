@@ -88,6 +88,8 @@ def identity(agent: Agent, names: dict[str, str]) -> str:
     )
     if p.abilities:
         text += f"Gifts and weaknesses: {p.abilities}\n"
+    if agent.drive:
+        text += f"What {p.first_name} wants for themself right now: {agent.drive}\n"
     if p.is_goblin:
         friends = ", ".join(names.get(a, a) for a in sorted(agent.allies)) or "no one yet"
         kind = ", ".join(f"{names.get(k, k)} ({REGARD_WORDS[r['step']]})" for k, r in sorted(agent.regard.items())
@@ -301,7 +303,8 @@ QUESTIONS ON YOUR MIND
 
 Lying awake with these questions, in {p.first_name}'s own voice, not a shared narrator's, what does
 {p.first_name} conclude? Each conclusion must follow from the numbered memories it cites. Prefer conclusions
-about people, intentions and dangers over restating events."""
+about people, intentions, hopes and dangers over restating events. Fear is not the only thing worth concluding -
+let affection, pride, regret, longing or quiet contentment surface just as readily when the memories support it."""
 
 
 def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:
@@ -313,7 +316,9 @@ def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Me
 {memories(mems, now, title="TODAY")}
 
 Look back on {p.first_name}'s day, in {p.first_name}'s own voice, not a shared narrator's: what happened, what
-changed, and what {p.first_name} means to do tomorrow."""
+changed, and what {p.first_name} means to do tomorrow. Then say what {p.first_name} wants for themself now,
+beyond tomorrow's tasks: hold to the wish named above (if any), let it deepen, or let it become something
+else entirely."""
 
 
 

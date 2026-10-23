@@ -182,6 +182,9 @@ class Agent:
         self.hiding_until: datetime | None = None
         self.topics: deque[str] = deque(maxlen=TOPICS_KEPT)  # what recent conversations were about
         self.new_reflections: list[str] = []  # not yet shown in the event feed
+        # In the agent's own words, what it wants for itself beyond today's tasks; written and
+        # rewritten freely by review_day(), never interpreted by any code.
+        self.drive: str = ""
         # How this agent sees each person it knows: seeded from the persona, then nudged after every
         # talk by update_affinity() rather than overwritten raw. "affinity" is the continuous score
         # that carries the history; "stance" is just that score's label, for prompts and the viewer -
@@ -572,6 +575,8 @@ class Agent:
         await self._add_reflection(out.summary, now, out.importance)
         for intent in out.intentions:
             await self.memory.add("plan", f"Tomorrow: {intent}", now, 4)
+        if out.drive.strip():
+            self.drive = out.drive.strip()
 
     async def observe(self, text: str, now: datetime, importance: int) -> None:
         await self._remember("observation", text, now, importance)
@@ -597,6 +602,7 @@ class Agent:
             "bonds": self.bonds,
             "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
             "seek": self.seek, "seek_block": self.seek_block,
+            "drive": self.drive,
         }
 
     def restore(self, d: dict) -> None:
@@ -627,3 +633,4 @@ class Agent:
         self.bonds.update(d.get("bonds", {}))  # an older save has none: keep the persona's
         for b in self.bonds.values():
             b.setdefault("affinity", starting_affinity(b.get("stance", "neutral")))  # older saves lack this
+        self.drive = d.get("drive", "")  # older saves lack this

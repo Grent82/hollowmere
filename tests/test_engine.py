@@ -450,6 +450,43 @@ async def test_digest_drops_their_errands_unanswered_demands_and_invented_times(
     assert nib.bonds["roderic"]["stance"] == "fear" and nib.bonds["wenna"]["stance"] == "fond"
 
 
+async def test_day_review_sets_the_agents_own_drive_and_it_survives_a_restore(tmp_path):
+    from hollowmere.agents.agent import Ctx
+
+    engine = await _town(tmp_path, "drive.db")
+    mara = engine.agents["mara"]
+    assert mara.drive == ""
+
+    class Reply:
+        async def structured(self, system, user, schema, **kw):
+            return schema.model_validate({
+                "summary": "A quiet day, but Roderic's name came up again.", "importance": 5,
+                "intentions": ["speak with Roderic"],
+                "drive": "to finally demand the truth from Roderic",
+            })
+
+    ctx = Ctx(Reply(), engine.world, engine.ctx.names, {})
+    await mara.review_day(ctx, engine.now)
+    assert mara.drive == "to finally demand the truth from Roderic"
+
+    snap = mara.snapshot()
+    mara.drive = ""
+    mara.restore(snap)
+    assert mara.drive == "to finally demand the truth from Roderic"
+
+
+async def test_day_review_works_with_the_offline_fake_llm(tmp_path):
+    """The engine's background-task wrapper swallows exceptions from review_day(), so a schema the
+    fake brain cannot satisfy fails silently in sim; call it directly so a broken schema shows up here."""
+    from hollowmere.agents.agent import Ctx
+
+    engine = await _town(tmp_path, "fakedrive.db")
+    mara = engine.agents["mara"]
+    ctx = Ctx(engine.ctx.llm, engine.world, engine.ctx.names, {})
+    await mara.review_day(ctx, engine.now)
+    assert mara.drive != ""
+
+
 async def test_switching_embedders_rebuilds_the_stored_vectors(tmp_path):
     class Other(HashingEmbedder):  # same vector size, different model: vectors must not be mixed
         def __init__(self):

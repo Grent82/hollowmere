@@ -22,3 +22,10 @@ def test_a_trivial_talk_moves_affinity_less_than_an_important_one():
     trivial = update_affinity(RANK["neutral"], "fond", importance=1) - RANK["neutral"]
     weighty = update_affinity(RANK["neutral"], "fond", importance=10) - RANK["neutral"]
     assert 0 < trivial < weighty
+
+
+def test_the_scale_can_escalate_past_trust_into_close_friendship_and_love():
+    assert RANK["trust"] < RANK["close"] < RANK["love"]
+    new = update_affinity(RANK["trust"], "love", importance=10)
+    assert new <= RANK["love"]  # still never overshoots, even at the new top of the scale
+    assert affinity_label(RANK["love"]) == "love"

@@ -96,7 +96,7 @@ export interface Memory {
   evidence: number[];
 }
 
-export type Stance = "fear" | "dislike" | "wary" | "neutral" | "fond" | "trust";
+export type Stance = "fear" | "dislike" | "wary" | "neutral" | "fond" | "trust" | "close" | "love";
 
 export interface Bond {
   id: string;
