@@ -13,6 +13,11 @@ from hollowmere.memory.stream import MemoryStream
 from hollowmere.world.town import build_town
 
 
+def test_every_persona_has_a_sex():
+    for p in load_personas():
+        assert p.sex in ("male", "female"), p.id
+
+
 def test_every_object_and_home_is_reachable():
     w = build_town()
     start = w.target_tile("square/well")

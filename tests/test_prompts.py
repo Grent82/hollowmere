@@ -50,6 +50,12 @@ async def test_insights_prompt_does_not_push_the_model_toward_danger_only(tmp_pa
     assert "Fear is not the only thing worth concluding" in text  # ...but no longer the default one
 
 
+async def test_identity_states_the_agents_sex(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    assert "31, female" in prompts.identity(mara, engine.ctx.names)
+
+
 async def test_identity_shows_the_agents_own_current_drive_when_set(tmp_path):
     engine = await _engine(tmp_path)
     mara = engine.agents["mara"]

@@ -93,7 +93,7 @@ def identity(agent: Agent, names: dict[str, str]) -> str:
     p = agent.persona
     rel = "\n".join(f"- {names.get(k, k)}: {bond_line(agent, k)}" for k in agent.bonds)
     text = (
-        f"WHO YOU ARE\n{p.name}, {p.age}. Temperament: {p.traits}.\n"
+        f"WHO YOU ARE\n{p.name}, {p.age}, {p.sex}. Temperament: {p.traits}.\n"
         + (f"Looks: {p.appearance}\n" if p.appearance else "")
         + f"{p.background}\n"
         f"Lately: {p.currently}\nHabits: {p.lifestyle}\n"

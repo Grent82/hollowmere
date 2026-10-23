@@ -46,11 +46,15 @@ def affinity_label(affinity: float) -> Stance:
     return STANCES[min(len(STANCES) - 1, int(affinity + 0.5))]
 
 
+Sex = Literal["male", "female"]
+
+
 class Persona(BaseModel):
     id: str
     name: str
     known_as: str = ""  # what anyone in town knows of them; empty for someone the town does not know
     age: int
+    sex: Sex
     color: str
     traits: str                  # temperament only; it is read as character, never as looks
     appearance: str = ""         # what others see (and smell) of them
