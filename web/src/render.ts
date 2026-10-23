@@ -1,5 +1,5 @@
 // Canvas renderer: terrain, villagers, torchlight and the day/night cycle.
-import { TILE, paintTerrain } from "./tiles";
+import { TILE, paintTerrain, collectWaterTiles } from "./tiles";
 import type { AgentView, WorldData } from "./types";
 
 interface Sprite {
@@ -38,6 +38,7 @@ export class Scene {
   activeObjects: Record<string, string> = {};
   private motes: Mote[] = [];
   private dpr = window.devicePixelRatio || 1;
+  private waterTiles: [number, number][] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -68,6 +69,7 @@ export class Scene {
   setWorld(data: WorldData) {
     this.data = data;
     this.terrain = paintTerrain(data);
+    this.waterTiles = collectWaterTiles(data);
     const vw = this.canvas.clientWidth, vh = this.canvas.clientHeight;
     this.cam.zoom = Math.max(1, Math.min(vw / (data.width * TILE), vh / (data.height * TILE)) * 1.6);
     this.centerOn(data.width / 2, data.height / 2);
@@ -179,14 +181,11 @@ export class Scene {
   }
 
   private drawWater(c: CanvasRenderingContext2D, now: number) {
-    const data = this.data!;
     c.fillStyle = "rgba(120,150,170,0.10)";
-    for (let y = 0; y < data.height; y++)
-      for (let x = 0; x < data.width; x++) {
-        if (data.tiles[y * data.width + x] !== 6) continue;
-        const ph = Math.sin(now / 900 + y * 0.7 + x) * 4;
-        c.fillRect(x * TILE + 4 + ph, y * TILE + ((now / 120 + y * 5) % TILE), 5, 1);
-      }
+    for (const [x, y] of this.waterTiles) {
+      const ph = Math.sin(now / 900 + y * 0.7 + x) * 4;
+      c.fillRect(x * TILE + 4 + ph, y * TILE + ((now / 120 + y * 5) % TILE), 5, 1);
+    }
   }
 
   private drawActiveObjects(c: CanvasRenderingContext2D, now: number) {

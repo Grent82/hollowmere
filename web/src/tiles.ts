@@ -3,10 +3,20 @@ import type { WorldData, WorldObject } from "./types";
 
 export const TILE = 16;
 
+// Fallback ids, overwritten by syncTileIds() from the server's authoritative
+// WorldData.tileNames the moment a world loads, so a reordered Tile enum on
+// the backend can't silently desync the colors/textures painted here.
 const T = {
   GRASS: 0, DIRT: 1, COBBLE: 2, WOOD: 3, STONE: 4, WALL: 5, WATER: 6, TREE: 7,
   DOOR: 8, FENCE: 9, GRAVE_SOIL: 10, BRIDGE: 11, FIELD: 12,
-} as const;
+};
+
+function syncTileIds(tileNames: Record<number, string>) {
+  for (const [idStr, name] of Object.entries(tileNames)) {
+    const key = name.toUpperCase() as keyof typeof T;
+    if (key in T) T[key] = Number(idStr);
+  }
+}
 
 function hash(x: number, y: number, s = 0): number {
   let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0;
@@ -163,6 +173,7 @@ function fence(c: Ctx, data: WorldData, tx: number, ty: number) {
 }
 
 export function paintTerrain(data: WorldData): HTMLCanvasElement {
+  syncTileIds(data.tileNames);
   const canvas = document.createElement("canvas");
   canvas.width = data.width * TILE;
   canvas.height = data.height * TILE;
@@ -183,6 +194,14 @@ export function paintTerrain(data: WorldData): HTMLCanvasElement {
 
 export function isWater(data: WorldData, x: number, y: number) {
   return data.tiles[y * data.width + x] === T.WATER;
+}
+
+export function collectWaterTiles(data: WorldData): [number, number][] {
+  const tiles: [number, number][] = [];
+  for (let y = 0; y < data.height; y++)
+    for (let x = 0; x < data.width; x++)
+      if (data.tiles[y * data.width + x] === T.WATER) tiles.push([x, y]);
+  return tiles;
 }
 
 // ---------------------------------------------------------------- objects
