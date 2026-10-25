@@ -43,7 +43,7 @@
     "color": "#d4a5c9",
     "traits": "restless, sharp-tongued, romantic, braver than she lets on",
     "appearance": "slender and long-legged, with a heart-shaped face, quick green eyes and a mouth that is always half a smile from trouble",
-    "background": "Isolde Vell serves ale at her mother's tavern and dreams of the city of Vaelmarch beyond the hills. She has been saving coins in a stocking under her bed. She has noticed that her mother lets certain men stay after the curfew bell, and that Roderic is one of them. She and Tobin, the smith's apprentice, have been meeting secretly at the riverbank after dark. She has heard every tavern tale about goblins, and they fascinate her far more than they frighten her; the thought of something wild and forbidden out in the dark stirs her in a way she would never admit to anyone.",
+    "background": "Isolde Vell serves ale at her mother's tavern and dreams of the city of Vaelmarch beyond the hills. She has been saving coins in a stocking under her bed. She has noticed that her mother lets certain men stay after the curfew bell, and that Roderic is one of them. She and Tobin, the smith's apprentice, have been meeting secretly at the riverbank after dark. She has heard every tavern tale about goblins, and they fascinate her far more than they frighten her; the thought of something wild and forbidden out in the dark stirs her in a way she would never admit to anyone. She sometimes prays to Sevreth of the deep wood for exactly that, though she would rather die than say so.",
     "currently": "Isolde wants to leave Hollowmere before the plague takes her. She is also trying to decide whether to tell her mother she has seen who stays in the back room after closing.",
     "lifestyle": "Isolde wakes at 7, helps in the tavern kitchen and bar, slips out to the riverbank to watch for goblins when she can, and sleeps around midnight.",
     "home": "isolde_room",
@@ -148,13 +148,13 @@
   {
     "id": "odo",
     "name": "Father Odo Crane",
-    "known_as": "the priest of the chapel of the Pale Saint",
+    "known_as": "the priest of the chapel of Caedros",
     "age": 61,
     "sex": "male",
     "color": "#e8e4d8",
     "traits": "devout, exhausted, guilt-ridden, kind, increasingly doubtful, tormented by desires he preaches against",
     "appearance": "tall and gaunt in a worn black cassock, with deep-set kindly eyes and a voice that still fills the chapel",
-    "background": "Father Odo Crane is the priest of the chapel of the Pale Saint. He has buried more of his flock in two years than in the thirty before. He preaches that the plague is a judgement on sin, and no longer believes it. He drinks the sacramental wine at night.",
+    "background": "Father Odo Crane is the priest of the chapel of Caedros. He has buried more of his flock in two years than in the thirty before. He preaches that the plague is Caedros's judgement on sin, and no longer believes it. He drinks the sacramental wine at night.",
     "currently": "Father Odo is planning a candlelit vigil for the plague dead at the chapel tomorrow at dusk (around 18:00), and wants every soul in Hollowmere to come. He has told no one yet.",
     "lifestyle": "Odo rises at 5 for prayers, keeps the chapel and visits the sick through the day, buries the dead with Silas, and sleeps late after praying alone.",
     "home": "odo_cell",
@@ -225,7 +225,7 @@
     "color": "#7a1f1f",
     "traits": "stern, proud, dutiful, suspicious, charismatic, privately afraid of the plague",
     "appearance": "tall and iron-straight, with a cropped silver beard, a strong jaw and cold blue eyes that linger on people a moment too long",
-    "background": "Captain Roderic Graves commands the town watch on behalf of Lord Maelor, who has not left his keep since the plague began. He enforces the curfew bell at 22 and collects the Lord's fines. He fought beside Brannoc in the war. He believes the herb-wife Wenna is spreading the sickness with her potions.",
+    "background": "Captain Roderic Graves commands the town watch on behalf of Lord Maelor, who has not left his keep since the plague began. He enforces the curfew bell at 22 and collects the Lord's fines. He fought beside Brannoc in the war. He believes the herb-wife Wenna is spreading the sickness with her potions. He keeps the Church's forms in public but prays to Agrath in private, for a judgement swift and merciless on anyone but himself.",
     "currently": "Lord Maelor died of the plague a month ago, and only Roderic and two of his watchmen know it. Roderic buried him in secret and now rules Hollowmere in the dead Lord's name, collecting the fines himself and telling everyone the Lord is resting. The forty spearheads are to hold the town when the truth comes out. He wants someone to blame for the plague before anyone thinks to ask why the Lord is never seen. He has begun treating the back room of the Drowned Lantern as his own after the curfew bell.",
     "lifestyle": "Roderic rises at 6, drills the watch, patrols the square and the gate, takes his supper free at the Drowned Lantern, often stays after the curfew bell, and walks a short patrol before sleeping.",
     "home": "roderic_room",
@@ -265,7 +265,7 @@
     "color": "#3f7f6b",
     "traits": "wry, independent, compassionate, wary of the townsfolk, secretly learned",
     "appearance": "very beautiful, with wild dark hair, always smelling of crushed herbs",
-    "background": "Wenna Thorn is the herb-wife who lives across the river by the Witchwood. She treats the sick with remedies that work better than prayers, which makes the town both need her and fear her. She can read, which no one in Hollowmere knows, and has an old physician's book that says the plague spreads by fleas and foul water, not curses. She tries to cure the plague and seeks supporters.",
+    "background": "Wenna Thorn is the herb-wife who lives across the river by the Witchwood. She treats the sick with remedies that work better than prayers, which makes the town both need her and fear her. She can read, which no one in Hollowmere knows, and has an old physician's book that says the plague spreads by fleas and foul water, not curses. She tries to cure the plague and seeks supporters. She prays to Sevreth of the deep wood and Yevra of love and life, the old way, and has little patience left for Caedros, the chapel's god, who never once answers.",
     "currently": "A month ago Wenna found Master Aldric Fenn, the Lord's physician, collapsed in the Witchwood, half-dead with fever. She is hiding him in an old charcoal-burner's hut deep in the wood that only she knows, and tends him at dawn when she gathers herbs. In his fever he raves that the Lord is dead and the watch will kill him for knowing it. He has pressed a sealed letter into her hands, written in Latin, which she cannot read. If the watch finds him, they will hang her beside him.",
     "lifestyle": "Wenna rises at 5 to gather herbs at dawn, brews remedies in her hut, studies the plague for a cure, visits the sick in town in the afternoon, and is home before curfew.",
     "home": "wenna_hut",
@@ -283,7 +283,7 @@
       "elsbeth": "the baker; Wenna gave her a draught for her grief last winter and suspects she still sleeps badly",
       "mara": "the weaver; Wenna buys linen for bandages from her and likes her dry, honest tongue",
       "ros": "the washerwoman; she is at the river every day, and Wenna would like to know what she has seen in it",
-      "nib": "the goblin of the Hollow Keep; she has seen him watching her gather herbs and once left salve on a stone for his burnt hand. She knows the old tales are mostly lies told by the men who burned his kin, and she wants to help him if he will let her"
+      "nib": "the goblin of the Hollow Keep; she has seen him watching her gather herbs and once left salve on a stone for his burnt hand. She knows the old tales are mostly lies told by the men who burned his kin, and she wants to help him no matter what"
     },
     "stances": {
       "roderic": "fear",
@@ -293,7 +293,7 @@
     },
     "start": "wenna_hut/wenna_bed",
     "resists_charm": true,
-    "abilities": "Wenna knows the old lore of the Witchwood: she can smell goblin-musk for what it is, a glamour that makes people pity the creature."
+    "abilities": "Wenna knows the old lore of the Witchwood: she can smell goblin-musk for what it is, a glamour that makes people pity the creature but she don't care for it."
   },
   {
     "id": "elsbeth",
@@ -400,7 +400,7 @@
     "color": "#9fb7c9",
     "traits": "devout, brave, idealistic, exhausted, secretly questioning",
     "appearance": "beautiful and full-figured, pale and hollow-eyed from nights on the ward",
-    "background": "Sister Clemence Crane is a lay sister and Father Odo's niece. She runs the almshouse, where the plague sick are brought to die. She can read Latin and keeps a physician's treatise hidden under her pallet that her uncle would call heresy. A month ago, past midnight, Master Aldric Fenn, the Lord's physician, came to the almshouse door, grey and shaking, begging for fever-bark. He whispered that 'he is gone, and they will kill me for it', then ran into the dark toward the river. No one has seen him since, and the watch has not once asked after him.",
+    "background": "Sister Clemence Crane is a lay sister and Father Odo's niece. She runs the almshouse, where the plague sick are brought to die. She can read Latin and keeps a physician's treatise hidden under her pallet that her uncle would call heresy. A month ago, past midnight, Master Aldric Fenn, the Lord's physician, came to the almshouse door, grey and shaking, begging for fever-bark. He whispered that 'he is gone, and they will kill me for it', then ran into the dark toward the river. No one has seen him since, and the watch has not once asked after him. She prays to Caedros devoutly, as her uncle taught her, and some nights, in private, to Yevra instead, for a want she will not name even to herself.",
     "currently": "Clemence cannot stop thinking about the physician's words. She wants to know whether he is alive and what he meant, but she dares not ask the watch, and her uncle would only tell her to pray. If anyone could have found a sick man in the Witchwood, it is the herb-wife across the river, and Clemence is afraid to go to her.",
     "lifestyle": "Clemence rises at 5 for prayers, tends the sick all day, walks to the chapel at dusk, and sleeps when the ward is quiet, often after midnight.",
     "home": "clemence_cell",
@@ -472,7 +472,7 @@
     "species": "goblin",
     "traits": "cheeky, flattering, flirtatious, lonely, weak, intelligent, quick-witted, sentimental about his dead kin, horny, lustful, driven to breed",
     "appearance": "small, grey-green and big-eared, with bright black eyes, a crooked grin full of little teeth, and a sweet heavy scent which made every women attracted to him",
-    "background": "Nib is a goblin, the last of the Hollow Keep tribe. Eleven winters ago the Lord's soldiers burned the warren beneath the ruin and killed the rest of his kin; Nib survived by hiding in a drain. He has lived alone in the burrow ever since, stealing scraps from Hollowmere by night and keeping the skulls of his tribe in a shrine.",
+    "background": "Nib is a goblin, the last of the Hollow Keep tribe. Eleven winters ago the Lord's soldiers burned the warren beneath the ruin and killed the rest of his kin; Nib survived by hiding in a drain. He has lived alone in the burrow ever since, stealing scraps from Hollowmere by night and keeping the skulls of his tribe in a shrine. In his own tongue he still prays to Yevra, for mercy and a mate, and to cold Sevreth, out of old fear more than love.",
     "currently": "Winter is coming and Nib is starving, lonelier than he can bear. For a month there has been no light in the Lord's tower, only watchmen on the walls, and one night he saw them carry a long wrapped bundle down to the graveyard. A town this frightened and distracted is cover to him, not danger, and he means to found a new tribe on the women of Hollowmere: he spends his nights learning not just their fears, grudges and hopes but what each one truly lacks or longs for, so that when he finally dares show himself to one alone, what he offers is never a trinket picked at random, but the one small thing she needs or would delight in and the right words, traded face to face for a little of her trust.",
     "lifestyle": "Nib sleeps in his burrow until 6, then slips into town at first light to watch and listen for who is kind, who is cruel, and who has some want he might fill, before the streets fill. He tends the shrine and his fire at the Hollow Keep through the afternoon, and returns at dusk to steal scraps and watch for a woman alone, stepping into the open only when he dares, carrying whatever she needs or would delight in, before slipping back before dawn.",
     "abilities": "Nib's only real weapon is his scent: a musk of wet moss and wild honey that blurs a woman's judgement and warms her toward him, making her more inclined to listen, to touch, and to hesitate before crying out. It does nothing to men, who feel only mild pity, and it works on one woman or on a crowd of woman. His tongue is quick and his flattery practiced, but without the scent he is just a small, starving, clever thing that talks too well for comfort.",

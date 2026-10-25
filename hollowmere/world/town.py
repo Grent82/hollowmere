@@ -192,22 +192,22 @@ def build_town(seed: int = 1347) -> World:
     for i, x in enumerate((8, 18, 44, 54)):
         b.obj(f"street_torch_{i}", "torch", "streets", x, 21, "torch", (3.5, TORCH))
 
-    # --- the chapel of the Pale Saint ----------------------------------------------
+    # --- the chapel of Caedros ----------------------------------------------
     b.building(36, 27, 48, 39, Tile.STONE, doors=[(41, 27), (42, 27), (48, 31)])
     b.hwall(37, 47, 35, gaps=[39, 45])
     b.vwall(42, 36, 38, gaps=[])
     b.fill(41, 24, 42, 26, Tile.COBBLE)
-    b.area("chapel", "the chapel of the Pale Saint", "cold stone, guttering candles, too many names read aloud",
+    b.area("chapel", "the chapel of Caedros", "cold stone, guttering candles, too many names read aloud",
            (37, 28, 47, 34), public=True, indoor=True)
-    b.area("odo_cell", "the priest's cell", "a cell with a straw pallet and a cracked icon",
+    b.area("odo_cell", "the priest's cell", "a cell with a straw pallet and a cracked icon of Caedros",
            (37, 36, 41, 38), public=False, indoor=True)
     b.area("crypt", "the crypt stair", "steps down to the founders' tombs; the air tastes of earth",
            (43, 36, 47, 38), public=False, indoor=True)
-    b.obj("altar", "altar", "chapel", 42, 33, "altar", (4, CANDLE))
+    b.obj("altar", "altar of Caedros", "chapel", 42, 33, "altar", (4, CANDLE))
     b.obj("candle_rack", "votive candles", "chapel", 45, 33, "candles", (3, CANDLE))
     b.obj("pews", "pews", "chapel", 40, 30, "bench")
     b.obj("odo_bed", "pallet", "odo_cell", 38, 37, "bed")
-    b.obj("icon", "cracked icon", "odo_cell", 40, 36, "icon", (2, CANDLE))
+    b.obj("icon", "cracked icon of Caedros", "odo_cell", 40, 36, "icon", (2, CANDLE))
     b.obj("tomb", "founder's tomb", "crypt", 46, 37, "tomb")
 
     # --- graveyard and the gravedigger's shack --------------------------------------
@@ -342,10 +342,10 @@ def build_town(seed: int = 1347) -> World:
     b.area("goblin_den", "the burrow under the rubble", "a dry hollow lined with stolen rags, smelling of smoke and musk",
            (76, 27, 78, 29), public=False, indoor=True)
     b.set(75, 19, Tile.STONE)
-    b.obj("idols", "carved goblin idols", "ruin", 75, 19, "idols")
+    b.obj("idols", "carved idols of Yevra", "ruin", 75, 19, "idols")
     b.set(79, 23, Tile.DIRT)
     b.obj("fire_pit", "fire pit", "ruin", 79, 23, "firepit", (3.5, GOBLIN_FIRE))
-    b.obj("broken_altar", "broken altar", "ruin", 83, 19, "altar")
+    b.obj("broken_altar", "Yevra's broken altar", "ruin", 83, 19, "altar")
     b.obj("nib_nest", "nest of rags", "goblin_den", 76, 29, "bed")
     b.obj("hoard", "hoard of trinkets", "goblin_den", 78, 27, "chest")
     b.obj("tribe_shrine", "skulls of the tribe", "goblin_den", 76, 27, "shrine", (1.5, GOBLIN_FIRE))

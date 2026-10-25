@@ -23,8 +23,9 @@ if TYPE_CHECKING:
 _world = json.loads((DATA / "world.json").read_text(encoding="utf-8"))
 
 # Fixed world rules: never rewritten by any LLM call, so they cannot drift away over many town
-# reviews (no snowballing into "real magic" or a modern idea after enough rewrites). Lives in
-# data/world.json so lore can be edited without touching code, the same way personas.json works.
+# reviews (the old gods and their gifts are named here and nowhere else should invent new ones,
+# nor a modern idea, after enough rewrites). Lives in data/world.json so lore can be edited
+# without touching code, the same way personas.json works.
 WORLD_FACTS = _world["world_facts"]
 
 # The town's current situation, in contrast, is meant to change: this is only the seed sentence an
@@ -318,7 +319,7 @@ def narrator_system_prompt() -> str:
     return (
         f"You are the shared narrator of Hollowmere, speaking for no one person's mind. {WORLD_FACTS} "
         "Describe only the town's situation as a whole, in a dry, grounded voice: no modern words or "
-        "ideas, and never any real magic, only rumour and faith."
+        "ideas, and no new gods or magic beyond what is already known; everything else is only rumour and faith."
     )
 
 

@@ -87,12 +87,12 @@ async def test_system_prompt_keeps_the_fixed_world_rules_no_matter_what_the_town
     mara = engine.agents["mara"]
     mara.town_state = "A season of plenty and peace has somehow come to Hollowmere."
     text = prompts.system_prompt(mara)
-    assert "no real magic, only rumour and faith" in text
+    assert "Yevra" in text and "only rumour and faith" in text
 
 
 def test_narrator_system_prompt_speaks_for_no_one_in_particular():
     text = prompts.narrator_system_prompt()
-    assert "no real magic, only rumour and faith" in text  # the fixed rules still bind the narrator
+    assert "Yevra" in text  # the fixed rules still bind the narrator
     assert "mind of" not in text  # unlike system_prompt(), this is nobody's personal voice
 
 
