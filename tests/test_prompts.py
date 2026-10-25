@@ -214,6 +214,38 @@ async def test_system_prompt_requires_suspicion_to_be_earned_not_assumed_from_th
     assert "suspicion and rumour are as fine to feel as affection and desire" not in text
 
 
+async def test_god_system_prompt_carries_that_gods_own_temperament_and_voice_and_the_boundary_line(tmp_path):
+    from hollowmere.agents.gods import GODS
+    for god in GODS:
+        text = prompts.god_system_prompt(god)
+        assert god.name in text and god.temperament in text and god.voice in text
+        assert "only the one person praying to you" in text
+
+
+async def test_identity_shows_the_agents_current_favor_when_set(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    assert "lingers on" not in prompts.identity(mara, engine.ctx.names)  # nothing set yet
+    mara.favor = {"god": "yevra", "text": "a flush of warmth", "expires": NOW.isoformat()}
+    text = prompts.identity(mara, engine.ctx.names)
+    assert "Yevra" in text and "a flush of warmth" in text
+
+
+async def test_plan_day_prompt_explains_the_pray_to_field(tmp_path):
+    engine = await _engine(tmp_path)
+    nib = engine.agents["nib"]
+    text = prompts.plan_day(nib, engine.ctx.world, engine.ctx.names, NOW, [], [], known_as=engine.ctx.known_as)
+    assert "pray_to" in text and '"none"' in text
+
+
+async def test_divine_prayer_prompt_shows_the_offering_and_addresses_the_god_directly(tmp_path):
+    engine = await _engine(tmp_path)
+    from hollowmere.agents.gods import GOD_BY_ID
+    odo, god = engine.agents["odo"], GOD_BY_ID["caedros"]
+    text = prompts.divine_prayer(odo, god, NOW, "prays for the dying", [])
+    assert "prays for the dying" in text and god.name in text
+
+
 def test_town_review_shows_the_old_state_and_what_has_happened_since():
     text = prompts.town_review(
         "The plague has returned, the harvest has failed, and Lord Maelor has not left his keep in months.",

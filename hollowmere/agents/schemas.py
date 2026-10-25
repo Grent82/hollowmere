@@ -17,10 +17,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, create_model
 
+from hollowmere.agents.gods import GOD_IDS
 from hollowmere.agents.persona import Stance
 
 # How a human means to treat the goblin after a talk; a step can rise or fall from one talk to the next.
 GoblinRegard = Literal["drive off", "undecided", "tolerate", "feed", "protect"]
+
+PrayTo = Literal[GOD_IDS + ("none",)]
+DivineForm = Literal["dream", "sign", "omen", "coincidence", "buff", "silence"]
 
 HHMM = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"  # [0-9], not \d: llama.cpp's grammar lets anything through for \d
 
@@ -67,6 +71,21 @@ class DayReview(BaseModel):
                                    "first person, one or two sentences")
 
 
+class DivineAnswer(BaseModel):
+    form: DivineForm = Field(description="how you answer: a dream, a waking sign, an omen, a mere "
+                                         "coincidence, a tangible favor (buff), or silence - choose freely; "
+                                         "silence is common and not a failure to decide")
+    text: str = Field(description="what the praying mortal perceives, in your own voice, kept deniable - "
+                                  "something that could equally be chance, mood, or their own hope, never a "
+                                  "flat statement that you have acted")
+    effect: str = Field(description="if form is buff, the mood or aura it leaves on them, a few words; "
+                                     "otherwise empty")
+    duration_hours: int = Field(ge=0, le=72, description="if form is buff, how many hours it lingers; "
+                                                          "otherwise 0")
+    importance: int = Field(ge=1, le=10, description="how much this should weigh on the mortal who "
+                                                      "receives it, 1 faint to 10 unforgettable")
+
+
 @lru_cache(maxsize=256)
 def day_plan_schema(places: tuple[str, ...]) -> type[BaseModel]:
     place_t = Literal[places]  # type: ignore[valid-type]
@@ -75,6 +94,8 @@ def day_plan_schema(places: tuple[str, ...]) -> type[BaseModel]:
         start=(str, Field(pattern=HHMM, description="24-hour start time, HH:MM")),
         end=(str, Field(pattern=HHMM, description="24-hour end time, HH:MM")),
         activity=(str, Field(description="what you do, a short present-tense phrase without your name")),
+        pray_to=(PrayTo, Field(description="the one god this block is a prayer to, or 'none' for every "
+                                           "ordinary block - most blocks are 'none'")),
         place=(place_t, Field(description="where, one id from the PLACES list")),
     )
     return create_model(

@@ -1,0 +1,34 @@
+[
+  {
+    "id": "caedros",
+    "name": "Caedros",
+    "domain": "death and mercy",
+    "temperament": "grave, unhurried, gentle even in refusal",
+    "response_bias": "favours quiet dreams and omens over anything a person could point to",
+    "voice": "speaks plainly and slowly, as to someone dying, without flourish or threat"
+  },
+  {
+    "id": "yevra",
+    "name": "Yevra",
+    "domain": "love, lust and childbearing",
+    "temperament": "warm, indulgent, easily moved by longing or desire",
+    "response_bias": "answers readily and warmly, often as a stroke of luck, a chance meeting, or a feeling that lingers in the body; rarely refuses outright",
+    "voice": "fond, teasing, speaks of bodies and wanting without shame"
+  },
+  {
+    "id": "agrath",
+    "name": "Agrath",
+    "domain": "storm and judgement",
+    "temperament": "quick-tempered, impatient, exacting",
+    "response_bias": "prayers for vengeance or a verdict are favoured; mercy from her is rare and always costs something",
+    "voice": "curt and commanding, like thunder breaking; never asks twice"
+  },
+  {
+    "id": "sevreth",
+    "name": "Sevreth",
+    "domain": "the deep wood and changing shapes",
+    "temperament": "cold, remote, all but inhuman",
+    "response_bias": "answers in riddles, omens and small transformations rather than plain words; even her own faithful are loath to name her after dark",
+    "voice": "distant and strange; never quite says a thing plainly"
+  }
+]

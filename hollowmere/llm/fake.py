@@ -68,11 +68,15 @@ class FakeLLM:
                 "morning_thought": "Hungry again. The town smells of bread and fear.",
                 "wake_up": "12:00",
                 "blocks": [
-                    {"start": "12:00", "end": "16:00", "activity": "tends the shrine and the fire", "place": work},
-                    {"start": "16:00", "end": "19:00", "activity": "skulks at the edge of the woods", "place": "witchwood"},
-                    {"start": "19:00", "end": "23:00", "activity": "creeps about the graves", "place": "graveyard"},
-                    {"start": "23:00", "end": "02:00", "activity": "steals scraps behind the bakery", "place": "square"},
-                    {"start": "02:00", "end": "03:30", "activity": "goes to sleep", "place": bed},
+                    {"start": "12:00", "end": "16:00", "activity": "tends the shrine and the fire",
+                     "pray_to": "none", "place": work},
+                    {"start": "16:00", "end": "19:00", "activity": "skulks at the edge of the woods",
+                     "pray_to": "none", "place": "witchwood"},
+                    {"start": "19:00", "end": "23:00", "activity": "creeps about the graves",
+                     "pray_to": "none", "place": "graveyard"},
+                    {"start": "23:00", "end": "02:00", "activity": "steals scraps behind the bakery",
+                     "pray_to": "none", "place": "square"},
+                    {"start": "02:00", "end": "03:30", "activity": "goes to sleep", "pray_to": "none", "place": bed},
                 ],
             }
         wake = self.rng.choice(["05:30", "06:00", "06:30"])
@@ -81,13 +85,16 @@ class FakeLLM:
             "morning_thought": "Another grey day. I must keep my head down and my belly full.",
             "wake_up": wake,
             "blocks": [
-                {"start": wake, "end": "07:00", "activity": "rises, washes and eats a heel of bread", "place": bed},
-                {"start": "07:00", "end": "12:00", "activity": "works", "place": work},
-                {"start": "12:00", "end": "13:00", "activity": "eats a bowl of pottage", "place": "tavern"},
-                {"start": "13:00", "end": "16:00", "activity": "works", "place": work},
-                {"start": "16:00", "end": "18:00", "activity": "runs an errand", "place": out},
-                {"start": "18:00", "end": "21:00", "activity": "drinks and listens to gossip", "place": "tavern"},
-                {"start": "21:00", "end": "05:00", "activity": "goes to sleep", "place": bed},
+                {"start": wake, "end": "07:00", "activity": "rises, washes and eats a heel of bread",
+                 "pray_to": "none", "place": bed},
+                {"start": "07:00", "end": "12:00", "activity": "works", "pray_to": "none", "place": work},
+                {"start": "12:00", "end": "13:00", "activity": "eats a bowl of pottage",
+                 "pray_to": "none", "place": "tavern"},
+                {"start": "13:00", "end": "16:00", "activity": "works", "pray_to": "none", "place": work},
+                {"start": "16:00", "end": "18:00", "activity": "runs an errand", "pray_to": "none", "place": out},
+                {"start": "18:00", "end": "21:00", "activity": "drinks and listens to gossip",
+                 "pray_to": "none", "place": "tavern"},
+                {"start": "21:00", "end": "05:00", "activity": "goes to sleep", "pray_to": "none", "place": bed},
             ],
         }
 
@@ -143,3 +150,11 @@ class FakeLLM:
 
     def _townstate(self, js: dict, user: str) -> dict:
         return {"text": "The plague lingers and the harvest is still thin, but the Watch keeps the peace."}
+
+    def _divineanswer(self, js: dict, user: str) -> dict:
+        form = self.rng.choice(["dream", "sign", "omen", "coincidence", "buff", "silence"])
+        out = {"form": form, "text": "A warmth you cannot name settles over you a moment, then is gone.",
+               "effect": "", "duration_hours": 0, "importance": self.rng.randint(3, 7)}
+        if form == "buff":
+            out["effect"], out["duration_hours"] = "an unlooked-for ease in the chest", self.rng.randint(4, 12)
+        return out

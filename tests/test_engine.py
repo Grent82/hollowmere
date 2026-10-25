@@ -683,6 +683,61 @@ async def test_a_human_can_warm_to_the_goblin_over_several_talks(tmp_path):
     assert "ros" in nib.allies
 
 
+class _DivineReply:
+    def __init__(self, form="sign", text="A sign settles over you.", duration_hours=0):
+        self.form, self.text, self.duration_hours = form, text, duration_hours
+        self.asked: list[str] = []
+
+    async def structured(self, system, user, schema, *, label, temperature=None):
+        if label != "divine_answer":
+            raise AssertionError(f"unexpected label {label}")
+        self.asked.append(user)
+        return schema.model_validate({"form": self.form, "text": self.text, "effect": "",
+                                      "duration_hours": self.duration_hours, "importance": 5})
+
+
+async def test_engine_fires_exactly_one_divine_answer_call_per_pray_block_and_not_again_for_the_same_block(tmp_path):
+    import asyncio
+    from datetime import timedelta
+
+    from hollowmere.agents.agent import Block
+
+    engine = await _town(tmp_path, "pray_trigger.db")
+    odo, now = engine.agents["odo"], engine.now
+    odo.plan = [Block(now - timedelta(hours=1), now + timedelta(hours=2), "prays for the dying",
+                       "chapel", "caedros")]
+    odo.prayed_block = -1
+    engine.ctx.llm = _DivineReply()
+    engine._background(now)
+    await asyncio.gather(*engine._bg.values())
+    assert len(engine.ctx.llm.asked) == 1
+    assert odo.prayed_block == 0
+    engine._background(now)  # the same block, a moment later: not asked again
+    await asyncio.gather(*(t for t in engine._bg.values() if not t.done()))
+    assert len(engine.ctx.llm.asked) == 1
+
+
+async def test_prayer_events_are_not_fed_into_the_town_review(tmp_path):
+    from datetime import timedelta
+
+    from hollowmere.sim.engine import TOWN_EVENT_KINDS
+    assert "prayer" not in TOWN_EVENT_KINDS
+    engine = await _town(tmp_path, "pray_private.db")
+    engine._event("prayer", ["odo"], "Odo prays to Caedros: a hush answers him.", form="silence", god="caedros")
+    since = engine.now - timedelta(days=1)
+    assert "a hush answers him" not in " ".join(engine._recent_town_events(since))
+
+
+async def test_favor_expires_automatically_on_schedule(tmp_path):
+    from datetime import timedelta
+
+    engine = await _town(tmp_path, "favor_expiry.db")
+    odo, now = engine.agents["odo"], engine.now
+    odo.favor = {"god": "caedros", "text": "a quiet calm", "expires": (now - timedelta(minutes=1)).isoformat()}
+    await engine._schedule(now)
+    assert odo.favor is None
+
+
 async def test_plan_day_asks_its_memory_about_people_it_has_a_relationship_with(tmp_path):
     """plan_day must not only ask about the agent's own plans - it should also ask what the agent has
     actually seen of the people it cares about, so it can ground their part of the day in fact instead

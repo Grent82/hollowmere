@@ -47,20 +47,39 @@ def test_extract_json_tolerates_think_and_fences():
 def test_place_enum_rejects_unknown_places():
     schema = day_plan_schema(("tavern", "smithy/anvil"))
     ok = {"morning_thought": "x", "wake_up": "06:00",
-          "blocks": [{"start": "06:00", "end": "07:00", "activity": "a", "place": "tavern"}] * 3}
+          "blocks": [{"start": "06:00", "end": "07:00", "activity": "a", "pray_to": "none", "place": "tavern"}] * 3}
     schema.model_validate(ok)
     bad = {**ok, "blocks": [{**ok["blocks"][0], "place": "castle"}] * 3}
     with pytest.raises(Exception):
         schema.model_validate(bad)
 
 
+def test_day_plan_block_requires_pray_to_naming_a_known_god_or_none():
+    schema = day_plan_schema(("chapel",))
+    ok = {"morning_thought": "x", "wake_up": "06:00",
+          "blocks": [{"start": "06:00", "end": "07:00", "activity": "prays",
+                      "pray_to": "caedros", "place": "chapel"}] * 3}
+    schema.model_validate(ok)
+    bad = {**ok, "blocks": [{**ok["blocks"][0], "pray_to": "thor"}] * 3}
+    with pytest.raises(Exception):
+        schema.model_validate(bad)
+
+
+def test_divine_answer_form_is_constrained_to_the_six_known_kinds():
+    from typing import get_args
+
+    from hollowmere.agents.schemas import DivineAnswer
+    assert set(get_args(DivineAnswer.model_fields["form"].annotation)) == {
+        "dream", "sign", "omen", "coincidence", "buff", "silence"}
+
+
 def test_normalise_plan_fills_gaps_and_ends_in_bed():
     day = date(1347, 11, 2)
     wake = parse_hhmm(day, "06:00")
     blocks = normalise_plan(day, wake, [
-        ("07:00", "12:00", "works", "smithy"),
-        ("11:00", "13:00", "eats", "tavern"),      # overlaps
-        ("15:00", "01:00", "drinks", "tavern"),    # after a gap, past midnight
+        ("07:00", "12:00", "works", "smithy", None),
+        ("11:00", "13:00", "eats", "tavern", None),      # overlaps
+        ("15:00", "01:00", "drinks", "tavern", None),    # after a gap, past midnight
     ], "brannoc_room/brannoc_bed")
     assert blocks[0].start == wake
     for a, b in zip(blocks, blocks[1:]):

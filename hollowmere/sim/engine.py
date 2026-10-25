@@ -31,6 +31,7 @@ from typing import Awaitable, Callable
 
 from hollowmere.agents import prompts
 from hollowmere.agents.agent import Agent, Ctx, Digest, Task, day_key, due_at
+from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.schemas import TownState
 from hollowmere.config import SimConfig
 from hollowmere.llm.client import LLMError
@@ -52,7 +53,10 @@ HIDE_FOR = timedelta(minutes=10)
 HIDING_PLACES = ["goblin_den/nib_nest", "witchwood/bramble_thicket", "riverbank/reeds",
                  "standing_stones/brambles", "graveyard/dead_yew"]
 # Event kinds that bear on the town as a whole; raw chat lines and routine plans are left out so the
-# town review's prompt stays small and focused on what actually shifted.
+# town review's prompt stays small and focused on what actually shifted. "prayer" belongs here too by
+# that logic, but deliberately stays out: a god's answer is private to the one who prayed, and feeding
+# it to the shared narrator would leak it into every agent's town_state - the same boundary enforced by
+# never writing a prayer's effect into anyone's bonds (see Agent.pray()).
 TOWN_EVENT_KINDS = {"reflection", "agreement", "ally", "spurn", "warm", "sighting", "intent", "chat_end"}
 
 Listener = Callable[[dict], Awaitable[None]]
@@ -154,6 +158,8 @@ class Engine:
         for _ in range(3):
             jobs = []
             for a in self.agents.values():
+                if a.favor is not None and now >= datetime.fromisoformat(a.favor["expires"]):
+                    a.favor = None
                 if a.hiding_until is not None:
                     if now < a.hiding_until:
                         continue
@@ -497,6 +503,15 @@ class Engine:
             for text in a.new_reflections:
                 self._event("reflection", [a.id], text)
             a.new_reflections.clear()
+            for p in a.new_prayers:
+                god = GOD_BY_ID.get(p["god"])
+                self._event("prayer", [a.id], f"{a.first} prays to {god.name if god else p['god']}: {p['text']}",
+                            form=p["form"], god=p["god"])
+            a.new_prayers.clear()
+            idx = a.current_block(now)
+            if idx is not None and a.plan[idx].god and a.prayed_block != idx:
+                a.prayed_block = idx  # set before spawning: the next tick must not re-fire the same block
+                self._spawn(a, a.pray(self.ctx, now, a.plan[idx].god), "pray")
             if a.importance_acc >= self.cfg.reflection_threshold:
                 self._spawn(a, a.reflect(self.ctx, now), "reflect")
             elif a.mode == "asleep" and a.plan_date == day_key(now) and a.reviewed_date != a.plan_date \

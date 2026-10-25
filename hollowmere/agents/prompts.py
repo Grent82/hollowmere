@@ -12,6 +12,7 @@ import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterable
 
+from hollowmere.agents.gods import GOD_BY_ID, God
 from hollowmere.agents.persona import DATA
 from hollowmere.memory.stream import Memory
 
@@ -106,6 +107,9 @@ def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = 
         text += f"Gifts and weaknesses: {p.abilities}\n"
     if agent.drive:
         text += f"What {p.first_name} wants for themself right now: {agent.drive}\n"
+    if agent.favor:
+        god = GOD_BY_ID.get(agent.favor["god"])
+        text += f"A favor from {god.name if god else agent.favor['god']} lingers on {p.first_name}: {agent.favor['text']}\n"
     if p.is_goblin:
         friends = ", ".join(names.get(a, a) for a in sorted(agent.allies)) or "no one yet"
         kind = ", ".join(f"{names.get(k, k)} ({REGARD_WORDS[r['step']]})" for k, r in sorted(agent.regard.items())
@@ -183,7 +187,11 @@ Plan {p.first_name}'s waking day from getting up to going to bed.
   them above (their trade, or what you've seen of them) supports it; otherwise stay uncertain about
   them - hoping, watching, asking around - rather than inventing a meeting that contradicts what you know.
 - The final block is going to sleep at {p.bed}.
-- activity is a short present-tense phrase without the name, e.g. "hammers spearheads for the watch"."""
+- activity is a short present-tense phrase without the name, e.g. "hammers spearheads for the watch".
+- If {p.first_name} means to pray during any block, set that block's pray_to to the one god addressed
+  (caedros, yevra, agrath or sevreth); every other block's pray_to is "none". Whether, when, and to which
+  god {p.first_name} prays is entirely {p.first_name}'s own choice, shaped by piety, dread, hope or habit -
+  most days call for no prayer at all."""
 
 
 def decompose(agent: Agent, world: World, names: dict[str, str], now: datetime, activity: str,
@@ -373,6 +381,35 @@ changed, and what {p.first_name} means to do tomorrow. Then say what {p.first_na
 beyond tomorrow's tasks: hold to the wish named above (if any), let it deepen, or let it become something
 else entirely."""
 
+
+
+def god_system_prompt(god: God) -> str:
+    return (
+        f"You speak as {god.name}, {god.domain}, one of the four gods worshipped at Hollowmere's chapel. "
+        f"{WORLD_FACTS} Your temperament: {god.temperament}. How you answer prayers: {god.response_bias}. "
+        f"Your voice: {god.voice}\n\n"
+        "Someone has just prayed to you. Decide freely whether and how to answer - a dream, a waking sign, "
+        "an omen, a mere coincidence, a tangible favor, or silence; silence is common and never a failure "
+        "to decide. Whatever you send must stay deniable, even a favor: it should read as something that "
+        "could equally be chance, mood, or the asker's own hope, never a flat statement that you have acted. "
+        "You can affect only the one person praying to you, and only through what they themselves perceive "
+        "or feel - never speak of, or act upon, anyone else. Stay within what is already known of you and "
+        "the other three gods; invent no new god, no new magic, nothing modern."
+    )
+
+
+def divine_prayer(agent: Agent, god: God, now: datetime, offering: str, mems: list[Memory]) -> str:
+    p = agent.persona
+    return f"""{clock_line(now)} {p.name}, {p.age}, {p.sex}, {p.background}
+
+{p.first_name} prays to you, {god.name}: {offering}
+
+WHAT YOU KNOW OF {p.first_name.upper()}'S PAST DEALINGS WITH YOU
+{memories(mems, now)}
+
+Decide your answer, and if any, what {p.first_name} alone perceives of it - never announced to the town. If
+you grant a favor, describe it only as a mood or aura that colours {p.first_name}'s own bearing, not a named
+power, and say for how many hours it lingers."""
 
 
 def goblin_choice(agent: Agent, world: World, names: dict[str, str], now: datetime, place: str,

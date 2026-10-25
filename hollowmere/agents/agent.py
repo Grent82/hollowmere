@@ -15,9 +15,10 @@ from datetime import date, datetime, time, timedelta
 from typing import Literal
 
 from hollowmere.agents import prompts
+from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
-    DayReview, FocalQuestions, Insights, Reaction, Utterance,
+    DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance,
     chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
 )
 from hollowmere.llm.client import LLM, LLMError
@@ -61,14 +62,16 @@ class Block:
     end: datetime
     activity: str
     place: str
+    god: str | None = None  # which god this block is a prayer to, if any
 
     def to_dict(self) -> dict:
         return {"start": self.start.isoformat(), "end": self.end.isoformat(),
-                "activity": self.activity, "place": self.place}
+                "activity": self.activity, "place": self.place, "god": self.god}
 
     @classmethod
     def from_dict(cls, d: dict) -> Block:
-        return cls(datetime.fromisoformat(d["start"]), datetime.fromisoformat(d["end"]), d["activity"], d["place"])
+        return cls(datetime.fromisoformat(d["start"]), datetime.fromisoformat(d["end"]), d["activity"],
+                   d["place"], d.get("god"))
 
 
 @dataclass
@@ -112,14 +115,15 @@ def is_sleep(activity: str) -> bool:
     return bool(SLEEP_RE.search(activity))
 
 
-def normalise_plan(day: date, wake: datetime, raw: list[tuple[str, str, str, str]], bed: str) -> list[Block]:
+def normalise_plan(day: date, wake: datetime, raw: list[tuple[str, str, str, str, str | None]],
+                   bed: str) -> list[Block]:
     """Turn LLM blocks into a gap-free, non-overlapping schedule from wake-up to bedtime."""
     blocks: list[Block] = []
-    for start_s, end_s, activity, place in raw:
+    for start_s, end_s, activity, place, god in raw:
         start, end = parse_hhmm(day, start_s), parse_hhmm(day, end_s)
         if end <= start:
             end = start + timedelta(hours=1)
-        blocks.append(Block(start, end, activity.strip(), place))
+        blocks.append(Block(start, end, activity.strip(), place, god))
     blocks.sort(key=lambda b: b.start)
     out: list[Block] = []
     cursor = wake
@@ -199,6 +203,11 @@ class Agent:
             for k in persona.relationships.keys() | persona.stances.keys()}
         self.seek: str | None = None  # whom the current plan block is spent going to find, if anyone
         self.seek_block = -1
+        self.favor: dict | None = None  # {"god", "text", "expires"}: a buff from the last god to answer -
+                                        # one at a time, always replaced by whichever god answers next
+        self.pending_dream: dict | None = None  # {"text", "importance"}, delivered at the next plan_day()
+        self.prayed_block: int = -1  # plan index already resolved this day, mirrors tasks_block/seek_block
+        self.new_prayers: list[dict] = []  # not yet shown in the event feed
 
     def knows(self, other: "Agent") -> bool:
         return other.id in self.bonds or self.id in other.allies
@@ -292,6 +301,9 @@ class Agent:
         today = day_key(now)
         self.thinking = "planning the day"
         self._drop_old_commitments(now)
+        if self.pending_dream:
+            await self.observe(self.pending_dream["text"], now, self.pending_dream["importance"])
+            self.pending_dream = None
         try:
             who_matters = [ctx.names.get(rid, rid) for rid in self.persona.relationships]
             mems = await self.memory.retrieve(
@@ -307,7 +319,8 @@ class Agent:
                 prompts.plan_day(self, ctx.world, ctx.names, now, mems, promises, known_as=ctx.known_as),
                 schema, label="plan_day")
             wake = parse_hhmm(today, out.wake_up)
-            raw = [(b.start, b.end, b.activity, b.place) for b in out.blocks]
+            raw = [(b.start, b.end, b.activity, b.place, None if b.pray_to == "none" else b.pray_to)
+                   for b in out.blocks]
             self.plan = normalise_plan(today, wake, raw, self.persona.bed)
             for c in due:
                 self._insert_commitment(c, today)
@@ -320,6 +333,7 @@ class Agent:
             self.plan = self._fallback_plan(today)
         self.plan_date = today
         self.tasks_block = -1
+        self.prayed_block = -1
         self.thinking = None
 
     def _fallback_plan(self, day: date) -> list[Block]:
@@ -356,10 +370,10 @@ class Agent:
             if b.end <= start:
                 new.append(b)
             elif b.start < start:
-                new.append(Block(b.start, start, b.activity, b.place))
-                new.append(Block(end, end + (b.end - start), b.activity, b.place))
+                new.append(Block(b.start, start, b.activity, b.place, b.god))
+                new.append(Block(end, end + (b.end - start), b.activity, b.place, b.god))
             else:
-                new.append(Block(b.start + shift, b.end + shift, b.activity, b.place))
+                new.append(Block(b.start + shift, b.end + shift, b.activity, b.place, b.god))
         new.append(Block(start, end, c["activity"], c["place"]))
         self.plan = sorted(new, key=lambda b: b.start)
 
@@ -591,6 +605,37 @@ class Agent:
         if out.drive.strip():
             self.drive = out.drive.strip()
 
+    async def pray(self, ctx: Ctx, now: datetime, god_id: str) -> None:
+        """Pray to one god. The god may only touch this agent: its own memory, its own favor, its own
+        system prompt - never anyone else's bonds, directly or by proxy. See hollowmere/agents/gods.py
+        and prompts.god_system_prompt() for the boundary stated to the model itself."""
+        god = GOD_BY_ID.get(god_id)
+        if god is None:
+            return
+        idx = self.current_block(now)
+        offering = self.plan[idx].activity if idx is not None else "prays"
+        self.thinking = f"praying to {god.name}"
+        try:
+            mems = await self.memory.retrieve(
+                [f"{self.first}'s past prayers and dealings with {god.name}", god.domain], now, k=8)
+            out = await ctx.llm.structured(
+                prompts.god_system_prompt(god), prompts.divine_prayer(self, god, now, offering, mems),
+                DivineAnswer, label="divine_answer")
+        except LLMError as e:
+            log.warning("%s: prayer to %s failed (%s)", self.id, god.name, e)
+            self.thinking = None
+            return
+        self.thinking = None
+        if out.form == "dream":
+            self.pending_dream = {"text": out.text, "importance": out.importance}
+        else:
+            await self.observe(out.text, now, out.importance)
+        if out.form == "buff":
+            hours = max(1, out.duration_hours)
+            self.favor = {"god": god.id, "text": out.effect or out.text,
+                         "expires": (now + timedelta(hours=hours)).isoformat()}
+        self.new_prayers.append({"god": god.id, "form": out.form, "text": out.text})
+
     async def observe(self, text: str, now: datetime, importance: int) -> None:
         await self._remember("observation", text, now, importance)
 
@@ -616,6 +661,7 @@ class Agent:
             "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
             "seek": self.seek, "seek_block": self.seek_block,
             "drive": self.drive, "town_state": self.town_state,
+            "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
         }
 
     def restore(self, d: dict) -> None:
@@ -648,3 +694,6 @@ class Agent:
             b.setdefault("affinity", starting_affinity(b.get("stance", "neutral")))  # older saves lack this
         self.drive = d.get("drive", "")  # older saves lack this
         self.town_state = d.get("town_state", "")  # older saves lack this
+        self.favor = d.get("favor")  # older saves lack this
+        self.pending_dream = d.get("pending_dream")  # older saves lack this
+        self.prayed_block = d.get("prayed_block", -1)  # older saves lack this
