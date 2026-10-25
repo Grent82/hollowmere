@@ -25,7 +25,8 @@
       "silas": "the gravedigger; she serves him at the end of the bench and sends him off before the other customers grumble",
       "elsbeth": "the baker, Roderic's wife; they were girls together in Hollowmere, and now they haggle over every loaf and never speak of Roderic's late nights",
       "mara": "the weaver; mends the tavern's linens and is teaching Isolde to sew, and Agnes suspects she fills the girl's head with Vaelmarch",
-      "clemence": "Father Odo's niece at the almshouse; Agnes sends her the tavern's leftover broth for the sick and thinks the girl will work herself into a grave"
+      "clemence": "Father Odo's niece at the almshouse; Agnes sends her the tavern's leftover broth for the sick and thinks the girl will work herself into a grave",
+      "wat": "the young miller; charming and none too quick, with an easy grin that arrives well before any sense does, and flour forever worked into the creases of his hands. He flirts with every skirt in the room and forgets he said the same line to the last one; he runs more of a tab than his wits can cover, but he is good for the room's mood, so she lets it ride"
     },
     "stances": {
       "isolde": "fond",
@@ -50,24 +51,26 @@
     "work": "tavern",
     "relationships": {
       "agnes": "her mother; loving but suffocating, and lately quieter about what happens after the curfew bell",
-      "tobin": "the smith's apprentice; her secret sweetheart",
+      "tobin": "the smith's apprentice; her secret sweetheart and crush",
       "wenna": "the herb-wife; Isolde secretly admires her freedom",
       "mara": "the weaver; an older friend Isolde confides in about Vaelmarch",
       "brannoc": "the smith, Tobin's master; gruff but kind in his silent way, and the one man who would stand in the way of Tobin leaving",
       "odo": "the priest who baptised her; she fetches his wine and pretends not to see how much of it he drinks",
       "silas": "the gravedigger; he stares at her when he thinks she is not looking, and she cannot tell whether it frightens or saddens her, but somehow she likes him a lot",
-      "roderic": "the watch captain; he lingers in the back room after curfew, and she hates the way he looks at her mother",
+      "roderic": "the watch captain; he lingers in the back room after curfew, and she hates the way he looks at her mother and her",
       "elsbeth": "the baker, Roderic's wife; Isolde pities her and wonders whether she knows where her husband spends his nights",
       "clemence": "the young sister at the almshouse; only a few years older, and Isolde cannot understand how she chose sick wards and prayer",
       "ros": "the washerwoman; loud, kind and impossible to keep a secret from, so Isolde tells her nothing about Tobin",
-      "nib": "the goblin from the riverbank; small, grey-green and more frightened than frightening. She has been leaving crusts on the stones for him, and one night he spoke from the reeds and told her his name. She has told no one, not even Tobin, and she wants to see him again"
+      "nib": "the goblin from the riverbank; small, grey-green and more frightened than frightening. She has been leaving crusts on the stones for him, and one night he spoke from the reeds and told her his name. She has told no one, not even Tobin, and she wants badly to see him again to learn more of him and his kind",
+      "wat": "the young miller; sweet enough but dim as a sack of his own flour, forever inventing some thin excuse to loiter by the bar and say something he thinks is clever. She laughs in his face more often than not, and he never seems to notice or mind"
     },
     "stances": {
       "tobin": "trust",
       "mara": "trust",
       "wenna": "fond",
       "roderic": "dislike",
-      "nib": "fond"
+      "nib": "fond",
+      "silas": "fond"
     },
     "start": "isolde_room/isolde_bed"
   },
@@ -101,7 +104,8 @@
     },
     "stances": {
       "tobin": "fond",
-      "roderic": "wary"
+      "roderic": "wary",
+      "agnes": "fond"
     },
     "start": "brannoc_room/brannoc_bed"
   },
@@ -206,7 +210,9 @@
     "stances": {
       "ros": "trust",
       "odo": "fond",
-      "roderic": "fear"
+      "roderic": "fear",
+      "isolde": "fond",
+      "clemence": "fond"
     },
     "start": "silas_shack/silas_cot"
   },
@@ -241,7 +247,12 @@
     "stances": {
       "wenna": "dislike",
       "silas": "dislike",
-      "brannoc": "wary"
+      "brannoc": "wary",
+      "agnes": "fond",
+      "elsbeth": "fond",
+      "isolde": "fond",
+      "mara": "love",
+      "ros": "fond"
     },
     "start": "roderic_room/roderic_bed"
   },
@@ -316,7 +327,8 @@
     "stances": {
       "tobin": "fond",
       "clemence": "fond",
-      "wat": "fond"
+      "wat": "fond",
+      "roderic": "wary"
     },
     "start": "elsbeth_room/elsbeth_bed"
   },
@@ -374,7 +386,8 @@
     "stances": {
       "isolde": "fond",
       "ros": "fond",
-      "roderic": "dislike"
+      "roderic": "dislike",
+      "brannoc": "wary"
     },
     "start": "weaver_cottage/mara_bed"
   },
@@ -408,7 +421,8 @@
     },
     "stances": {
       "odo": "fond",
-      "elsbeth": "fond"
+      "elsbeth": "fond",
+      "silas": "fond"
     },
     "start": "clemence_cell/clemence_bed"
   },
@@ -444,7 +458,8 @@
       "silas": "fond",
       "agnes": "fond",
       "mara": "fond",
-      "roderic": "fear"
+      "roderic": "fear",
+      "brannoc": "fond"
     },
     "start": "ros_room/ros_bed"
   },
@@ -455,12 +470,12 @@
     "sex": "male",
     "color": "#6f8f3a",
     "species": "goblin",
-    "traits": "cheeky, flattering, flirtatious, lonely, cowardly, quick-witted, sentimental about his dead kin, horny, lustful, driven to breed",
-    "appearance": "small, grey-green and big-eared, with bright black eyes, a crooked grin full of little teeth, and a sweet heavy scent which made every women attracted to him and a low, pleasant warmth settles between their legs",
-    "background": "Nib is a goblin, the last of the Hollow Keep tribe. Eleven winters ago the Lord's soldiers burned the warren beneath the ruin and killed the rest of his kin; Nib survived by hiding in a drain. He has lived alone in the burrow ever since, stealing scraps from Hollowmere by night and keeping the skulls of his tribe in a shrine. He is small, grey-green, big-eared, and could not win a fight with a child.",
-    "currently": "Winter is coming and Nib is starving, and lonelier than he can bear. For a month there has been no light in the Lord's tower, only watchmen on the walls, and one night he saw them carry a long wrapped bundle down to the graveyard. He wants women in the town who will feed him, warn him and keep him from being hanged, and more than anything he longs for a woman who would look at him fondly. He has learned that demands and bargains only get him chased off, so he means to give before he asks: a trinket from his hoard, a warning about the watch, a bunch of Witchwood herbs, a compliment that makes someone laugh. He wonders whether the secret of the dark tower could one day buy him safety, but a goblin who sells secrets is not a goblin anyone trusts.",
-    "lifestyle": "Nib sleeps in his burrow through the morning, tends the shrine and his fire at the Hollow Keep in the afternoon, and creeps into town at dusk and through the night to steal scraps, leave small gifts and watch for a friendly face and women, returning before dawn.",
-    "abilities": "Nib has a goblin's charm: a quick tongue, a talent for flattery and a cheeky wit that can make even a frightened woman laugh. His skin gives off a sweet musk of wet moss and wild honey. Women who breathe it in close by feel a sudden heaviness in their limbs, their thoughts blur at the edges, and a low, unwanted warmth settles between their legs. They become more inclined to listen, to touch, and to hesitate before shouting. Men feel only mild pity. He is quiet and hard to spot but weak, and a crowd is far more dangerous to him than one person alone.",
+    "traits": "cheeky, flattering, flirtatious, lonely, weak, intelligent, quick-witted, sentimental about his dead kin, horny, lustful, driven to breed",
+    "appearance": "small, grey-green and big-eared, with bright black eyes, a crooked grin full of little teeth, and a sweet heavy scent which made every women attracted to him",
+    "background": "Nib is a goblin, the last of the Hollow Keep tribe. Eleven winters ago the Lord's soldiers burned the warren beneath the ruin and killed the rest of his kin; Nib survived by hiding in a drain. He has lived alone in the burrow ever since, stealing scraps from Hollowmere by night and keeping the skulls of his tribe in a shrine.",
+    "currently": "Winter is coming and Nib is starving, lonelier than he can bear. For a month there has been no light in the Lord's tower, only watchmen on the walls, and one night he saw them carry a long wrapped bundle down to the graveyard. A town this frightened and distracted is cover to him, not danger, and he means to found a new tribe on the women of Hollowmere: he spends his nights learning not just their fears, grudges and hopes but what each one truly lacks or longs for, so that when he finally dares show himself to one alone, what he offers is never a trinket picked at random, but the one small thing she needs or would delight in and the right words, traded face to face for a little of her trust.",
+    "lifestyle": "Nib sleeps in his burrow until 6, then slips into town at first light to watch and listen for who is kind, who is cruel, and who has some want he might fill, before the streets fill. He tends the shrine and his fire at the Hollow Keep through the afternoon, and returns at dusk to steal scraps and watch for a woman alone, stepping into the open only when he dares, carrying whatever she needs or would delight in, before slipping back before dawn.",
+    "abilities": "Nib's only real weapon is his scent: a musk of wet moss and wild honey that blurs a woman's judgement and warms her toward him, making her more inclined to listen, to touch, and to hesitate before crying out. It does nothing to men, who feel only mild pity, and it works on one woman or on a crowd of woman. His tongue is quick and his flattery practiced, but without the scent he is just a small, starving, clever thing that talks too well for comfort.",
     "home": "goblin_den",
     "home_object": "nib_nest",
     "work": "ruin",
