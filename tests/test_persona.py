@@ -1,4 +1,13 @@
-from hollowmere.agents.persona import RANK, affinity_label, update_affinity
+from hollowmere.agents.persona import AFFINITY_STEP_DOWN, AFFINITY_STEP_UP, RANK, affinity_label, update_affinity
+
+
+def test_affinity_steps_are_softened_so_a_run_of_wary_judgments_does_not_lock_relationships_in():
+    """Regression: with the old 0.35/0.7 split, a town whose model defaults to judging 'wary' most of
+    the time dragged nearly every relationship down twice as fast as it could ever recover, and real
+    runs showed hundreds of bonds stuck exactly at the 'wary' target. Keep some asymmetry (a scare
+    should still outweigh an equally warm talk) but make it much less punishing."""
+    assert AFFINITY_STEP_UP == 0.45
+    assert AFFINITY_STEP_DOWN == 0.6
 
 
 def test_affinity_never_overshoots_the_judged_target():

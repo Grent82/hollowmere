@@ -134,18 +134,30 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False) -> t
                         "them with no meeting involved, and 'them' only for a task they alone promised to do "
                         "for you, elsewhere, that does not need you present")),
         accepted=(bool, Field(description="true only if whoever is to do it offered it or said yes")),
-        day=(Literal["today", "tomorrow"], ...),
-        time=(str, Field(pattern=HHMM, description="when_said as a clock time")),
+        day=(Literal["today", "tomorrow"], Field(
+            description="today if that hour has not yet passed today, otherwise tomorrow")),
+        time=(str, Field(pattern=HHMM, description="when_said as a 24-hour clock time (HH:MM). If the hour was "
+                        "spoken vaguely ('by dusk', 'at six'), pick the single most natural reading for how the "
+                        "day is passing right now - the other speaker is resolving the same moment independently "
+                        "and must land on the same hour")),
         activity=(str, Field(description="what will be done, short phrase without your name")),
         place=(place_t, Field(description="where it will happen")),
     )
     fields: dict = dict(
         summary=(str, Field(description="what was said and what you learned, first person, one to three sentences")),
-        importance=(int, Field(ge=1, le=10)),
-        feeling=(Stance, Field(description="how you feel about them now, after this talk")),
+        importance=(int, Field(ge=1, le=10, description="how much this talk matters, 1 trivial to 10 life-changing - "
+                               "judge it by what changed today, not by how long the talk ran")),
+        feeling=(Stance, Field(
+            description="how you feel about THEM now, based only on what was just said in this talk. Default to "
+                        "neutral; shift toward wary or worse only if THIS talk gave specific reason (a slight, a "
+                        "lie, a threat), and toward fond or better only if it gave specific warmth - never from "
+                        "your general dread, fear or suspicion of the plague or the age, which touches everyone "
+                        "alike and says nothing about this one person")),
         view_of_them=(str, Field(description="what you now make of them, first person, one short sentence")),
         commitments=(list[commitment], Field(  # type: ignore[valid-type]
-            max_length=2, description="only what the two of you agreed on in this talk; usually empty")),
+            max_length=2, description="only what the two of you agreed on in this talk; usually empty. If more "
+                        "than two things were truly agreed, keep only the two that matter most. A tentative "
+                        "'maybe' that nobody confirmed can be left out entirely")),
     )
     if about_goblin:
         fields["toward_goblin"] = (GoblinRegard, Field(

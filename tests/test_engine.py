@@ -323,6 +323,30 @@ async def test_both_sides_of_a_meeting_end_up_at_the_same_time_and_place(tmp_pat
     assert len(tobin.plan) >= plan_before - 1
 
 
+async def test_a_meeting_one_side_forgot_still_lands_on_their_calendar(tmp_path):
+    """Regression for the real Isolde/Nib, Isolde/Odo, Odo/Clemence and Roderic/Agnes bugs: each side's
+    own digest call independently decides whether a shared meeting is their commitment to keep, and a
+    small model can decide it isn't (who="them"/"me", or no commitment extracted at all) even when the
+    other side clearly recorded it as "both". Whoever DID recognise it should still put the other person
+    on the calendar - a meeting needs both people there, not just the one who remembered agreeing to it."""
+    import asyncio
+
+    from hollowmere.agents.agent import Digest
+    from hollowmere.sim.engine import Conversation
+    engine = await _town(tmp_path, "forgot.db")
+    roderic, agnes, world, now = engine.agents["roderic"], engine.agents["agnes"], engine.world, engine.now
+    day = now.date().isoformat()
+    his = {"date": day, "time": "21:00", "activity": "drink wine in the back room", "place": "tavern/bar",
+           "with": "agnes"}
+    await roderic._commit(his, world, now)
+    c = Conversation("c200", roderic, agnes, "drink with Agnes", now,
+                     transcript=[("Roderic", "Join me in the back room tonight?")])
+    engine._digested(c, roderic, agnes)(Digest(together=[his]))
+    engine._digested(c, agnes, roderic)(Digest())  # her own digest missed it entirely
+    await asyncio.gather(*engine._bg.values())
+    assert any(cm["with"] == "roderic" and cm["time"] == "21:00" for cm in agnes.commitments)
+
+
 async def test_a_meeting_is_settled_even_when_the_two_sides_guessed_hours_apart(tmp_path):
     """Both digests come from the one talk, so a wide gap is one side misreading the hour (dawn vs
     dusk), never two different meetings - it must still be reconciled, not left standing for both."""
@@ -426,6 +450,25 @@ async def test_a_promise_an_hour_later_at_the_same_place_is_still_scheduled(tmp_
                   Block(at(13), at(15), "treats the sick", "almshouse/sickbeds")]
     wenna._insert_commitment({"time": "12:00", "activity": "bring the tincture", "place": "almshouse"}, day)
     assert [(b.start.hour, b.activity) for b in wenna.plan if b.start.hour == 12] == [(12, "bring the tincture")]
+
+
+async def test_a_late_promise_pushes_the_rest_of_the_evening_back_instead_of_shrinking_it(tmp_path):
+    """Regression: forcing a commitment into an already-made plan used to just carve the hour out of
+    whatever came next, silently cutting that activity - including sleep - short by an hour instead of
+    making the evening run later. Nobody should lose sleep just because a meeting got added."""
+    from datetime import timedelta
+
+    from hollowmere.agents.agent import Block
+    engine = await _town(tmp_path, "pushback.db")
+    agnes, now = engine.agents["agnes"], engine.now
+    day = now.date()
+    at = lambda h: datetime.combine(day, time(h))  # noqa: E731
+    agnes.plan = [Block(at(16), at(21), "serves the evening rush", "tavern/bar"),
+                  Block(at(21), at(23) + timedelta(hours=5), "goes to sleep", "agnes_room/agnes_bed")]
+    agnes._insert_commitment({"time": "21:00", "activity": "drinks wine with Roderic", "place": "tavern/bar"}, day)
+    sleep = next(b for b in agnes.plan if b.activity == "goes to sleep")
+    assert sleep.start == at(22)  # pushed back an hour, not cut short
+    assert sleep.end - sleep.start == timedelta(hours=7)  # same night's sleep it was always going to get
 
 
 async def test_digest_drops_their_errands_unanswered_demands_and_invented_times(tmp_path):

@@ -461,9 +461,11 @@ class Agent:
         """Remember a conversation and any agreement made in it."""
         judging_goblin = other.persona.is_goblin and not self.persona.is_goblin and self.id not in other.allies
         aside = prompts.goblin_aside(self, other, now) if judging_goblin else ""
+        owed = [f"{c['time']} — {c['activity']} at {c['place']}" for c in self.commitments]
         try:
             out = await ctx.llm.structured(
-                prompts.system_prompt(self), prompts.chat_digest(self, ctx.names, now, other.name, transcript, aside),
+                prompts.system_prompt(self),
+                prompts.chat_digest(self, ctx.names, now, other.name, transcript, aside, existing=owed),
                 chat_digest_schema(self.place_ids, judging_goblin), label="digest")
         except LLMError as e:
             log.warning("%s: digest failed (%s)", self.id, e)

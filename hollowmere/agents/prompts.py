@@ -43,8 +43,9 @@ def system_prompt(agent: Agent) -> str:
         f"background below shape not just what is said but how: word choice, formality, warmth, how long or "
         f"short the sentences run, any habits of speech. No two people in Hollowmere think or talk alike. "
         f"{p.first_name} knows only what is in the memories you are shown and what any townsperson would know; "
-        f"do not invent facts about other people, though suspicion and rumour are as fine to feel as "
-        f"affection and desire. "
+        f"do not invent facts about other people. Suspicion of any one person must be earned by what they "
+        f"themselves have said or done; the plague and the age's dread are the water everyone swims in and are "
+        f"never, by themselves, reason to distrust a particular neighbour. "
         "Stay concrete and grounded in the town. No modern words or ideas. Times are 24-hour."
     )
 
@@ -59,12 +60,17 @@ def when(t: datetime, now: datetime, keep_time: bool = False) -> str:
     return f"{days} days ago at {clock}" if keep_time else f"{days} days ago"
 
 
-def bond_line(agent: Agent, other_id: str) -> str:
-    """How the agent sees someone: the persona's starting knowledge, then what talks have made of it."""
+def bond_line(agent: Agent, other_id: str, show_stance: bool = True) -> str:
+    """How the agent sees someone: the persona's starting knowledge, then what talks have made of it.
+
+    show_stance=False drops the "(stance, N talks)" tag: used when the model is about to judge a fresh
+    feeling toward this very person, since showing it its own last verdict just invites it to repeat it."""
     base = agent.persona.relationships.get(other_id, "")
     b = agent.bonds.get(other_id)
     if b is None:
         return base
+    if not show_stance:
+        return f"{base}; now: {b['note']}" if base and b["note"] else (b["note"] or base)
     talks = f", {b['talks']} talks" if b["talks"] else ""
     now = f"{b['note']} ({b['stance']}{talks})" if b["note"] else f"({b['stance']}{talks})"
     return f"{base}; now: {now}" if base and b["note"] else f"{base} {now}".strip()
@@ -86,9 +92,10 @@ def regard_line(goblin: Agent, human_id: str, now: datetime, them: str = "they")
     return line
 
 
-def identity(agent: Agent, names: dict[str, str]) -> str:
+def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = None) -> str:
     p = agent.persona
-    rel = "\n".join(f"- {names.get(k, k)}: {bond_line(agent, k)}" for k in agent.bonds)
+    rel = "\n".join(f"- {names.get(k, k)}: {bond_line(agent, k, show_stance=k != hide_stance_for)}"
+                    for k in agent.bonds)
     text = (
         f"WHO YOU ARE\n{p.name}, {p.age}, {p.sex}. Temperament: {p.traits}.\n"
         + (f"Looks: {p.appearance}\n" if p.appearance else "")
@@ -272,28 +279,32 @@ has run its course."""
 
 
 def chat_digest(agent: Agent, names: dict[str, str], now: datetime, other_name: str,
-                transcript: list[tuple[str, str]], aside: str = "") -> str:
+                transcript: list[tuple[str, str]], aside: str = "", existing: list[str] = ()) -> str:
     p = agent.persona
     lines = "\n".join(f'{who}: "{text}"' for who, text in transcript)
+    other_id = next((k for k, v in names.items() if v == other_name), None)
+    owed = "\n".join(f"- {e}" for e in existing) or "- none"
+    goblin_limit = (f"\n{p.first_name} would never agree to meet indoors anywhere but {p.home} or {p.work}."
+                    if p.is_goblin else "")
     return f"""{clock_line(now)} {p.first_name} has just finished talking with {other_name}.
 
-{identity(agent, names)}
+{identity(agent, names, hide_stance_for=other_id)}
 
 CONVERSATION
 {lines}
 {aside}
+OTHER PROMISES {p.first_name.upper()} ALREADY MADE
+{owed}
+
 Remember this conversation the way {p.first_name} will: what was said, what was learned, how it felt.
 Commitments are only something {p.first_name} and {other_name} specifically agreed on in this talk, for a
 definite time later today or tomorrow: to meet somewhere, to bring or fetch something, to do a task for or
-with the other, or simply to spend time together. Even a "who: me" commitment must be something promised
-TO {other_name} - merely mentioning where {p.first_name} already meant to be ("I'm off to eat at Mara's
-tonight") is not a commitment unless {other_name} is part of it. Not {p.first_name}'s usual work, not
-anything already done, not what {p.first_name} would do anyway regardless of this talk, and never a time
-that has already passed. A request or demand nobody answered is not agreed. If no time was spoken, there is
-no commitment. When the hour itself was vague ("at six", "by dusk", "come morning"), resolve it to the one
-reading {p.first_name} themself would understand it as, the way the day is actually passing right now, not
-the opposite half of it - the other side is writing down this same talk apart from you and must land on the
-same hour. Most talks agree on nothing: then leave the list empty."""
+with the other, or simply to spend time together. Not {p.first_name}'s usual work, not anything already
+done, not what {p.first_name} would do anyway regardless of this talk, and never a time that has already
+passed. A request or demand nobody clearly answered, including a vague "maybe", is not agreed. If no time
+was spoken, there is no commitment. If the two of you changed your minds about the time during this very
+talk, record only the time you finally settled on.{goblin_limit} Most talks agree on nothing: then leave the
+list empty."""
 
 
 def focal_questions(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:

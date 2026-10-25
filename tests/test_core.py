@@ -108,6 +108,53 @@ def test_a_commitment_to_meet_someone_is_never_filed_as_only_their_errand():
     assert "both" in who_description.lower()
 
 
+def test_the_feeling_judgment_must_follow_the_talk_not_the_towns_general_dread():
+    """Regression: almost every relationship in a real run converged to exactly 'wary', because the
+    model judges 'feeling' from the town's ambient suspicion rather than what was actually said in
+    that specific talk. The schema must say so explicitly, and as a positive default rather than only
+    a negation - smaller models follow "do X" more reliably than "don't default to Y"."""
+    from hollowmere.agents.schemas import chat_digest_schema
+    schema = chat_digest_schema(("tavern",))
+    feeling_description = schema.model_fields["feeling"].description.lower()
+    assert "this talk" in feeling_description
+    assert "dread" in feeling_description or "suspicion" in feeling_description or "fear" in feeling_description
+    assert "default to neutral" in feeling_description
+
+
+def test_commitment_day_and_importance_fields_carry_their_own_guidance():
+    """Regression: `day` had no Field(description=...) at all (unlike every sibling field), and
+    `importance` had none either - both left the model with nothing to anchor a judgement on."""
+    from typing import get_args
+
+    from hollowmere.agents.schemas import chat_digest_schema
+    schema = chat_digest_schema(("tavern",))
+    assert schema.model_fields["importance"].description
+    commitment = get_args(schema.model_fields["commitments"].annotation)[0]
+    assert commitment.model_fields["day"].description
+
+
+def test_the_time_field_carries_the_vague_hour_rule_instead_of_the_prose():
+    """Moved out of chat_digest()'s prose: a schema field description is the more reliable home for
+    a per-field rule, and it was previously one compound, double-negative sentence buried mid-prompt."""
+    from typing import get_args
+
+    from hollowmere.agents.schemas import chat_digest_schema
+    schema = chat_digest_schema(("tavern",))
+    commitment = get_args(schema.model_fields["commitments"].annotation)[0]
+    time_description = commitment.model_fields["time"].description.lower()
+    assert "vague" in time_description or "dusk" in time_description
+
+
+def test_commitments_field_explains_the_cap_and_how_to_handle_a_maybe():
+    from typing import get_args
+
+    from hollowmere.agents.schemas import chat_digest_schema
+    schema = chat_digest_schema(("tavern",))
+    description = schema.model_fields["commitments"].description.lower()
+    assert "matter most" in description
+    assert "maybe" in description
+
+
 def test_the_goblin_cannot_plan_to_go_indoors_in_town():
     from hollowmere.agents.agent import Agent
     from hollowmere.agents.persona import load_personas

@@ -129,6 +129,91 @@ async def test_plan_day_tells_the_model_to_stay_uncertain_without_grounding(tmp_
     assert "only" in text and "stay uncertain" in text
 
 
+async def test_chat_digest_leaves_the_feeling_rule_to_the_schema_not_the_prose(tmp_path):
+    """The grounding rule for 'feeling' now lives once, in chat_digest_schema's field description -
+    duplicating it in the free-form prose too just competes with itself for no benefit."""
+    engine = await _engine(tmp_path)
+    nib, ros = engine.agents["nib"], engine.agents["ros"]
+    text = prompts.chat_digest(nib, engine.ctx.names, NOW, ros.name, [("Nib", "hello"), ("Ros", "hello")])
+    assert "general dread" not in text.lower()
+    assert "touches everyone alike" not in text.lower()
+
+
+async def test_chat_digest_hides_the_partner_s_own_prior_stance_label(tmp_path):
+    """Regression: identity() showed the partner's current stance label ('now: wary, 3 talks') right
+    above the transcript, right before asking the model to judge a fresh feeling toward that same
+    person - a model shown its own old verdict tends to just repeat it. The specific partner being
+    digested must not see that label reflected back; everyone else's still can, that's useful context."""
+    engine = await _engine(tmp_path)
+    nib, ros, mara = engine.agents["nib"], engine.agents["ros"], engine.agents["mara"]
+    nib.bonds["ros"] = {"stance": "wary", "affinity": 2.0, "note": "a loud washerwoman", "talks": 3, "last": None}
+    nib.bonds["mara"] = {"stance": "fond", "affinity": 4.0, "note": "quietly kind", "talks": 2, "last": None}
+    text = prompts.chat_digest(nib, engine.ctx.names, NOW, ros.name, [("Nib", "hello"), ("Ros", "hello")])
+    ros_line = next(line for line in text.splitlines() if "Ros Mourne:" in line)
+    assert "wary" not in ros_line  # her own prior label, hidden since she's the one being judged
+    assert "a loud washerwoman" in ros_line  # the rest of what Nib knows of her is still shown
+    mara_line = next(line for line in text.splitlines() if "Mara Hale:" in line)
+    assert "fond" in mara_line  # Mara is not the partner in this talk; her label is unaffected
+
+
+async def test_chat_digest_shows_what_is_already_owed_to_someone_else(tmp_path):
+    """Regression: a new commitment within an hour of an existing one is silently dropped by
+    _acceptable()'s PROMISE_GAP check, with no way for the model to know that will happen."""
+    engine = await _engine(tmp_path)
+    nib, ros = engine.agents["nib"], engine.agents["ros"]
+    text = prompts.chat_digest(nib, engine.ctx.names, NOW, ros.name, [("Nib", "hello"), ("Ros", "hello")],
+                                existing=["18:00 — tends the shrine at the ruin"])
+    assert "18:00 — tends the shrine at the ruin" in text
+    text_empty = prompts.chat_digest(nib, engine.ctx.names, NOW, ros.name, [("Nib", "hello"), ("Ros", "hello")])
+    assert "none" in text_empty.lower()
+
+
+async def test_chat_digest_warns_a_goblin_never_to_agree_to_an_indoor_meeting(tmp_path):
+    """Regression: _acceptable() silently drops any goblin commitment to an indoor place other than
+    home or work, but nothing told the model that rule exists."""
+    engine = await _engine(tmp_path)
+    nib, wenna = engine.agents["nib"], engine.agents["wenna"]
+    text = prompts.chat_digest(nib, engine.ctx.names, NOW, wenna.name, [("Nib", "hi"), ("Wenna", "hi")])
+    assert nib.persona.home in text and nib.persona.work in text
+    human_text = prompts.chat_digest(wenna, engine.ctx.names, NOW, nib.name, [("Wenna", "hi"), ("Nib", "hi")])
+    assert wenna.persona.home not in human_text
+
+
+async def test_chat_digest_covers_a_time_renegotiated_within_the_same_talk(tmp_path):
+    engine = await _engine(tmp_path)
+    nib, ros = engine.agents["nib"], engine.agents["ros"]
+    text = prompts.chat_digest(nib, engine.ctx.names, NOW, ros.name, [("Nib", "hi"), ("Ros", "hi")])
+    assert "changed your minds" in text.lower() or "finally settled" in text.lower()
+
+
+async def test_chat_digest_treats_a_vague_maybe_as_unagreed(tmp_path):
+    engine = await _engine(tmp_path)
+    nib, ros = engine.agents["nib"], engine.agents["ros"]
+    text = prompts.chat_digest(nib, engine.ctx.names, NOW, ros.name, [("Nib", "hi"), ("Ros", "hi")])
+    assert "maybe" in text.lower()
+
+
+async def test_chat_digest_moves_hour_disambiguation_out_of_the_prose(tmp_path):
+    """That rule now lives in chat_digest_schema's `time` field description instead - one compound,
+    double-negative sentence buried mid-paragraph is exactly the kind of instruction a smaller model
+    is likely to drop."""
+    engine = await _engine(tmp_path)
+    nib, ros = engine.agents["nib"], engine.agents["ros"]
+    text = prompts.chat_digest(nib, engine.ctx.names, NOW, ros.name, [("Nib", "hi"), ("Ros", "hi")])
+    assert "the opposite half of it" not in text.lower()
+
+
+async def test_system_prompt_requires_suspicion_to_be_earned_not_assumed_from_the_ages_dread(tmp_path):
+    """Regression: 'suspicion and rumour are fine' was an unscoped, system-level licence to distrust
+    anyone for no specific reason, issued before any per-talk corrective in chat_digest ever gets a
+    chance to apply - a blanket permission at that authority level is hard for a later, narrower
+    instruction to outweigh."""
+    engine = await _engine(tmp_path)
+    text = prompts.system_prompt(engine.agents["mara"])
+    assert "earned" in text.lower()
+    assert "suspicion and rumour are as fine to feel as affection and desire" not in text
+
+
 def test_town_review_shows_the_old_state_and_what_has_happened_since():
     text = prompts.town_review(
         "The plague has returned, the harvest has failed, and Lord Maelor has not left his keep in months.",
