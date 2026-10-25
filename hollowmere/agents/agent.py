@@ -342,21 +342,24 @@ class Agent:
         ]
 
     def _insert_commitment(self, c: dict, today: date) -> None:
+        """Make room for the commitment without shrinking anyone's day: whatever it displaces -
+        including sleep - keeps its original length and simply happens later instead of being cut short."""
         start = parse_hhmm(today, c["time"])
         end = start + timedelta(hours=1)
         area = c["place"].split("/")[0]
         if any(b.start <= start + PROMISE_LEAD and b.end > start and b.place.split("/")[0] == area
                for b in self.plan):
             return  # the plan already has them there at that time (an hour later is not "on time")
+        shift = end - start
         new: list[Block] = []
         for b in self.plan:
-            if b.end <= start or b.start >= end:
+            if b.end <= start:
                 new.append(b)
-                continue
-            if b.start < start:
+            elif b.start < start:
                 new.append(Block(b.start, start, b.activity, b.place))
-            if b.end > end:
-                new.append(Block(end, b.end, b.activity, b.place))
+                new.append(Block(end, end + (b.end - start), b.activity, b.place))
+            else:
+                new.append(Block(b.start + shift, b.end + shift, b.activity, b.place))
         new.append(Block(start, end, c["activity"], c["place"]))
         self.plan = sorted(new, key=lambda b: b.start)
 

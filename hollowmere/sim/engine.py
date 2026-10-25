@@ -557,21 +557,37 @@ class Engine:
         mis-hearing the hour (an "at six" read as dawn by one and dusk by the other), never evidence
         of two different meetings. So every pairing is reconciled, however far apart the guesses land;
         there is nothing to gain by leaving two people with contradictory ideas of their own appointment.
-        The one who sought the talk proposed it, so their version wins. A meeting only one side
-        noted stays that side's own intention."""
+        The one who sought the talk proposed it, so their version wins.
+
+        A meeting only one side noted means the other side's own digest didn't recognise it as theirs
+        to keep (small models misjudge "who" easily) - that side still needs the meeting on their
+        calendar, not just a bystander's private intention, so it is mirrored onto them mechanically."""
         a, b = c.a, c.b
-        theirs = list(notes.get(b.id, []))
-        for mine in notes.get(a.id, []):
+        mine, theirs = list(notes.get(a.id, [])), list(notes.get(b.id, []))
+        unmatched: list[dict] = []
+        for m in mine:
             if not theirs:
-                break
-            match = min(theirs, key=lambda o: abs(due_at(o) - due_at(mine)))
+                unmatched.append(m)
+                continue
+            match = min(theirs, key=lambda o: abs(due_at(o) - due_at(m)))
             theirs.remove(match)
-            if (match["time"], match["place"]) != (mine["time"], mine["place"]):
-                b.move_commitment(match, mine["time"], mine["place"], self.now)
+            if (match["time"], match["place"]) != (m["time"], m["place"]):
+                b.move_commitment(match, m["time"], m["place"], self.now)
             self._event("agreement", [a.id, b.id],
-                        f"{a.first} and {b.first} agree to meet at {self.world.place_name(mine['place'])} "
-                        f"at {mine['time']}{'' if mine['date'] == day_key(self.now).isoformat() else ' tomorrow'}.",
-                        date=mine["date"], at=mine["time"], place=mine["place"])
+                        f"{a.first} and {b.first} agree to meet at {self.world.place_name(m['place'])} "
+                        f"at {m['time']}{'' if m['date'] == day_key(self.now).isoformat() else ' tomorrow'}.",
+                        date=m["date"], at=m["time"], place=m["place"])
+        for m in unmatched:
+            self._mirror_commitment(b, m, a.id)
+        for m in theirs:  # b noted entries a's own digest never matched
+            self._mirror_commitment(a, m, b.id)
+
+    def _mirror_commitment(self, missing: Agent, entry: dict, proposer_id: str) -> None:
+        """Put the other half of a mutual commitment on the person whose own digest missed it."""
+        mirrored = {**entry, "with": proposer_id}
+        if missing._acceptable(mirrored, self.world, self.now):
+            self._spawn(missing, missing._commit(mirrored, self.world, self.now),
+                       f"mirror:{proposer_id}:{entry['time']}")
 
     def _judged(self, human: Agent, goblin: Agent):
         if not goblin.persona.is_goblin or human.persona.is_goblin:
