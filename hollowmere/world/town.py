@@ -120,8 +120,12 @@ def build_town(seed: int = 1347) -> World:
     b.hwall(6, 19, 11, gaps=[9, 16])
     b.vwall(13, 7, 10, gaps=[])
     b.fill(12, 20, 13, 21, Tile.COBBLE)
+    b.hwall(6, 9, 15, gaps=[])
+    b.vwall(10, 15, 18, gaps=[17])
     b.area("tavern", "the Drowned Lantern", "a smoky tavern; the town's only warm room after dark",
            (6, 12, 19, 18), public=True, indoor=True)
+    b.area("tavern_back_room", "the back room", "a cramped nook past the casks, out of sight of the common room",
+           (6, 16, 9, 18), public=True, indoor=True)
     b.area("agnes_room", "Agnes's chamber above the bar", "the innkeeper's cramped bedroom",
            (6, 7, 12, 10), public=False, indoor=True)
     b.area("isolde_room", "Isolde's garret", "a narrow room with one window facing the road",
@@ -130,7 +134,8 @@ def build_town(seed: int = 1347) -> World:
     b.obj("tavern_hearth", "hearth", "tavern", 19, 15, "hearth", (6, HEARTH))
     b.obj("long_table", "long table", "tavern", 12, 16, "table", (3, CANDLE))
     b.obj("corner_table", "corner table", "tavern", 16, 13, "table")
-    b.obj("casks", "ale casks", "tavern", 6, 17, "casks")
+    b.obj("back_table", "small table", "tavern_back_room", 8, 17, "table", (2, CANDLE))
+    b.obj("casks", "ale casks", "tavern_back_room", 6, 17, "casks")
     b.obj("agnes_bed", "bed", "agnes_room", 7, 8, "bed")
     b.obj("agnes_strongbox", "strongbox", "agnes_room", 11, 8, "chest")
     b.obj("isolde_bed", "bed", "isolde_room", 18, 8, "bed")

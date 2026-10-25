@@ -336,7 +336,7 @@ async def test_a_meeting_one_side_forgot_still_lands_on_their_calendar(tmp_path)
     engine = await _town(tmp_path, "forgot.db")
     roderic, agnes, world, now = engine.agents["roderic"], engine.agents["agnes"], engine.world, engine.now
     day = now.date().isoformat()
-    his = {"date": day, "time": "21:00", "activity": "drink wine in the back room", "place": "tavern/bar",
+    his = {"date": day, "time": "21:00", "activity": "drink wine in the back room", "place": "tavern_back_room",
            "with": "agnes"}
     await roderic._commit(his, world, now)
     c = Conversation("c200", roderic, agnes, "drink with Agnes", now,
