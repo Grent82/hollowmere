@@ -323,6 +323,26 @@ async def test_both_sides_of_a_meeting_end_up_at_the_same_time_and_place(tmp_pat
     assert len(tobin.plan) >= plan_before - 1
 
 
+async def test_a_meeting_is_settled_even_when_the_two_sides_guessed_hours_apart(tmp_path):
+    """Both digests come from the one talk, so a wide gap is one side misreading the hour (dawn vs
+    dusk), never two different meetings - it must still be reconciled, not left standing for both."""
+    from hollowmere.agents.agent import Digest
+    from hollowmere.sim.engine import Conversation
+    engine = await _town(tmp_path, "far_apart.db")
+    isolde, tobin, world, now = engine.agents["isolde"], engine.agents["tobin"], engine.world, engine.now
+    day = now.date().isoformat()
+    hers = {"date": day, "time": "06:00", "activity": "meet Tobin", "place": "riverbank", "with": "tobin"}
+    his = {"date": day, "time": "19:00", "activity": "meet Isolde", "place": "riverbank/fishing_rock", "with": "isolde"}
+    await isolde._commit(hers, world, now)
+    await tobin._commit(his, world, now)
+    c = Conversation("c100", isolde, tobin, "see Tobin", now, transcript=[("Isolde", "Meet me at six?")])
+    engine._digested(c, isolde, tobin)(Digest(together=[hers]))
+    engine._digested(c, tobin, isolde)(Digest(together=[his]))
+    assert (his["time"], his["place"]) == ("06:00", "riverbank")
+    assert [e["kind"] for e in engine.events].count("agreement") == 1
+    assert not any(b.activity == "meet Isolde" and b.start.hour == 19 for b in tobin.plan)
+
+
 async def test_an_old_save_loses_its_duplicate_promises(tmp_path):
     engine = await _town(tmp_path, "old.db")
     roderic = engine.agents["roderic"]

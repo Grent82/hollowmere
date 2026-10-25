@@ -552,6 +552,11 @@ class Engine:
     def _settle(self, c: Conversation, notes: dict[str, list[dict]]) -> None:
         """Both sides wrote down the meeting separately; make them agree on one time and place.
 
+        Both notes come from digesting this same conversation `c`, so any entry on one side and any
+        entry on the other describe the same real meeting - a large gap between them is one side
+        mis-hearing the hour (an "at six" read as dawn by one and dusk by the other), never evidence
+        of two different meetings. So every pairing is reconciled, however far apart the guesses land;
+        there is nothing to gain by leaving two people with contradictory ideas of their own appointment.
         The one who sought the talk proposed it, so their version wins. A meeting only one side
         noted stays that side's own intention."""
         a, b = c.a, c.b
@@ -560,8 +565,6 @@ class Engine:
             if not theirs:
                 break
             match = min(theirs, key=lambda o: abs(due_at(o) - due_at(mine)))
-            if abs(due_at(match) - due_at(mine)) > timedelta(hours=3):
-                continue
             theirs.remove(match)
             if (match["time"], match["place"]) != (mine["time"], mine["place"]):
                 b.move_commitment(match, mine["time"], mine["place"], self.now)

@@ -128,8 +128,11 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False) -> t
         when_said=(str, Field(description="the words for the time exactly as spoken in the talk, "
                                           "e.g. 'by noon', 'tomorrow at dusk'")),
         who=(Literal["me", "both", "them"], Field(
-            description="who will do it: you alone (only if you are promising THEM you will, not just "
-                        "mentioning your own plans), the two of you together, or only the other person")),
+            description="who will do it: for a meeting, a walk, or any time spent in the same place, this is "
+                        "almost always 'both' - even if you were the one who named the time or place, you "
+                        "still have to be there too. Use 'me' only for a task you alone promised to do for "
+                        "them with no meeting involved, and 'them' only for a task they alone promised to do "
+                        "for you, elsewhere, that does not need you present")),
         accepted=(bool, Field(description="true only if whoever is to do it offered it or said yes")),
         day=(Literal["today", "tomorrow"], ...),
         time=(str, Field(pattern=HHMM, description="when_said as a clock time")),

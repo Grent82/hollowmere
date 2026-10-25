@@ -93,6 +93,21 @@ def test_times_use_a_pattern_llama_cpp_can_enforce():
     assert re.match(HHMM, "06:00") and re.match(HHMM, "23:59") and not re.match(HHMM, "24:00")
 
 
+def test_a_commitment_to_meet_someone_is_never_filed_as_only_their_errand():
+    """Regression for a real bug: Isolde demanded Nib meet her at the flat rock, her own digest
+    filed the commitment as who="them" ("his errand"), so her own code skipped scheduling her -
+    she never showed up to the meeting she herself proposed. A meeting needs both people present,
+    so the schema must say so explicitly instead of leaving it to the model to infer from grammar."""
+    from typing import get_args
+
+    from hollowmere.agents.schemas import chat_digest_schema
+    schema = chat_digest_schema(("tavern",))
+    commitment = get_args(schema.model_fields["commitments"].annotation)[0]
+    who_description = commitment.model_fields["who"].description
+    assert "meeting" in who_description.lower()
+    assert "both" in who_description.lower()
+
+
 def test_the_goblin_cannot_plan_to_go_indoors_in_town():
     from hollowmere.agents.agent import Agent
     from hollowmere.agents.persona import load_personas

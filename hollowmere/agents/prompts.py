@@ -43,7 +43,8 @@ def system_prompt(agent: Agent) -> str:
         f"background below shape not just what is said but how: word choice, formality, warmth, how long or "
         f"short the sentences run, any habits of speech. No two people in Hollowmere think or talk alike. "
         f"{p.first_name} knows only what is in the memories you are shown and what any townsperson would know; "
-        f"do not invent facts about other people, though suspicion and rumour are fine. "
+        f"do not invent facts about other people, though suspicion and rumour are as fine to feel as "
+        f"affection and desire. "
         "Stay concrete and grounded in the town. No modern words or ideas. Times are 24-hour."
     )
 
@@ -289,7 +290,10 @@ TO {other_name} - merely mentioning where {p.first_name} already meant to be ("I
 tonight") is not a commitment unless {other_name} is part of it. Not {p.first_name}'s usual work, not
 anything already done, not what {p.first_name} would do anyway regardless of this talk, and never a time
 that has already passed. A request or demand nobody answered is not agreed. If no time was spoken, there is
-no commitment. Most talks agree on nothing: then leave the list empty."""
+no commitment. When the hour itself was vague ("at six", "by dusk", "come morning"), resolve it to the one
+reading {p.first_name} themself would understand it as, the way the day is actually passing right now, not
+the opposite half of it - the other side is writing down this same talk apart from you and must land on the
+same hour. Most talks agree on nothing: then leave the list empty."""
 
 
 def focal_questions(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:
