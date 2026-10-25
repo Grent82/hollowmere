@@ -6,7 +6,7 @@ api_key = "local"                         # llama-server ignores the key unless 
 model = "qwen3.8"                         # llama-server serves its one loaded model whatever this says
 max_concurrency = 2                       # parallel requests; match llama-server --parallel
 temperature = 0.7
-max_tokens = 1500                        # a day plan needs ~600; replies cut off here fail
+max_tokens = 1500                        # replies cut off here fail; raise if that happens
 timeout_s = 240
 # How to ask for JSON: "json_schema" (constrained decoding), "json_object", or "prompt".
 # The client downgrades automatically if the server rejects a mode.
