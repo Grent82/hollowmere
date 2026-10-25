@@ -8,9 +8,11 @@ slots; here each prompt is a small function and the shared parts are written onc
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Iterable
 
+from hollowmere.agents.persona import DATA
 from hollowmere.memory.stream import Memory
 
 if TYPE_CHECKING:
@@ -18,17 +20,16 @@ if TYPE_CHECKING:
     from hollowmere.world.world import World
 
 
+_world = json.loads((DATA / "world.json").read_text(encoding="utf-8"))
+
 # Fixed world rules: never rewritten by any LLM call, so they cannot drift away over many town
-# reviews (no snowballing into "real magic" or a modern idea after enough rewrites).
-WORLD_FACTS = (
-    "Hollowmere is a small river town in the year 1347, in a grim fantasy medieval world. Life is hard, people "
-    "are frightened and superstitious, and the church, the watch and the tavern are the only order left. There "
-    "is no real magic, only rumour and faith."
-)
+# reviews (no snowballing into "real magic" or a modern idea after enough rewrites). Lives in
+# data/world.json so lore can be edited without touching code, the same way personas.json works.
+WORLD_FACTS = _world["world_facts"]
 
 # The town's current situation, in contrast, is meant to change: this is only the seed sentence an
 # agent falls back on before the first town review has ever run (see Agent.town_state, town_review()).
-DEFAULT_TOWN_STATE = "The plague has returned, the harvest has failed, and Lord Maelor has not left his keep in months."
+DEFAULT_TOWN_STATE = _world["default_town_state"]
 
 
 def system_prompt(agent: Agent) -> str:

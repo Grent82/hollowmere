@@ -87,10 +87,12 @@ hollowmere/
   world/     world.py (grid, areas, objects, A*), town.py (the map)
   sim/       engine.py (tick loop), setup.py
   server/    app.py (FastAPI + WebSocket)
-  data/      personas.json
+  data/      personas.json, world.json (fixed world facts + the seed town state)
 web/         TypeScript + Canvas 2D viewer, procedural pixel art, no image assets
 tests/
 ```
 
 To add or change villagers, edit `hollowmere/data/personas.json`. Place ids refer to
-areas and objects in `town.py`. Then run with `--fresh`.
+areas and objects in `town.py`. To change the setting itself (the era, tone, or the
+starting situation before any town review has run), edit `hollowmere/data/world.json`.
+Then run with `--fresh`.
