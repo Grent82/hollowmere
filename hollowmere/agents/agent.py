@@ -293,14 +293,18 @@ class Agent:
         self.thinking = "planning the day"
         self._drop_old_commitments(now)
         try:
+            who_matters = [ctx.names.get(rid, rid) for rid in self.persona.relationships]
             mems = await self.memory.retrieve(
                 [f"{self.first}'s plans and intentions", f"what {self.first} must do today",
-                 f"{self.persona.currently}"], now, k=12)
+                 f"{self.persona.currently}",
+                 *(f"where and when {self.first} has seen {name}, their habits and comings and goings"
+                   for name in who_matters)], now, k=12)
             due = [c for c in self.commitments if c["date"] == today.isoformat()]
             promises = [f"{c['time']} — {c['activity']} at {c['place']}" for c in due]
             schema = day_plan_schema(self.place_ids)
             out = await ctx.llm.structured(
-                prompts.system_prompt(self), prompts.plan_day(self, ctx.world, ctx.names, now, mems, promises),
+                prompts.system_prompt(self),
+                prompts.plan_day(self, ctx.world, ctx.names, now, mems, promises, known_as=ctx.known_as),
                 schema, label="plan_day")
             wake = parse_hhmm(today, out.wake_up)
             raw = [(b.start, b.end, b.activity, b.place) for b in out.blocks]

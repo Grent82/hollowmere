@@ -4,6 +4,7 @@ from hollowmere.agents import prompts
 from hollowmere.config import Config
 from hollowmere.llm.fake import FakeLLM
 from hollowmere.memory.embed import HashingEmbedder
+from hollowmere.memory.stream import Memory
 from hollowmere.sim.setup import build_engine
 
 NOW = datetime(1347, 10, 22, 19, 0)
@@ -94,6 +95,38 @@ def test_narrator_system_prompt_speaks_for_no_one_in_particular():
     text = prompts.narrator_system_prompt()
     assert "Yevra" in text  # the fixed rules still bind the narrator
     assert "mind of" not in text  # unlike system_prompt(), this is nobody's personal voice
+
+
+def test_when_keeps_the_clock_time_for_old_memories_only_if_asked():
+    now = datetime(1347, 10, 25, 19, 0)
+    old = datetime(1347, 10, 22, 8, 15)  # 3 days before `now`
+    assert prompts.when(old, now) == "3 days ago"
+    assert prompts.when(old, now, keep_time=True) == "3 days ago at 08:15"
+
+
+def test_memories_keep_the_clock_time_for_old_observations_but_not_other_kinds():
+    now = datetime(1347, 10, 25, 19, 0)
+    old = datetime(1347, 10, 22, 8, 15)
+    obs = Memory(1, "observation", "Isolde tends the bar at the tavern.", old, old, 3, [])
+    thought = Memory(2, "thought", "Isolde seems happier than usual lately.", old, old, 3, [])
+    text = prompts.memories([obs, thought], now)
+    assert "(3 days ago at 08:15) Isolde tends the bar at the tavern." in text
+    assert "(3 days ago) Isolde seems happier than usual lately." in text
+
+
+async def test_plan_day_includes_what_the_whole_town_knows_of_other_people(tmp_path):
+    engine = await _engine(tmp_path)
+    nib = engine.agents["nib"]
+    text = prompts.plan_day(nib, engine.ctx.world, engine.ctx.names, NOW, [], [], known_as=engine.ctx.known_as)
+    assert "THE TOWNSFOLK" in text
+    assert engine.ctx.known_as["isolde"] in text
+
+
+async def test_plan_day_tells_the_model_to_stay_uncertain_without_grounding(tmp_path):
+    engine = await _engine(tmp_path)
+    nib = engine.agents["nib"]
+    text = prompts.plan_day(nib, engine.ctx.world, engine.ctx.names, NOW, [], [], known_as=engine.ctx.known_as)
+    assert "only" in text and "stay uncertain" in text
 
 
 def test_town_review_shows_the_old_state_and_what_has_happened_since():

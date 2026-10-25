@@ -618,3 +618,24 @@ async def test_a_human_can_warm_to_the_goblin_over_several_talks(tmp_path):
     assert "Ros Mourne (feed it)" in prompts.identity(nib, engine.ctx.names)
     engine._judged(ros, nib)("protect")
     assert "ros" in nib.allies
+
+
+async def test_plan_day_asks_its_memory_about_people_it_has_a_relationship_with(tmp_path):
+    """plan_day must not only ask about the agent's own plans - it should also ask what the agent has
+    actually seen of the people it cares about, so it can ground their part of the day in fact instead
+    of inventing it. (Retrieval ranking itself, i.e. whether that surfaces the right memory, is
+    retrieve()'s own concern, not this one.)"""
+    cfg = Config()
+    cfg.sim.save_path = str(tmp_path / "ground.db")
+    engine = await build_engine(cfg, llm=FakeLLM(latency=0), embedder=HashingEmbedder(128))
+    nib = engine.agents["nib"]
+    queries_seen = []
+    original_retrieve = nib.memory.retrieve
+
+    async def spying_retrieve(queries, *args, **kwargs):
+        queries_seen.extend(queries)
+        return await original_retrieve(queries, *args, **kwargs)
+
+    nib.memory.retrieve = spying_retrieve
+    await nib.plan_day(engine.ctx, engine.now)
+    assert any("Isolde Vell" in q for q in queries_seen), queries_seen

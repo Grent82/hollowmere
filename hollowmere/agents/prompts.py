@@ -48,14 +48,14 @@ def system_prompt(agent: Agent) -> str:
     )
 
 
-def when(t: datetime, now: datetime) -> str:
+def when(t: datetime, now: datetime, keep_time: bool = False) -> str:
     days = (now.date() - t.date()).days
     clock = t.strftime("%H:%M")
     if days == 0:
         return f"today {clock}"
     if days == 1:
         return f"yesterday {clock}"
-    return f"{days} days ago"
+    return f"{days} days ago at {clock}" if keep_time else f"{days} days ago"
 
 
 def bond_line(agent: Agent, other_id: str) -> str:
@@ -108,7 +108,10 @@ def identity(agent: Agent, names: dict[str, str]) -> str:
 
 
 def memories(mems: Iterable[Memory], now: datetime, title: str = "WHAT YOU REMEMBER") -> str:
-    lines = [f"[{m.id}] ({when(m.created, now)}) {m.text}" for m in mems]
+    # Observations are kept with their clock time no matter how old: knowing someone was at the
+    # tavern "3 days ago" is useless for guessing where they'll be today, but "3 days ago at 19:00" lets
+    # a pattern emerge across many such sightings. Thoughts and reflections don't need that precision.
+    lines = [f"[{m.id}] ({when(m.created, now, keep_time=m.kind == 'observation')}) {m.text}" for m in mems]
     return f"{title} (oldest first)\n" + ("\n".join(lines) if lines else "(nothing relevant)")
 
 
@@ -146,12 +149,13 @@ def clock_line(now: datetime) -> str:
 
 
 def plan_day(agent: Agent, world: World, names: dict[str, str], now: datetime,
-             mems: list[Memory], commitments: list[str]) -> str:
+             mems: list[Memory], commitments: list[str], known_as: dict[str, str] | None = None) -> str:
     p = agent.persona
     promises = "\n".join(f"- {c}" for c in commitments) or "- none"
     return f"""{clock_line(now)} {p.first_name} is still abed and the day ahead is unplanned.
 
 {identity(agent, names)}
+{townsfolk(agent, names, known_as or {})}
 
 {memories(mems, now)}
 
@@ -167,6 +171,9 @@ Plan {p.first_name}'s waking day from getting up to going to bed.
   rest and worries all belong in the day.
 - Keep every promise at its agreed time and place.
 - Follow {p.first_name}'s habits, but let what is on {p.first_name}'s mind change the day where it would.
+- If the day involves another person, only give a specific time or place for them if what you know of
+  them above (their trade, or what you've seen of them) supports it; otherwise stay uncertain about
+  them - hoping, watching, asking around - rather than inventing a meeting that contradicts what you know.
 - The final block is going to sleep at {p.bed}.
 - activity is a short present-tense phrase without the name, e.g. "hammers spearheads for the watch"."""
 
