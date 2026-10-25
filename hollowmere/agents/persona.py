@@ -19,8 +19,8 @@ RANK: dict[str, int] = {s: i for i, s in enumerate(STANCES)}
 # How much of the gap between the current affinity and a freshly judged feeling closes in one
 # talk. Trust is earned slowly; fear or betrayal can close the gap at once. Both are also scaled
 # by that talk's importance (1-10), so a trivial chat barely moves the needle either way.
-AFFINITY_STEP_UP = 0.45
-AFFINITY_STEP_DOWN = 0.6
+AFFINITY_STEP_UP = 0.5
+AFFINITY_STEP_DOWN = 0.55
 
 
 def starting_affinity(stance: str) -> float:

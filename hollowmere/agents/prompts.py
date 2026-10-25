@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Iterable
 
 from hollowmere.agents.gods import GOD_BY_ID, God
-from hollowmere.agents.persona import DATA
+from hollowmere.agents.persona import DATA, RANK
 from hollowmere.memory.stream import Memory
 
 if TYPE_CHECKING:
@@ -252,6 +252,10 @@ def converse(agent: Agent, names: dict[str, str], now: datetime, place: str, oth
     stranger = ("a goblin, not a person of the town (see above)" if aside
                 else known_as.get(other_id, "someone from the town"))
     who_they_are = (bond_line(agent, other_id) or stranger) if other_id else stranger
+    bond = agent.bonds.get(other_id) if other_id else None
+    warmth = (f"{p.first_name} already feels {bond['stance']} toward {other_name}; let that come through in "
+             f"tone and word choice as readily as any guardedness, not only in agreeing to meet again.\n"
+             if bond and RANK[bond["stance"]] >= RANK["fond"] else "")
     retry = (f'{p.first_name} was about to say "{avoid}", but that has already been said. Say something new, '
              "or say goodbye and set end to true.\n" if avoid else "")
     known = [m for m in mems if m.kind not in PRIVATE_KINDS]
@@ -267,10 +271,11 @@ def converse(agent: Agent, names: dict[str, str], now: datetime, place: str, oth
 {memories(known, now, title="WHAT YOU HAVE SEEN AND HEARD")}
 
 {memories(private, now, title="YOUR PRIVATE THOUGHTS")}
-These are {p.first_name}'s own suspicions, schemes and fears. They shape what {p.first_name} wants from this
-talk, but {p.first_name} does not speak them aloud: no confessing a plan, a secret or a scheme, unless
-{p.first_name} truly trusts {other_name} with it, and even then guardedly.
-{aside}
+These are {p.first_name}'s own private thoughts, whatever they hold - a scheme, a fear, a tenderness, a
+hope. They shape what {p.first_name} wants from this talk, but {p.first_name} does not speak them aloud
+uninvited: no confessing a plan, a secret or a feeling kept close, unless {p.first_name} truly trusts
+{other_name} with it, and even then guardedly.
+{warmth}{aside}
 {recent_topics(list(topics), p.first_name) if not transcript else ""}
 CONVERSATION SO FAR
 {lines}

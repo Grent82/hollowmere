@@ -35,6 +35,39 @@ async def test_converse_drops_shared_narrator_override(tmp_path):
     assert nib.persona.traits in text
 
 
+async def test_converse_does_not_force_private_thoughts_into_suspicions_and_fears(tmp_path):
+    """Regression: private thoughts were always introduced as 'suspicions, schemes and fears', even
+    when the stored memory itself was warm or neutral. A live save audited on 2026-10-25 showed almost
+    every talk reading as guarded or combative regardless of the speakers' actual stance - this blanket
+    label was one of the reasons why: it told the model every private thought is, by its nature,
+    something to guard against, before the model ever sees what the thought actually is."""
+    engine = await _engine(tmp_path)
+    nib, roderic = engine.agents["nib"], engine.agents["roderic"]
+    text = prompts.converse(nib, engine.ctx.names, NOW, "riverbank", roderic.name, "patrolling the square",
+                            "", [], [], town_places=["riverbank"], known_as=engine.ctx.known_as)
+    assert "suspicions, schemes and fears" not in text
+    assert "private thoughts" in text.lower()
+
+
+async def test_converse_lets_an_existing_fondness_show_instead_of_only_guardedness(tmp_path):
+    """Regression: even when two people already felt fond or better toward each other, converse() gave
+    the model no instruction to let that warmth shape the talk - only the grim world and private
+    suspicions were ever named - so dialogue defaulted to friction and chat_digest then (correctly,
+    given the words actually spoken) judged it wary, eroding bonds that should have been growing."""
+    engine = await _engine(tmp_path)
+    nib, roderic = engine.agents["nib"], engine.agents["roderic"]
+
+    nib.bonds[roderic.id] = {"stance": "trust", "affinity": 5.0, "note": "", "talks": 3, "last": None}
+    warm_text = prompts.converse(nib, engine.ctx.names, NOW, "riverbank", roderic.name, "patrolling the square",
+                                 "", [], [], town_places=["riverbank"], known_as=engine.ctx.known_as)
+    assert "let that" in warm_text.lower()
+
+    nib.bonds[roderic.id] = {"stance": "wary", "affinity": 2.0, "note": "", "talks": 3, "last": None}
+    wary_text = prompts.converse(nib, engine.ctx.names, NOW, "riverbank", roderic.name, "patrolling the square",
+                                 "", [], [], town_places=["riverbank"], known_as=engine.ctx.known_as)
+    assert "let that" not in wary_text.lower()
+
+
 async def test_reflection_prompts_also_ask_for_the_personas_own_voice(tmp_path):
     engine = await _engine(tmp_path)
     mara = engine.agents["mara"]
