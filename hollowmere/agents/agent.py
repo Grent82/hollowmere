@@ -106,6 +106,17 @@ def day_key(now: datetime) -> date:
     return (now - timedelta(hours=DAY_START.hour, minutes=DAY_START.minute)).date()
 
 
+def recognised(text: str, god_name: str, clarity: str) -> str:
+    """A god's answer as the mortal remembers it: only as sure of the sender as the god let them be."""
+    if clarity == "doubt":
+        return f"{text} Was it only chance? Or did {god_name} hear me?"
+    if clarity == "suspected":
+        return f"{text} I think {god_name} answered me, though I cannot be sure."
+    if clarity == "certain":
+        return f"{god_name} answered my prayer: {text}"
+    return text
+
+
 def parse_hhmm(day: date, hhmm: str) -> datetime:
     h, m = (int(x) for x in hhmm.split(":"))
     t = datetime.combine(day, time(h, m))
@@ -629,15 +640,16 @@ class Agent:
             self.thinking = None
             return
         self.thinking = None
+        memory = recognised(out.text, god.name, out.clarity)
         if out.form == "dream":
-            self.pending_dream = {"text": out.text, "importance": out.importance}
+            self.pending_dream = {"text": memory, "importance": out.importance}
         else:
-            await self.observe(out.text, now, out.importance)
+            await self.observe(memory, now, out.importance)
         if out.form == "buff":
             hours = max(1, out.duration_hours)
-            self.favor = {"god": god.id, "text": out.effect or out.text,
+            self.favor = {"god": god.id, "text": out.effect or out.text, "clarity": out.clarity,
                          "expires": (now + timedelta(hours=hours)).isoformat()}
-        self.new_prayers.append({"god": god.id, "form": out.form, "text": out.text})
+        self.new_prayers.append({"god": god.id, "form": out.form, "text": out.text, "clarity": out.clarity})
 
     async def observe(self, text: str, now: datetime, importance: int) -> None:
         await self._remember("observation", text, now, importance)

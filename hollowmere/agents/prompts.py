@@ -109,7 +109,10 @@ def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = 
         text += f"What {p.first_name} wants for themself right now: {agent.drive}\n"
     if agent.favor:
         god = GOD_BY_ID.get(agent.favor["god"])
-        text += f"A favor from {god.name if god else agent.favor['god']} lingers on {p.first_name}: {agent.favor['text']}\n"
+        if agent.favor.get("clarity", "suspected") in ("suspected", "certain"):  # older favors named their god
+            text += f"A favor from {god.name if god else agent.favor['god']} lingers on {p.first_name}: {agent.favor['text']}\n"
+        else:
+            text += f"A strange mood lingers on {p.first_name}: {agent.favor['text']}\n"
     if p.is_goblin:
         friends = ", ".join(names.get(a, a) for a in sorted(agent.allies)) or "no one yet"
         kind = ", ".join(f"{names.get(k, k)} ({REGARD_WORDS[r['step']]})" for k, r in sorted(agent.regard.items())
@@ -400,8 +403,10 @@ def god_system_prompt(god: God) -> str:
         f"Your voice: {god.voice}\n\n"
         "Someone has just prayed to you. Decide freely whether and how to answer - a dream, a waking sign, "
         "an omen, a mere coincidence, a tangible favor, or silence; silence is common and never a failure "
-        "to decide. Whatever you send must stay deniable, even a favor: it should read as something that "
-        "could equally be chance, mood, or the asker's own hope, never a flat statement that you have acted. "
+        "to decide. Your answer is usually deniable, even a favor: it reads as something that could equally "
+        "be chance, mood, or the asker's own hope. How surely the asker knows it was you is yours to set "
+        "(clarity), in keeping with your nature and with what you sent: only a sign that could not be "
+        "mistaken, and rarely, is unmistakably yours. "
         "You can affect only the one person praying to you, and only through what they themselves perceive "
         "or feel - never speak of, or act upon, anyone else. Stay within what is already known of you and "
         "the other three gods; invent no new god, no new magic, nothing modern."

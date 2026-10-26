@@ -511,7 +511,7 @@ class Engine:
             for p in a.new_prayers:
                 god = GOD_BY_ID.get(p["god"])
                 self._event("prayer", [a.id], f"{a.first} prays to {god.name if god else p['god']}: {p['text']}",
-                            form=p["form"], god=p["god"])
+                            form=p["form"], god=p["god"], clarity=p.get("clarity", "none"))
             a.new_prayers.clear()
             idx = a.current_block(now)
             if idx is not None and a.plan[idx].god and a.prayed_block != idx:

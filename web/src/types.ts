@@ -61,6 +61,7 @@ export interface SimEvent {
   agents: string[];
   god?: string;
   form?: string;
+  clarity?: string;
   text: string;
   time: string;
   speaker?: string;
@@ -131,8 +132,8 @@ export interface AgentDetail extends AgentView {
   background: string;
   currently: string;
   drive: string;
-  favor: { god: string; god_name: string; text: string; expires: string } | null;
-  prayers: { time: string; god: string; form: string; text: string }[];
+  favor: { god: string; god_name: string; text: string; expires: string; clarity?: string } | null;
+  prayers: { time: string; god: string; form: string; clarity: string; text: string }[];
   plan: { start: string; end: string; activity: string; place: string; place_name: string }[];
   tasks: { start: string; end: string; activity: string; place: string; emoji: string }[];
   memories: Memory[];

@@ -156,7 +156,8 @@ class FakeLLM:
     def _divineanswer(self, js: dict, user: str) -> dict:
         form = self.rng.choice(["dream", "sign", "omen", "coincidence", "buff", "silence"])
         out = {"form": form, "text": "A warmth you cannot name settles over you a moment, then is gone.",
-               "effect": "", "duration_hours": 0, "importance": self.rng.randint(3, 7)}
+               "effect": "", "duration_hours": 0, "importance": self.rng.randint(3, 7),
+               "clarity": self.rng.choice(["none", "doubt", "suspected", "certain"])}
         if form == "buff":
             out["effect"], out["duration_hours"] = "an unlooked-for ease in the chest", self.rng.randint(4, 12)
         return out

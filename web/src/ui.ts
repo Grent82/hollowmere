@@ -9,6 +9,8 @@ const GODS: Record<string, { name: string; color: string }> = {
   sevreth: { name: "Sevreth", color: "#7fc490" },
 };
 const godColor = (id: string) => GODS[id]?.color ?? "var(--muted)";
+const CLARITY: Record<string, string> = { none: "unnoticed", doubt: "doubted", suspected: "suspected", certain: "certain" };
+const clarityTag = (c?: string) => c ? ` · ${CLARITY[c] ?? c}` : "";
 const godName = (id: string) => GODS[id]?.name ?? id;
 
 const DETAIL_TABS: { id: DetailTab; label: string }[] = [
@@ -129,7 +131,7 @@ export class UI {
         const god = e.god ?? "";
         const body = e.text.split(": ").slice(1).join(": ");
         return `<div class="ev prayer${e.form === "buff" ? " buff" : ""}" style="--god:${godColor(god)}"><time>${hhmm(e.time)}</time>`
-          + `🕯 ${tag(e.agents[0])} prays to <b class="god">${esc(godName(god))}</b> <span class="form">${esc(e.form ?? "")}</span>`
+          + `🕯 ${tag(e.agents[0])} prays to <b class="god">${esc(godName(god))}</b> <span class="form">${esc(e.form ?? "")}${clarityTag(e.clarity)}</span>`
           + `<div class="answer">${esc(body)}</div></div>`;
       }
       case "plan":
@@ -222,7 +224,7 @@ export class UI {
     if (!d.prayers.length) return `<p class="muted">Has not prayed yet.</p>`;
     return `<ul class="prayers">${d.prayers.map((p) =>
       `<li style="--god:${godColor(p.god)}"><time>${p.time.slice(5, 10)} ${hhmm(p.time)}</time><b class="god">${esc(godName(p.god))}</b>
-        <span class="form">${esc(p.form)}</span><div>${esc(p.text)}</div></li>`).join("")}</ul>`;
+        <span class="form">${esc(p.form)}${clarityTag(p.clarity)}</span><div>${esc(p.text)}</div></li>`).join("")}</ul>`;
   }
 
   private renderBonds(d: AgentDetail): string {

@@ -282,6 +282,16 @@ async def test_identity_shows_the_agents_current_favor_when_set(tmp_path):
     assert "Yevra" in text and "a flush of warmth" in text
 
 
+async def test_identity_names_the_god_of_a_favor_only_when_the_mortal_suspects_or_knows(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    for clarity, named in (("none", False), ("doubt", False), ("suspected", True), ("certain", True)):
+        mara.favor = {"god": "yevra", "text": "a flush of warmth", "expires": NOW.isoformat(), "clarity": clarity}
+        text = prompts.identity(mara, engine.ctx.names)
+        assert "a flush of warmth" in text, clarity
+        assert ("Yevra" in text) is named, clarity
+
+
 async def test_plan_day_prompt_explains_the_pray_to_field(tmp_path):
     engine = await _engine(tmp_path)
     nib = engine.agents["nib"]

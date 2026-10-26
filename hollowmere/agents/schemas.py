@@ -25,6 +25,7 @@ GoblinRegard = Literal["drive off", "undecided", "tolerate", "feed", "protect"]
 
 PrayTo = Literal[GOD_IDS + ("none",)]
 DivineForm = Literal["dream", "sign", "omen", "coincidence", "buff", "silence"]
+DivineClarity = Literal["none", "doubt", "suspected", "certain"]
 
 HHMM = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"  # [0-9], not \d: llama.cpp's grammar lets anything through for \d
 
@@ -78,6 +79,13 @@ class DivineAnswer(BaseModel):
     text: str = Field(description="what the praying mortal perceives, in your own voice, kept deniable - "
                                   "something that could equally be chance, mood, or their own hope, never a "
                                   "flat statement that you have acted")
+    clarity: DivineClarity = Field(
+        default="none",
+        description="how surely the mortal recognises this as your answer: none - it seems chance, mood or "
+                    "an ordinary dream; doubt - a passing 'was that...?' they cannot hold on to; suspected - "
+                    "they half believe you answered, without certainty; certain - unmistakably you, rare. "
+                    "It must fit form and text: wording that could only be chance is never certain. Choose "
+                    "it from your own nature")
     effect: str = Field(description="if form is buff, the mood or aura it leaves on them, a few words; "
                                      "otherwise empty")
     duration_hours: int = Field(ge=0, le=72, description="if form is buff, how many hours it lingers; "

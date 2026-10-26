@@ -152,7 +152,7 @@ class Store:
                 continue
             extra = json.loads(r["extra"])
             out.append({"time": r["time"], "god": extra.get("god"), "form": extra.get("form"),
-                        "text": r["text"].split(": ", 1)[-1]})
+                        "clarity": extra.get("clarity", "none"), "text": r["text"].split(": ", 1)[-1]})
             if len(out) >= limit:
                 break
         return out
