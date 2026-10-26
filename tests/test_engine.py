@@ -757,3 +757,23 @@ async def test_plan_day_asks_its_memory_about_people_it_has_a_relationship_with(
     nib.memory.retrieve = spying_retrieve
     await nib.plan_day(engine.ctx, engine.now)
     assert any("Isolde Vell" in q for q in queries_seen), queries_seen
+
+
+async def test_a_protector_learns_the_way_to_the_goblins_burrow(tmp_path):
+    cfg = Config()
+    cfg.sim.save_path = str(tmp_path / "burrow.db")
+    engine = await build_engine(cfg, llm=FakeLLM(latency=0), embedder=HashingEmbedder(128))
+    nib, isolde, ros = engine.agents["nib"], engine.agents["isolde"], engine.agents["ros"]
+    den = nib.persona.home
+    assert den not in isolde.known_areas and not any(p.startswith(den) for p in isolde.place_ids)
+    engine._judged(isolde, nib)("protect")
+    engine._judged(ros, nib)("tolerate")
+    assert den in isolde.known_areas and den in isolde.place_ids
+    assert f"{den}/nib_nest" in isolde.place_ids  # objects in it can be named too
+    assert den not in ros.known_areas  # only a protector is trusted with the place
+    engine._judged(isolde, nib)("protect")
+    assert isolde.known_areas.count(den) == 1  # learning it twice changes nothing
+
+    engine.save()
+    again = await build_engine(cfg, llm=FakeLLM(latency=0), embedder=HashingEmbedder(128))
+    assert again.agents["isolde"].known_areas.count(den) == 1 and den not in again.agents["ros"].known_areas

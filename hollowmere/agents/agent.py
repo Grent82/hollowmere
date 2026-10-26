@@ -169,10 +169,7 @@ class Agent:
         # The goblin cannot walk into the tavern or the bakery; plans that send him indoors only end in a bolt.
         self.known_areas = [a.id for a in world.areas.values()
                             if a.id in own or (a.public and not (persona.is_goblin and a.indoor))]
-        self.place_ids = tuple(
-            pid for area in self.known_areas
-            for pid in [area] + [o.place_id for o in world.objects_in(area)]
-        )
+        self.place_ids = self._places_in(world)
         self.x, self.y = world.target_tile(persona.start) or (0, 0)
         self.path: list[tuple[int, int]] = []
         self.steps: list[tuple[int, int]] = []  # tiles walked during the last tick, for animation
@@ -220,6 +217,16 @@ class Agent:
         self.pending_dream: dict | None = None  # {"text", "importance"}, delivered at the next plan_day()
         self.prayed_block: int = -1  # plan index already resolved this day, mirrors tasks_block/seek_block
         self.new_prayers: list[dict] = []  # not yet shown in the event feed
+
+    def _places_in(self, world: World) -> tuple[str, ...]:
+        return tuple(pid for area in self.known_areas
+                     for pid in [area] + [o.place_id for o in world.objects_in(area)])
+
+    def learn_area(self, area_id: str, world: World) -> None:
+        """A place this person was not free to name before, e.g. the goblin's burrow once they swore to protect him."""
+        if area_id in world.areas and area_id not in self.known_areas:
+            self.known_areas.append(area_id)
+            self.place_ids = self._places_in(world)
 
     def knows(self, other: "Agent") -> bool:
         return other.id in self.bonds or self.id in other.allies

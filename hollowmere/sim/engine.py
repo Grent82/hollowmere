@@ -669,6 +669,7 @@ class Engine:
                                        "rebuffs": prev.get("rebuffs", 0) + (regard == "drive off")}
             if regard == "protect":
                 goblin.allies.add(human.id)
+                human.learn_area(goblin.persona.home, self.world)
                 self._event("ally", [human.id, goblin.id], f"{human.first} has chosen to protect {goblin.first}.")
             elif regard == "drive off":
                 self._event("spurn", [human.id, goblin.id], f"{human.first} drives {goblin.first} off.")
@@ -797,4 +798,8 @@ class Engine:
         for aid, snap in snaps.items():
             if aid in self.agents:
                 self.agents[aid].restore(snap)
+        for goblin in self.agents.values():
+            for ally_id in goblin.allies:
+                if ally_id in self.agents:
+                    self.agents[ally_id].learn_area(goblin.persona.home, self.world)
         return True
