@@ -140,7 +140,8 @@ def goblin_choice_schema(people: tuple[str, ...]) -> type[BaseModel]:
 
 
 @lru_cache(maxsize=256)
-def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False) -> type[BaseModel]:
+def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
+                       romance_eligible: bool = False) -> type[BaseModel]:
     place_t = Literal[places]  # type: ignore[valid-type]
     # The evidence comes first, so the model commits to it before inventing a time: the code then
     # checks `when_said` against the transcript and drops the other person's tasks and unanswered demands.
@@ -185,4 +186,9 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False) -> t
             description="what you mean to do about the goblin now: drive it off or tell others; stay undecided; "
                         "tolerate it and keep quiet for now; feed it when it comes; or protect it and keep its "
                         "secret as your own"))
+    if romance_eligible:
+        fields["made_love"] = (bool, Field(
+            description="true only if, in this very conversation, the two of you talked about it and then "
+                        "made love - judge strictly from what the transcript actually shows; false by "
+                        "default, including whenever nothing like that was said"))
     return create_model("ChatDigest", **fields)

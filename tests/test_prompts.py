@@ -68,6 +68,24 @@ async def test_converse_lets_an_existing_fondness_show_instead_of_only_guardedne
     assert "let that" not in wary_text.lower()
 
 
+async def test_converse_names_making_love_as_an_option_once_eligible(tmp_path):
+    """Without an explicit nudge, the model never writes dialogue that goes there at all, so
+    chat_digest's strict, transcript-only made_love judgment can never find anything to confirm -
+    affinity can climb as high as it likes and the mechanism still never fires."""
+    engine = await _engine(tmp_path)
+    nib, isolde = engine.agents["nib"], engine.agents["isolde"]
+
+    not_yet = prompts.converse(nib, engine.ctx.names, NOW, "riverbank", isolde.name, "walking",
+                               "", [], [], town_places=["riverbank"], known_as=engine.ctx.known_as,
+                               romance_eligible=False)
+    assert "make love" not in not_yet.lower()
+
+    eligible = prompts.converse(nib, engine.ctx.names, NOW, "riverbank", isolde.name, "walking",
+                                "", [], [], town_places=["riverbank"], known_as=engine.ctx.known_as,
+                                romance_eligible=True)
+    assert "make love" in eligible.lower()
+
+
 async def test_reflection_prompts_also_ask_for_the_personas_own_voice(tmp_path):
     engine = await _engine(tmp_path)
     mara = engine.agents["mara"]

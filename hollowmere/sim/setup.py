@@ -49,10 +49,12 @@ async def build_engine(cfg: Config, *, fake: bool = False, fresh: bool = False,
     personas = load_personas()
     if cfg.sim.agents:
         personas = [p for p in personas if p.id in cfg.sim.agents]
+    generated = [Persona.model_validate(d) for d in store.get("generated_personas", [])]
+    personas += generated
     names = {p.id: p.name for p in personas}
     agents = [Agent(p, MemoryStream(p.id, store, embedder), world) for p in personas]
     known_as = {p.id: p.known_as for p in personas if p.known_as}
-    engine = Engine(cfg.sim, world, agents, Ctx(llm, world, names, known_as), store)
+    engine = Engine(cfg.sim, world, agents, Ctx(llm, world, names, known_as), store, embedder)
 
     resumed = store.has_memories() and engine.load()
     for a in agents:

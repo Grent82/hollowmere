@@ -134,6 +134,8 @@ class FakeLLM:
                "feeling": self.rng.choice(["wary", "neutral", "fond"]), "view_of_them": "As frightened as the rest."}
         if "toward_goblin" in js.get("properties", {}):
             out["toward_goblin"] = self.rng.choice(["drive off", "undecided", "tolerate", "feed", "protect"])
+        if "made_love" in js.get("properties", {}):
+            out["made_love"] = False
         return out
 
     def _focalquestions(self, js: dict, user: str) -> dict:

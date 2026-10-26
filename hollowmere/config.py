@@ -50,6 +50,8 @@ class SimConfig(BaseModel):
     reflection_threshold: int = 150
     vision_radius: int = 6
     town_review_days: int = 7
+    gestation_days: int = 5
+    conception_chance: float = 1.0
 
 
 class ServerConfig(BaseModel):

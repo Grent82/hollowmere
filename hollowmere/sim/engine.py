@@ -29,14 +29,16 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from typing import Awaitable, Callable
 
-from hollowmere.agents import prompts
+from hollowmere.agents import prompts, romance
 from hollowmere.agents.agent import Agent, Ctx, Digest, Task, day_key, due_at
 from hollowmere.agents.gods import GOD_BY_ID
+from hollowmere.agents.persona import RANK, starting_affinity
 from hollowmere.agents.schemas import TownState
 from hollowmere.config import SimConfig
 from hollowmere.llm.client import LLMError
+from hollowmere.memory.embed import Embedder
 from hollowmere.memory.store import Store
-from hollowmere.memory.stream import repeats
+from hollowmere.memory.stream import MemoryStream, repeats
 from hollowmere.world.world import World
 
 log = logging.getLogger(__name__)
@@ -81,12 +83,15 @@ class Conversation:
 
 
 class Engine:
-    def __init__(self, cfg: SimConfig, world: World, agents: list[Agent], ctx: Ctx, store: Store):
+    def __init__(self, cfg: SimConfig, world: World, agents: list[Agent], ctx: Ctx, store: Store,
+                embedder: Embedder):
         self.cfg = cfg
         self.world = world
         self.agents = {a.id: a for a in agents}
         self.ctx = ctx
         self.store = store
+        self.embedder = embedder
+        self.pregnancies: list[dict] = []  # {"mother_id", "father_id", "start_day", "due_day", "resolved"}
         self.now: datetime = cfg.start
         self.tick_count = 0
         self.paused = False
@@ -105,7 +110,7 @@ class Engine:
         self._sought: dict[str, datetime] = {}  # target -> when they last came face to face with their seeker
         self._seeking: dict[str, str] = {}  # agent -> whoever they are currently on their way to find
         self._llm_before: dict = {}  # LLM counters from earlier sessions of this save
-        self._agreements: dict[str, dict[str, list[dict]]] = {}  # convo id -> agent id -> meetings it noted
+        self._agreements: dict[str, dict[str, Digest]] = {}  # convo id -> agent id -> their digest of it
         self._town_reviewed: date | None = None  # day_key() of the last town-wide review, if any
         self._town_task: asyncio.Task | None = None
 
@@ -517,6 +522,13 @@ class Engine:
             elif a.mode == "asleep" and a.plan_date == day_key(now) and a.reviewed_date != a.plan_date \
                     and a.wake is not None and now > a.wake:
                 self._spawn(a, a.review_day(self.ctx, now), "review")
+        for preg in self.pregnancies:
+            if not preg["resolved"] and date.fromisoformat(preg["due_day"]) <= day_key(now):
+                preg["resolved"] = True
+                mother = self.agents.get(preg["mother_id"])
+                if mother is not None:
+                    self._spawn(mother, self._give_birth(preg, now),
+                               f"birth:{preg['mother_id']}:{preg['due_day']}")
         if self._town_review_due(now) and (self._town_task is None or self._town_task.done()):
             self._town_task = asyncio.create_task(self._run_town_review(now))
 
@@ -558,13 +570,13 @@ class Engine:
             if judged is not None:
                 judged(result.regard if result else None)
             notes = self._agreements.setdefault(c.id, {})
-            notes[x.id] = result.together if result else []
+            notes[x.id] = result if result else Digest()
             if len(notes) == 2:
                 del self._agreements[c.id]
                 self._settle(c, notes)
         return done
 
-    def _settle(self, c: Conversation, notes: dict[str, list[dict]]) -> None:
+    def _settle(self, c: Conversation, notes: dict[str, Digest]) -> None:
         """Both sides wrote down the meeting separately; make them agree on one time and place.
 
         Both notes come from digesting this same conversation `c`, so any entry on one side and any
@@ -578,7 +590,7 @@ class Engine:
         to keep (small models misjudge "who" easily) - that side still needs the meeting on their
         calendar, not just a bystander's private intention, so it is mirrored onto them mechanically."""
         a, b = c.a, c.b
-        mine, theirs = list(notes.get(a.id, [])), list(notes.get(b.id, []))
+        mine, theirs = list(notes.get(a.id, Digest()).together), list(notes.get(b.id, Digest()).together)
         unmatched: list[dict] = []
         for m in mine:
             if not theirs:
@@ -596,6 +608,46 @@ class Engine:
             self._mirror_commitment(b, m, a.id)
         for m in theirs:  # b noted entries a's own digest never matched
             self._mirror_commitment(a, m, b.id)
+        if notes.get(a.id, Digest()).made_love and notes.get(b.id, Digest()).made_love:
+            self._spawn(a, self._confirm_love(a, b, self.now), f"love:{c.id}")
+
+    async def _confirm_love(self, a: Agent, b: Agent, now: datetime) -> None:
+        """Both sides' own digest agreed this conversation included making love: close the gap in
+        affinity, mark the pair as having already happened (so future occasions skip the affinity
+        gate entirely), and - for a male+female pair with no pregnancy already in flight - conceive."""
+        for x, y in ((a, b), (b, a)):
+            bond = x.bonds[y.id]
+            if RANK[bond["stance"]] < RANK["close"]:
+                bond["stance"], bond["affinity"] = "close", starting_affinity("close")
+            bond["intimate"] = True
+            await x._remember("chat", f"{y.first} and I talked, and it became more - we made love.", now, 7)
+        if {a.persona.sex, b.persona.sex} == {"male", "female"}:
+            mother, father = (a, b) if a.persona.sex == "female" else (b, a)
+            already = any(p["mother_id"] == mother.id and not p["resolved"] for p in self.pregnancies)
+            if not already and self.rng.random() < self.cfg.conception_chance:
+                due = day_key(now) + timedelta(days=self.cfg.gestation_days)
+                self.pregnancies.append({"mother_id": mother.id, "father_id": father.id,
+                                         "start_day": day_key(now).isoformat(), "due_day": due.isoformat(),
+                                         "resolved": False})
+                self._event("pregnancy", [mother.id, father.id],
+                           f"{mother.first} conceives a child with {father.first}.")
+
+    async def _give_birth(self, preg: dict, now: datetime) -> None:
+        mother, father = self.agents.get(preg["mother_id"]), self.agents.get(preg["father_id"])
+        if mother is None or father is None:
+            return
+        child_persona = romance.generate_child_persona(mother.persona, father.persona, day_key(now), self.rng)
+        child = Agent(child_persona, MemoryStream(child_persona.id, self.store, self.embedder), self.world)
+        self.agents[child.id] = child
+        self.ctx.names[child.id] = child_persona.name
+        romance.recognize_child(mother, father, child)
+        generated = self.store.get("generated_personas", [])
+        generated.append(child_persona.model_dump(mode="json"))
+        self.store.put("generated_personas", generated)
+        from hollowmere.sim.setup import seed_memories  # deferred: setup.py imports this module
+        await seed_memories(child, child_persona, self.ctx.names, now)
+        self._event("birth", [mother.id, father.id, child.id],
+                   f"{mother.first} and {father.first} welcome a child, {child.first}.")
 
     def _mirror_commitment(self, missing: Agent, entry: dict, proposer_id: str) -> None:
         """Put the other half of a mutual commitment on the person whose own digest missed it."""
@@ -722,6 +774,7 @@ class Engine:
         self.store.put("clock", self.now.isoformat())
         self.store.put("agents", {a.id: a.snapshot() for a in self.agents.values()})
         self.store.put("town_reviewed", self._town_reviewed.isoformat() if self._town_reviewed else None)
+        self.store.put("pregnancies", self.pregnancies)
         s = self.ctx.llm.stats
         self.store.put("llm_stats", {
             name: _add_counts(self._llm_before.get(name, {}), getattr(s, attr))
@@ -737,6 +790,7 @@ class Engine:
         self._llm_before = self.store.get("llm_stats", {})
         reviewed = self.store.get("town_reviewed")
         self._town_reviewed = date.fromisoformat(reviewed) if reviewed else None
+        self.pregnancies = self.store.get("pregnancies", [])
         self.store.trim_record(self.now)
         for aid, snap in snaps.items():
             if aid in self.agents:

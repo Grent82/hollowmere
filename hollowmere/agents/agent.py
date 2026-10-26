@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
 from typing import Literal
 
-from hollowmere.agents import prompts
+from hollowmere.agents import prompts, romance
 from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
@@ -52,6 +52,7 @@ class Digest:
     """What digesting a conversation produced that the engine acts on."""
     regard: str | None = None  # a human who met the goblin: what they now mean to do about it (GoblinRegard)
     together: list[dict] = field(default_factory=list)  # new commitments to meet the other person
+    made_love: bool = False  # this agent's own judgment of whether this conversation included making love
 
 Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding"]
 
@@ -462,12 +463,13 @@ class Agent:
         place = ctx.world.place_name(self.task.place) if self.task else "the street"
         other_doing = other.task.activity if other.task else "standing about"
         aside = prompts.goblin_aside(self, other, now) if other.persona.is_goblin and not self.persona.is_goblin else ""
+        romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id))
         return await ctx.llm.structured(
             prompts.system_prompt(self),
             prompts.converse(self, ctx.names, now, place, other.name, other_doing, purpose, transcript, mems, aside,
                              town_places=[ctx.world.areas[a].name for a in self.known_areas],
                              topics=list(self.topics), known_as=ctx.known_as, avoid=avoid,
-                             other_looks=other.persona.appearance),
+                             other_looks=other.persona.appearance, romance_eligible=romance_eligible),
             Utterance, label="converse", temperature=0.85)
 
     async def digest_chat(self, ctx: Ctx, now: datetime, other: Agent,
@@ -476,11 +478,12 @@ class Agent:
         judging_goblin = other.persona.is_goblin and not self.persona.is_goblin and self.id not in other.allies
         aside = prompts.goblin_aside(self, other, now) if judging_goblin else ""
         owed = [f"{c['time']} — {c['activity']} at {c['place']}" for c in self.commitments]
+        romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id))
         try:
             out = await ctx.llm.structured(
                 prompts.system_prompt(self),
                 prompts.chat_digest(self, ctx.names, now, other.name, transcript, aside, existing=owed),
-                chat_digest_schema(self.place_ids, judging_goblin), label="digest")
+                chat_digest_schema(self.place_ids, judging_goblin, romance_eligible), label="digest")
         except LLMError as e:
             log.warning("%s: digest failed (%s)", self.id, e)
             await self._remember("chat", f"I spoke with {other.name}.", now, 3)
@@ -493,7 +496,7 @@ class Agent:
                                 "note": out.view_of_them.strip(),
                                 "talks": bond["talks"] + 1, "last": now.isoformat()}
         today = day_key(now)
-        result = Digest()
+        result = Digest(made_love=romance_eligible and getattr(out, "made_love", False))
         for c in out.commitments:
             if c.who == "them" or not c.accepted or not spoken(c.when_said, transcript):
                 continue  # their errand, a demand nobody agreed to, or a time nobody named
