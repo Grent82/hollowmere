@@ -170,11 +170,12 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
         importance=(int, Field(ge=1, le=10, description="how much this talk matters, 1 trivial to 10 life-changing - "
                                "judge it by what changed today, not by how long the talk ran")),
         feeling=(Stance, Field(
-            description="how you feel about THEM now, based only on what was just said in this talk. Default to "
-                        "neutral; shift toward wary or worse only if THIS talk gave specific reason (a slight, a "
-                        "lie, a threat), and toward fond or better only if it gave specific warmth - never from "
-                        "your general dread, fear or suspicion of the plague or the age, which touches everyone "
-                        "alike and says nothing about this one person")),
+            description="how you feel about THEM now, judged from what THEY said and did in this talk toward "
+                        "you. fear/dislike: they threatened, insulted or harmed you. wary: this talk gave you a "
+                        "specific reason to suspect THIS person of lying or meaning harm. neutral: an ordinary "
+                        "exchange, nothing notable either way. fond: you enjoyed their company, they were kind, "
+                        "joked with you, or showed concern for you. trust: they confided in you, helped you, kept "
+                        "a confidence or shared a risk with you. close/love: deep, long affection")),
         view_of_them=(str, Field(description="what you now make of them, first person, one short sentence")),
         commitments=(list[commitment], Field(  # type: ignore[valid-type]
             max_length=2, description="only what the two of you agreed on in this talk; usually empty. If more "

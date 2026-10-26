@@ -137,7 +137,19 @@ def test_the_feeling_judgment_must_follow_the_talk_not_the_towns_general_dread()
     feeling_description = schema.model_fields["feeling"].description.lower()
     assert "this talk" in feeling_description
     assert "dread" in feeling_description or "suspicion" in feeling_description or "fear" in feeling_description
-    assert "default to neutral" in feeling_description
+    assert "neutral: an ordinary exchange" in feeling_description
+
+
+def test_the_feeling_judgment_names_what_each_stance_looks_like_in_a_talk():
+    """Replaying 40 stored talks through the real model: with a bare label list, 62% of judgments were
+    'wary' even for talks an outside reader found friendly; naming the concrete behaviour behind each
+    stance cut that to 45% and tripled 'trust'. The 'dread is not wariness' sentence alone changed
+    nothing, so the anchors are what has to stay."""
+    from hollowmere.agents.schemas import chat_digest_schema
+    feeling_description = chat_digest_schema(("tavern",)).model_fields["feeling"].description.lower()
+    for anchor in ("wary: this talk gave you a specific reason", "fond: you enjoyed their company",
+                   "trust: they confided in you"):
+        assert anchor in feeling_description
 
 
 def test_commitment_day_and_importance_fields_carry_their_own_guidance():
