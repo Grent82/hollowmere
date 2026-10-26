@@ -48,6 +48,7 @@ WALK_TILES = 4
 MAX_TURNS = 6  # lines; past this a small model mostly restates itself
 CHAT_COOLDOWN = timedelta(hours=3)
 REACT_COOLDOWN = timedelta(minutes=50)
+ARRANGED_WINDOW = timedelta(minutes=30)  # a meeting two people arranged is "on" this long either side of its hour
 ATTENTION = 3  # new observations an agent stores per tick
 OBSERVE_NEAR = 8  # tiles: a step that names someone farther off than this cannot have involved them
 SAVE_EVERY_TICKS = 30
@@ -488,10 +489,18 @@ class Engine:
         if reactions:
             await asyncio.gather(*reactions)
 
+    def _arranged(self, a: Agent, b: Agent, now: datetime) -> dict | None:
+        """A meeting `a` and `b` arranged that is due about now and not yet kept, from either one's calendar."""
+        for x, y in ((a, b), (b, a)):
+            for c in x.commitments:
+                if c.get("with") == y.id and not c.get("met") and abs(due_at(c) - now) <= ARRANGED_WINDOW:
+                    return c
+        return None
+
     def _may_react(self, a: Agent, b: Agent, now: datetime) -> bool:
         if not b.awake or b.convo_id is not None or a.convo_id is not None:
             return False
-        if now - a.last_chat.get(b.id, datetime.min) < CHAT_COOLDOWN:
+        if now - a.last_chat.get(b.id, datetime.min) < CHAT_COOLDOWN and self._arranged(a, b, now) is None:
             return False
         if a.persona.is_goblin and any(h.id not in a.allies for h in self._in_sight(a)):
             return False  # _stealth asks him what to do about anyone who could give him away
@@ -500,17 +509,23 @@ class Engine:
         return now - a.last_react.get(b.id, datetime.min) >= REACT_COOLDOWN
 
     async def _react(self, a: Agent, b: Agent, now: datetime) -> None:
-        talk, purpose = await a.react(self.ctx, now, b)
+        arranged = self._arranged(a, b, now)
+        talk, purpose = await a.react(self.ctx, now, b, arranged["activity"] if arranged else "")
         if talk:
             self._start_conversation(a, b, purpose, now)
 
     def _start_conversation(self, a: Agent, b: Agent, purpose: str, now: datetime) -> None:
         # Backstop for every caller, not just the ones that already check this themselves (_may_react,
         # _goblin_chooses' approach branch): nobody re-opens a talk within CHAT_COOLDOWN of the last one.
-        if now - a.last_chat.get(b.id, datetime.min) < CHAT_COOLDOWN:
+        arranged = self._arranged(a, b, now)
+        if now - a.last_chat.get(b.id, datetime.min) < CHAT_COOLDOWN and arranged is None:
             return
         if a.convo_id is not None or b.convo_id is not None or not b.awake:
             return
+        for x, y in ((a, b), (b, a)):  # the arrangement is kept by this very talk: it cannot be cashed in twice
+            for c in x.commitments:
+                if c.get("with") == y.id and abs(due_at(c) - now) <= ARRANGED_WINDOW:
+                    c["met"] = True
         cid = f"c{next(self._convo_ids)}-{self._session}"
         a.convo_id = b.convo_id = cid
         b.mode = "waiting"

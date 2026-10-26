@@ -223,12 +223,15 @@ def seek_hint(agent: Agent) -> str:
 
 def react(agent: Agent, names: dict[str, str], now: datetime, place: str, own_activity: str,
           other_name: str, other_activity: str, mems: list[Memory], aside: str = "",
-          topics: list[str] = (), other_looks: str = "") -> str:
+          topics: list[str] = (), other_looks: str = "", arranged: str = "") -> str:
     p = agent.persona
     looks = f" ({other_looks})" if other_looks else ""
+    meeting = (f"{p.first_name} and {other_name} arranged to meet now: {arranged}. That is why {p.first_name} "
+               f"is here; unless something has changed, speaking to {other_name} is the point.\n"
+               if arranged else "")
     return f"""{clock_line(now)} {p.first_name} is at {place}, {own_activity}.
 {p.first_name} notices {other_name}{looks}, who {other_activity}.
-
+{meeting}
 {identity(agent, names)}
 
 {memories(mems, now)}

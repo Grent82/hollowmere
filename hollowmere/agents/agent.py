@@ -456,8 +456,8 @@ class Agent:
         self.thinking = None
         self.task = None  # force _set_task on the next schedule pass
 
-    async def react(self, ctx: Ctx, now: datetime, other: Agent) -> tuple[bool, str]:
-        """Notice another agent. Returns (wants_to_talk, purpose)."""
+    async def react(self, ctx: Ctx, now: datetime, other: Agent, arranged: str = "") -> tuple[bool, str]:
+        """Notice another agent. Returns (wants_to_talk, purpose). `arranged` is what the two agreed to meet for."""
         self.last_react[other.id] = now
         self.thinking = f"noticing {other.first}"
         try:
@@ -472,7 +472,7 @@ class Agent:
                 prompts.system_prompt(self),
                 prompts.react(self, ctx.names, now, place, self.task.activity if self.task else "standing about",
                               other_name, other.activity_phrase(ctx.world), mems, aside,
-                              topics=list(self.topics), other_looks=other.persona.appearance),
+                              topics=list(self.topics), other_looks=other.persona.appearance, arranged=arranged),
                 Reaction, label="react")
         except LLMError as e:
             log.warning("%s: reaction failed (%s)", self.id, e)
@@ -576,7 +576,7 @@ class Agent:
         if self.persona.is_goblin and area is not None and area.indoor and area.id not in (
                 self.persona.home, self.persona.work):
             return False  # the goblin does not walk into the tavern
-        return not any(abs(due_at(o) - at) < PROMISE_GAP for o in self.commitments)
+        return not any(abs(due_at(o) - at) < PROMISE_GAP for o in self.commitments if not o.get("met"))
 
     async def _commit(self, c: dict, world: World, now: datetime) -> None:
         self.commitments.append(c)
