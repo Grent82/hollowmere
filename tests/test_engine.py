@@ -345,6 +345,25 @@ async def test_a_meeting_one_side_forgot_still_lands_on_their_calendar(tmp_path)
     engine._digested(c, agnes, roderic)(Digest())  # her own digest missed it entirely
     await asyncio.gather(*engine._bg.values())
     assert any(cm["with"] == "roderic" and cm["time"] == "21:00" for cm in agnes.commitments)
+    agreed = [e for e in engine.events if e["kind"] == "agreement"]
+    assert len(agreed) == 1 and set(agreed[0]["agents"]) == {"roderic", "agnes"}  # news for the feed all the same
+
+
+async def test_a_mirrored_meeting_that_is_not_acceptable_makes_no_agreement(tmp_path):
+    import asyncio
+
+    from hollowmere.agents.agent import Digest
+    from hollowmere.sim.engine import Conversation
+    engine = await _town(tmp_path, "nomirror.db")
+    roderic, agnes, world, now = engine.agents["roderic"], engine.agents["agnes"], engine.world, engine.now
+    day = now.date().isoformat()
+    agnes.commitments = [{"date": day, "time": "21:00", "activity": "count the takings", "place": "tavern", "with": None}]
+    his = {"date": day, "time": "21:10", "activity": "drink wine", "place": "tavern_back_room", "with": "agnes"}
+    c = Conversation("c201", roderic, agnes, "drink with Agnes", now, transcript=[("Roderic", "Tonight?")])
+    engine._digested(c, roderic, agnes)(Digest(together=[his]))
+    engine._digested(c, agnes, roderic)(Digest())
+    await asyncio.gather(*engine._bg.values())
+    assert [e for e in engine.events if e["kind"] == "agreement"] == []  # she is busy within the hour
 
 
 async def test_a_meeting_is_settled_even_when_the_two_sides_guessed_hours_apart(tmp_path):
@@ -777,3 +796,72 @@ async def test_a_protector_learns_the_way_to_the_goblins_burrow(tmp_path):
     engine.save()
     again = await build_engine(cfg, llm=FakeLLM(latency=0), embedder=HashingEmbedder(128))
     assert again.agents["isolde"].known_areas.count(den) == 1 and den not in again.agents["ros"].known_areas
+
+
+def test_a_promise_for_now_counts_as_spoken_without_a_clock_time_in_the_talk():
+    from hollowmere.agents.agent import spoken
+    talk = [("Nib", "Come, let us go to the burrow."), ("Isolde", "Lead on.")]
+    for when in ("now", "right now", "now, as the light fails", "at once", "straightaway", "immediately"):
+        assert spoken(when, talk), when
+    assert not spoken("at noon", talk)  # a made-up hour is still refused
+    assert not spoken("tomorrow at dusk", talk)
+
+
+def test_a_promise_that_lands_on_the_minute_of_the_talk_is_moved_just_ahead():
+    from datetime import datetime, timedelta
+    from hollowmere.agents.agent import PROMISE_LEAD, due_at, settle_near_now
+    now = datetime.fromisoformat("1347-11-07T14:41:00")
+    entry = lambda t, d="1347-11-07": {"date": d, "time": t, "activity": "walk", "place": "tavern", "with": None}  # noqa: E731
+    for t in ("14:41", "14:45", "14:35"):  # on it, a few minutes ahead, a few minutes behind
+        assert due_at(settle_near_now(entry(t), now)) == now + PROMISE_LEAD, t
+    assert settle_near_now(entry("14:51"), now)["time"] == "14:51"  # already far enough ahead: untouched
+    assert settle_near_now(entry("18:00"), now)["time"] == "18:00"
+    assert settle_near_now(entry("13:30"), now)["time"] == "13:30"  # long gone: still dropped later by _acceptable
+    late = datetime.fromisoformat("1347-11-08T01:40:00")  # past midnight, still the day that began on the 7th
+    moved = settle_near_now(entry("01:45", "1347-11-07"), late)
+    assert due_at(moved) == late + PROMISE_LEAD
+
+
+class _Digest(FakeLLM):
+    """The fake brain, except that a chat digest names one agreed commitment."""
+
+    def __init__(self, when_said, time_, place):
+        super().__init__(latency=0)
+        self.when_said, self.time, self.place = when_said, time_, place
+
+    async def structured(self, system, user, schema, *, label, temperature=None):
+        if label != "digest":
+            return await super().structured(system, user, schema, label=label, temperature=temperature)
+        return schema.model_validate({
+            "summary": "We agreed to go.", "importance": 6, "feeling": "fond", "view_of_them": "Kind.",
+            "toward_goblin": "tolerate", "made_love": False,
+            "commitments": [{"when_said": self.when_said, "who": "both", "accepted": True, "day": "today",
+                             "time": self.time, "activity": "walk to the burrow", "place": self.place}]})
+
+
+async def test_an_agreement_to_go_now_is_kept_and_set_just_ahead(tmp_path):
+    from hollowmere.agents.agent import PROMISE_LEAD, due_at
+    engine = await _town(tmp_path, "now.db")
+    isolde, nib = engine.agents["isolde"], engine.agents["nib"]
+    now = engine.now
+    isolde.commitments = []
+    engine.ctx.llm = _Digest("now", now.strftime("%H:%M"), "tavern")
+    talk = [("Nib", "Come, let us go."), ("Isolde Vell", "Lead on.")]
+    digest = await isolde.digest_chat(engine.ctx, now, nib, talk)
+    assert len(digest.together) == 1 and due_at(digest.together[0]) == now + PROMISE_LEAD
+    isolde.commitments = []
+    engine.ctx.llm = _Digest("at midnight", "00:00", "tavern")  # not said anywhere: still refused
+    assert (await isolde.digest_chat(engine.ctx, now, nib, talk)).together == []
+
+
+def test_an_hour_already_gone_today_means_tomorrow():
+    from datetime import datetime
+    from hollowmere.agents.agent import due_at, roll_past_hour
+    now = datetime.fromisoformat("1347-11-03T08:47:00")
+    entry = lambda t, d="1347-11-03": {"date": d, "time": t, "activity": "walk", "place": "tavern", "with": None}  # noqa: E731
+    rolled = roll_past_hour(entry("06:00"), now)
+    assert rolled["date"] == "1347-11-04" and due_at(rolled) > now
+    assert roll_past_hour(entry("18:00"), now)["date"] == "1347-11-03"  # still ahead today
+    assert roll_past_hour(entry("08:50"), now)["date"] == "1347-11-03"  # near now: left for settle_near_now
+    night = datetime.fromisoformat("1347-11-03T23:50:00")
+    assert roll_past_hour(entry("00:35"), night)["date"] == "1347-11-03"  # after midnight is still ahead

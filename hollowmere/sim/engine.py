@@ -615,10 +615,7 @@ class Engine:
             theirs.remove(match)
             if (match["time"], match["place"]) != (m["time"], m["place"]):
                 b.move_commitment(match, m["time"], m["place"], self.now)
-            self._event("agreement", [a.id, b.id],
-                        f"{a.first} and {b.first} agree to meet at {self.world.place_name(m['place'])} "
-                        f"at {m['time']}{'' if m['date'] == day_key(self.now).isoformat() else ' tomorrow'}.",
-                        date=m["date"], at=m["time"], place=m["place"])
+            self._agreement_event(a, b, m)
         for m in unmatched:
             self._mirror_commitment(b, m, a.id)
         for m in theirs:  # b noted entries a's own digest never matched
@@ -664,10 +661,17 @@ class Engine:
         self._event("birth", [mother.id, father.id, child.id],
                    f"{mother.first} and {father.first} welcome a child, {child.first}.")
 
+    def _agreement_event(self, a: Agent, b: Agent, m: dict) -> None:
+        self._event("agreement", [a.id, b.id],
+                    f"{a.first} and {b.first} agree to meet at {self.world.place_name(m['place'])} "
+                    f"at {m['time']}{'' if m['date'] == day_key(self.now).isoformat() else ' tomorrow'}.",
+                    date=m["date"], at=m["time"], place=m["place"])
+
     def _mirror_commitment(self, missing: Agent, entry: dict, proposer_id: str) -> None:
         """Put the other half of a mutual commitment on the person whose own digest missed it."""
         mirrored = {**entry, "with": proposer_id}
         if missing._acceptable(mirrored, self.world, self.now):
+            self._agreement_event(self.agents[proposer_id], missing, entry)
             self._spawn(missing, missing._commit(mirrored, self.world, self.now),
                        f"mirror:{proposer_id}:{entry['time']}")
 

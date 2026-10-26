@@ -40,8 +40,32 @@ def due_at(c: dict) -> datetime:
     return parse_hhmm(date.fromisoformat(c["date"]), c["time"])
 
 
+IMMEDIATE_RE = re.compile(r"(right )?now\b|at once\b|right away\b|straightaway\b|immediately\b|instantly\b")
+
+
+def settle_near_now(c: dict, now: datetime) -> dict:
+    """A promise to go "now" or "tonight" often lands on the very minute of the talk, which _acceptable
+    would call already past: set off just ahead instead. Anything further behind is left to be refused."""
+    if now - PROMISE_LEAD <= due_at(c) < now + PROMISE_LEAD:
+        soon = now + PROMISE_LEAD
+        c["date"], c["time"] = day_key(soon).isoformat(), soon.strftime("%H:%M")
+    return c
+
+
+def roll_past_hour(c: dict, now: datetime) -> dict:
+    """The schema says "today if that hour has not yet passed, otherwise tomorrow", but a small model still
+    writes today for "before the sun crests" at 08:47. An hour gone by more than the near-now window means
+    tomorrow's."""
+    if due_at(c) < now - PROMISE_LEAD:
+        c["date"] = (date.fromisoformat(c["date"]) + timedelta(days=1)).isoformat()
+    return c
+
+
 def spoken(when: str, transcript: list[tuple[str, str]]) -> bool:
-    """Whether the time words were really said: models fill in "12:00" for "I will bless the well"."""
+    """Whether the time words were really said: models fill in "12:00" for "I will bless the well".
+    "Now" is the exception: "come, let us go" says it without the word."""
+    if IMMEDIATE_RE.match(when.strip().lower()):
+        return True
     words = set(WORD_RE.findall(when.lower())) - {"at", "the", "by", "in", "on", "a", "an", "of"}
     said = set(WORD_RE.findall(" ".join(text for _, text in transcript).lower()))
     return bool(words) and words <= said
@@ -525,6 +549,7 @@ class Agent:
             when = today if c.day == "today" else today + timedelta(days=1)
             entry = {"date": when.isoformat(), "time": c.time, "activity": c.activity, "place": c.place,
                      "with": other.id if c.who == "both" else None}
+            entry = settle_near_now(roll_past_hour(entry, now) if c.day == "today" else entry, now)
             if not self._acceptable(entry, ctx.world, now):
                 continue
             await self._commit(entry, ctx.world, now)
