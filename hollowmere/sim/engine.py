@@ -24,6 +24,7 @@ import logging
 import math
 import os
 import random
+import re
 from collections import deque
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
@@ -48,6 +49,7 @@ MAX_TURNS = 6  # lines; past this a small model mostly restates itself
 CHAT_COOLDOWN = timedelta(hours=3)
 REACT_COOLDOWN = timedelta(minutes=50)
 ATTENTION = 3  # new observations an agent stores per tick
+OBSERVE_NEAR = 8  # tiles: a step that names someone farther off than this cannot have involved them
 SAVE_EVERY_TICKS = 30
 SAMPLE_EVERY_TICKS = 10  # where everyone is, for `hollowmere report`
 FLEE_TILES = 6
@@ -438,6 +440,19 @@ class Engine:
         indoor = lambda aid: aid is not None and self.world.areas[aid].indoor  # noqa: E731
         return not indoor(area_a) and not indoor(area_b)
 
+    def _seen_doing(self, b: Agent) -> str:
+        """What a bystander may store about `b`. A task's activity is the planned step. So a step naming someone beyond OBSERVE_NEAR is reduced to where `b` is."""
+        if b.task is None or b.mode in ("asleep", "talking", "hiding", "sex"):
+            return b.activity_phrase(self.world)
+        for other in self.agents.values():
+            if other is b:
+                continue
+            tokens = [w for w in other.persona.name.replace("’", "").split() if len(w) > 2]
+            named = any(re.search(rf"\b{re.escape(w)}(?:['’]s)?\b", b.task.activity) for w in tokens)
+            if named and abs(b.x - other.x) + abs(b.y - other.y) > OBSERVE_NEAR:
+                return b.activity_phrase(self.world, detail=False)
+        return b.activity_phrase(self.world)
+
     async def _perceive(self, now: datetime) -> None:
         reactions = []
         for a in self.agents.values():
@@ -460,7 +475,7 @@ class Engine:
                         continue
                 if stored >= ATTENTION:
                     break
-                text = f"{b.name} {b.activity_phrase(self.world)}."
+                text = f"{b.name} {self._seen_doing(b)}."
                 if a.memory.seen_recently(text, now, minutes=90):
                     continue
                 stored += 1
