@@ -75,6 +75,13 @@ class World:
         self.areas: dict[str, Area] = {}
         self.objects: dict[str, WorldObject] = {}
         self.lights: list[Light] = []
+        self.retreats: list[str] = []  # areas two people can withdraw to; never offered to ordinary planning
+
+    def extend_south(self, rows: int) -> None:
+        """Append `rows` rows of grass below the map, leaving every existing tile where it was."""
+        self.tiles.extend([Tile.GRASS] * self.width for _ in range(rows))
+        self.area_grid.extend([None] * self.width for _ in range(rows))
+        self.height += rows
 
     # ------------------------------------------------------------------ queries
 

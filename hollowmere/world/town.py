@@ -10,6 +10,7 @@ import random
 from hollowmere.world.world import Area, Light, Tile, World, WorldObject
 
 W, H = 90, 58
+SOUTH_EXTRA = 16  # rows of woods added below the original map, for the charcoal-burners' hut
 
 TORCH = "#ff9a3c"
 CANDLE = "#ffc66b"
@@ -367,4 +368,37 @@ def build_town(seed: int = 1347) -> World:
     b.set(7, 41, Tile.GRASS)
     b.obj("brambles", "brambles", "standing_stones", 7, 41, "thicket")
 
+    if SOUTH_EXTRA:
+        _southern_woods(b, random.Random(seed + 1))  # its own rng: the map above must not shift by a single tile
     return b.w
+
+
+def _southern_woods(b: _Builder, rng: random.Random) -> None:
+    """Dense woods south of the Hollow Keep and a charcoal-burners' hut at the end of a faint trail from the
+    Witchwood. It is where two people go to be
+    out of sight."""
+    b.w.extend_south(SOUTH_EXTRA)
+    bottom = b.w.height
+    for y in range(H, bottom):
+        for x in range(W):
+            ring = x < 2 or x >= W - 2 or y >= bottom - 2
+            density = 0.55 if x < 58 else 0.40
+            if ring or (x not in (58, 59) and rng.random() < density):
+                b.set(x, y, Tile.TREE)
+    b.fill(58, H, 59, bottom - 1, Tile.WATER)  # the Mere keeps running south
+    b.fill(70, 58, 82, 69, Tile.GRASS)  # the clearing round the hut
+    for x, y0, y1 in ((66, 42, 50), (67, 51, 58), (66, 59, 63)):  # trail from the Witchwood, with a bend
+        b.fill(x, y0, x, y1, Tile.DIRT)
+    b.set(66, 50, Tile.DIRT)
+    b.set(67, 50, Tile.DIRT)
+    b.set(66, 58, Tile.DIRT)
+    b.set(67, 58, Tile.DIRT)
+    b.fill(66, 63, 72, 63, Tile.DIRT)
+    b.building(73, 61, 79, 66, Tile.WOOD, doors=[(73, 63)])
+    b.area("charcoal_hut", "the charcoal-burners' hut",
+           "a half-collapsed hut deep in the southern woods, a cold hearth and a dry corner far from any lane",
+           (74, 62, 78, 65), public=False, indoor=True)
+    b.w.retreats.append("charcoal_hut")
+    b.obj("hut_pallet", "straw pallet", "charcoal_hut", 75, 64, "bed")
+    b.obj("hut_hearth", "cold hearth", "charcoal_hut", 77, 62, "firepit", (2.5, GOBLIN_FIRE))
+    b.obj("hut_store", "rotten charcoal sacks", "charcoal_hut", 78, 65, "sacks")
