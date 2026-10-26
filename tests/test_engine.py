@@ -405,7 +405,7 @@ async def test_a_repeated_line_gets_one_more_try(tmp_path):
     ros, agnes = engine.agents["ros"], engine.agents["agnes"]
     asked = []
 
-    async def say(ctx, now, other, purpose, transcript, avoid=""):
+    async def say(ctx, now, other, purpose, transcript, avoid="", invited=False):
         asked.append(avoid)
         return Utterance(says="The river took another one." if not avoid else "Did you hear the bell?", end=False)
 

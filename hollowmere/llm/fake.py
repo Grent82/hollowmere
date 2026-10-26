@@ -128,6 +128,9 @@ class FakeLLM:
         turns = user.count('": "') + user.count(': "')
         return {"says": self.rng.choice(_LINES), "end": turns >= 4 and self.rng.random() < 0.5}
 
+    def _romanticutterance(self, js: dict, user: str) -> dict:
+        return {**self._utterance(js, user), "intimate": False}  # the scripted brain never makes love on its own
+
     def _chatdigest(self, js: dict, user: str) -> dict:
         out = {"summary": "We spoke of the plague and the collector's coming. Everyone is afraid.",
                "importance": 4, "commitments": [],

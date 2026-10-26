@@ -58,6 +58,17 @@ class Utterance(BaseModel):
     end: bool = Field(description="true if this line ends the conversation (a farewell, walking off, nothing more to say)")
 
 
+def utterance_schema(romance_eligible: bool = False) -> type[Utterance]:
+    """What a speaker says; a pair that may make love is also asked, line by line, whether this line is the moment.
+    Reading consent out of a transcript afterwards never worked (0 of 43 talks): the speaker knows when it is."""
+    if not romance_eligible:
+        return Utterance
+    return create_model("RomanticUtterance", __base__=Utterance, intimate=(bool, Field(
+        description="true only if this very line is the moment you and they go off together and give yourselves "
+                    "to each other, because you both clearly want it and are alone. Flirting, longing, a "
+                    "compliment or an invitation is not yet it: false by default, and never describe it")))
+
+
 class TownState(BaseModel):
     text: str = Field(description="the town's situation now, in the shared narrator's voice, one or two "
                                   "sentences - not any one person's thought")

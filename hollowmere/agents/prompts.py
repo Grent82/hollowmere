@@ -248,7 +248,7 @@ def converse(agent: Agent, names: dict[str, str], now: datetime, place: str, oth
              other_activity: str, purpose: str, transcript: list[tuple[str, str]], mems: list[Memory],
              aside: str = "", town_places: Iterable[str] = (), topics: list[str] = (),
              known_as: dict[str, str] | None = None, avoid: str = "", other_looks: str = "",
-             romance_eligible: bool = False) -> str:
+             romance_eligible: bool = False, invited: bool = False) -> str:
     p = agent.persona
     lines = "\n".join(f'{who}: "{text}"' for who, text in transcript) or "(nobody has spoken yet)"
     other_id = next((k for k, v in names.items() if v == other_name), None)
@@ -266,7 +266,14 @@ def converse(agent: Agent, names: dict[str, str], now: datetime, place: str, oth
     romance_line = (f"{p.first_name} and {other_name} have grown close enough that, if the moment and the "
                     f"warmth between them call for it, {p.first_name} may let the talk turn there and the "
                     f"two of them make love - say only that it is spoken of and then happens, never "
-                    f"describe it further.\n" if romance_eligible else "")
+                    f"describe it further. When {other_name} has clearly said yes and the two are alone, the line "
+                    f"that is that moment itself sets intimate to true; wishes, flirting and invitations do not.\n"
+                    if romance_eligible else "")
+    if romance_eligible and invited:
+        romance_line += (f"{other_name} has just made clear, in their last words, that this is the moment they "
+                         f"want the two of you to go off together. If {p.first_name} wants that too, the line "
+                         f"that says yes sets intimate to true; if not, {p.first_name} turns it aside in "
+                         f"their own way.\n")
     retry = (f'{p.first_name} was about to say "{avoid}", but that has already been said. Say something new, '
              "or say goodbye and set end to true.\n" if avoid else "")
     known = [m for m in mems if m.kind not in PRIVATE_KINDS]

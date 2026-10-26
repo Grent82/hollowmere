@@ -18,7 +18,7 @@ from hollowmere.agents import prompts, romance
 from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
-    DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance,
+    DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
     chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
 )
 from hollowmere.llm.client import LLM, LLMError
@@ -502,7 +502,7 @@ class Agent:
         return out, by_name
 
     async def say(self, ctx: Ctx, now: datetime, other: Agent, purpose: str,
-                  transcript: list[tuple[str, str]], avoid: str = "") -> Utterance:
+                  transcript: list[tuple[str, str]], avoid: str = "", invited: bool = False) -> Utterance:
         self.thinking = None
         last = transcript[-1][1] if transcript else purpose
         mems = await self.memory.retrieve([other.name, last or other.name], now, k=8)
@@ -515,8 +515,9 @@ class Agent:
             prompts.converse(self, ctx.names, now, place, other.name, other_doing, purpose, transcript, mems, aside,
                              town_places=[ctx.world.areas[a].name for a in self.known_areas],
                              topics=list(self.topics), known_as=ctx.known_as, avoid=avoid,
-                             other_looks=other.persona.appearance, romance_eligible=romance_eligible),
-            Utterance, label="converse", temperature=0.85)
+                             other_looks=other.persona.appearance, romance_eligible=romance_eligible,
+                             invited=invited),
+            utterance_schema(romance_eligible), label="converse", temperature=0.85)
 
     async def digest_chat(self, ctx: Ctx, now: datetime, other: Agent,
                           transcript: list[tuple[str, str]]) -> Digest:

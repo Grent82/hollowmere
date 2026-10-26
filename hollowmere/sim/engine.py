@@ -83,6 +83,8 @@ class Conversation:
     talking: bool = False
     done: bool = False
     busy: bool = False
+    intimate: set[str] = field(default_factory=set)  # who has said, in their own line, that this is the moment
+    love_done: bool = False  # making love is confirmed once per talk, by whichever path gets there first
 
 
 class Engine:
@@ -391,10 +393,11 @@ class Engine:
         try:
             purpose = c.purpose if speaker is c.a else ""
             said = [t for _, t in c.transcript]
-            out = await speaker.say(self.ctx, now, listener, purpose, c.transcript)
+            invited = listener.id in c.intimate and speaker.id not in c.intimate  # the other has proposed: answer
+            out = await speaker.say(self.ctx, now, listener, purpose, c.transcript, invited=invited)
             line = out.says.strip().strip('"')
             if repeats(line, said):  # own lines, or parroting the other: small models loop
-                out = await speaker.say(self.ctx, now, listener, purpose, c.transcript, avoid=line)
+                out = await speaker.say(self.ctx, now, listener, purpose, c.transcript, avoid=line, invited=invited)
                 line = out.says.strip().strip('"')
                 if repeats(line, said):  # twice: the talk has run dry
                     self._end_conversation(c, "repeat")
@@ -402,6 +405,11 @@ class Engine:
             c.transcript.append((speaker.name, line))
             speaker.bubble, listener.bubble = line, None
             self._event("chat", [speaker.id, listener.id], line, speaker=speaker.id, convo=c.id)
+            if getattr(out, "intimate", False):
+                c.intimate.add(speaker.id)
+                if len(c.intimate) == 2:  # both said yes themselves: they go off alone; _settle confirms it
+                    self._end_conversation(c, "goodbye")
+                    return
             if out.end or len(c.transcript) >= MAX_TURNS:
                 self._end_conversation(c, "goodbye" if out.end else "limit")
         except LLMError as e:
@@ -635,7 +643,10 @@ class Engine:
             self._mirror_commitment(b, m, a.id)
         for m in theirs:  # b noted entries a's own digest never matched
             self._mirror_commitment(a, m, b.id)
-        if notes.get(a.id, Digest()).made_love and notes.get(b.id, Digest()).made_love:
+        # Confirmed here, after both digests: a digest rewrites the bond, and would wipe what this sets.
+        said_so = len(c.intimate) == 2 or (notes.get(a.id, Digest()).made_love and notes.get(b.id, Digest()).made_love)
+        if said_so and not c.love_done:
+            c.love_done = True
             self._spawn(a, self._confirm_love(a, b, self.now), f"love:{c.id}")
 
     async def _confirm_love(self, a: Agent, b: Agent, now: datetime) -> None:
