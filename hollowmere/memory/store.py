@@ -142,6 +142,21 @@ class Store:
         out.reverse()
         return out
 
+    def prayers_for(self, agent_id: str, limit: int = 10) -> list[dict]:
+        """This agent's most recent prayers and the god's answer to each, newest first."""
+        rows = self.db.execute(
+            "SELECT time, agents, text, extra FROM events WHERE kind = 'prayer' ORDER BY id DESC LIMIT 2000").fetchall()
+        out: list[dict] = []
+        for r in rows:
+            if agent_id not in json.loads(r["agents"]):
+                continue
+            extra = json.loads(r["extra"])
+            out.append({"time": r["time"], "god": extra.get("god"), "form": extra.get("form"),
+                        "text": r["text"].split(": ", 1)[-1]})
+            if len(out) >= limit:
+                break
+        return out
+
     def add_samples(self, time: datetime, rows: list[tuple]) -> None:
         """rows: (agent_id, x, y, mode, task place, area under the agent)."""
         self.db.executemany("INSERT INTO samples VALUES (?,?,?,?,?,?,?)", [(time.isoformat(), *r) for r in rows])

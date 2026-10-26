@@ -1,12 +1,22 @@
 // Sidebar: clock, controls, townsfolk list, chronicle feed, and the villager inspector.
 import type { AgentDetail, AgentView, Bond, ChatLogEntry, SimEvent, StateMsg } from "./types";
 
-type DetailTab = "overview" | "bonds" | "chat" | "memory";
+type DetailTab = "overview" | "bonds" | "chat" | "memory" | "prayers";
+const GODS: Record<string, { name: string; color: string }> = {
+  caedros: { name: "Caedros", color: "#9fb4c8" },
+  yevra: { name: "Yevra", color: "#e08fb0" },
+  agrath: { name: "Agrath", color: "#e0a050" },
+  sevreth: { name: "Sevreth", color: "#7fc490" },
+};
+const godColor = (id: string) => GODS[id]?.color ?? "var(--muted)";
+const godName = (id: string) => GODS[id]?.name ?? id;
+
 const DETAIL_TABS: { id: DetailTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "bonds", label: "Relationships" },
   { id: "chat", label: "Conversations" },
   { id: "memory", label: "Memory" },
+  { id: "prayers", label: "Prayers" },
 ];
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -115,6 +125,13 @@ export class UI {
         return `<div class="ev intent"><time>${hhmm(e.time)}</time>${esc(e.text)}</div>`;
       case "reflection":
         return `<div class="ev refl"><time>${hhmm(e.time)}</time>${tag(e.agents[0])} realises: <i>${esc(e.text)}</i></div>`;
+      case "prayer": {
+        const god = e.god ?? "";
+        const body = e.text.split(": ").slice(1).join(": ");
+        return `<div class="ev prayer${e.form === "buff" ? " buff" : ""}" style="--god:${godColor(god)}"><time>${hhmm(e.time)}</time>`
+          + `🕯 ${tag(e.agents[0])} prays to <b class="god">${esc(godName(god))}</b> <span class="form">${esc(e.form ?? "")}</span>`
+          + `<div class="answer">${esc(body)}</div></div>`;
+      }
       case "plan":
         return `<div class="ev plan"><time>${hhmm(e.time)}</time>${esc(e.text)}</div>`;
       case "hide":
@@ -168,6 +185,7 @@ export class UI {
     const body = this.detailTab === "bonds" ? this.renderBonds(d)
       : this.detailTab === "chat" ? this.renderChat(d)
       : this.detailTab === "memory" ? this.renderMemory(d)
+      : this.detailTab === "prayers" ? this.renderPrayers(d)
       : this.renderOverview(d);
     panel.innerHTML = `
       <div class="dhead">
@@ -188,6 +206,8 @@ export class UI {
         ${now ? `<small>until ${hhmm(now.end)}</small>` : ""}</p>
       <p class="muted">${esc(d.currently)}</p>
       ${d.drive ? `<p class="drive">${esc(d.drive)}</p>` : ""}
+      ${d.favor ? `<p class="favor" style="--god:${godColor(d.favor.god)}">✨ Favor of <b>${esc(d.favor.god_name)}</b>
+        <small>until ${hhmm(d.favor.expires)}</small><br>${esc(d.favor.text)}</p>` : ""}
       <h3>Today</h3>
       <ol class="plan">${d.plan.map((b) => {
         const cur = d.activity && now && b.start <= now.start && now.start < b.end;
@@ -196,6 +216,13 @@ export class UI {
       ${d.seeking ? `<p class="muted">Creeping after ${esc(d.seeking)}.</p>` : ""}
       ${d.commitments.length ? `<h3>Promises</h3><ul class="mem">${d.commitments.map((c) =>
         `<li><time>${c.date.slice(5)} ${c.time}</time>${esc(c.activity)}</li>`).join("")}</ul>` : ""}`;
+  }
+
+  private renderPrayers(d: AgentDetail): string {
+    if (!d.prayers.length) return `<p class="muted">Has not prayed yet.</p>`;
+    return `<ul class="prayers">${d.prayers.map((p) =>
+      `<li style="--god:${godColor(p.god)}"><time>${p.time.slice(5, 10)} ${hhmm(p.time)}</time><b class="god">${esc(godName(p.god))}</b>
+        <span class="form">${esc(p.form)}</span><div>${esc(p.text)}</div></li>`).join("")}</ul>`;
   }
 
   private renderBonds(d: AgentDetail): string {

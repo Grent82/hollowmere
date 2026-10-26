@@ -255,3 +255,29 @@ def test_chat_log_for_caps_at_the_given_number_of_lines_keeping_the_most_recent(
                         {"speaker": "agnes", "convo": "c1"})
     log = store.chat_log_for("agnes", limit=2)
     assert [e["text"] for e in log] == ["line 3", "line 4"]
+
+
+def test_prayers_for_returns_only_this_agents_prayers_newest_first_without_the_name_prefix():
+    store = Store(":memory:")
+    t0 = datetime(1347, 11, 2, 5, 0)
+    store.add_event(t0, "prayer", ["odo"], "Odo prays to Caedros: a quiet dream: of ash",
+                    {"form": "dream", "god": "caedros"})
+    store.add_event(t0.replace(hour=6), "prayer", ["wenna"], "Wenna prays to Sevreth: a crow",
+                    {"form": "sign", "god": "sevreth"})
+    store.add_event(t0.replace(hour=7), "prayer", ["odo"], "Odo prays to Yevra: warmth",
+                    {"form": "buff", "god": "yevra"})
+    store.add_event(t0.replace(hour=8), "chat", ["odo", "wenna"], "not a prayer", {"speaker": "odo", "convo": "c1"})
+
+    prayers = store.prayers_for("odo")
+    assert [(p["god"], p["form"], p["text"]) for p in prayers] == [
+        ("yevra", "buff", "warmth"), ("caedros", "dream", "a quiet dream: of ash")]
+    assert prayers[0]["time"] > prayers[1]["time"]
+
+
+def test_prayers_for_caps_at_the_given_limit_keeping_the_most_recent():
+    store = Store(":memory:")
+    t0 = datetime(1347, 11, 2, 5, 0)
+    for i in range(5):
+        store.add_event(t0.replace(minute=i), "prayer", ["odo"], f"Odo prays to Caedros: answer {i}",
+                        {"form": "sign", "god": "caedros"})
+    assert [p["text"] for p in store.prayers_for("odo", limit=2)] == ["answer 4", "answer 3"]

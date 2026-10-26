@@ -752,6 +752,8 @@ class Engine:
             "importance_acc": a.importance_acc,
             "species": p.species,
             "drive": a.drive,
+            "favor": a.favor | {"god_name": GOD_BY_ID[a.favor["god"]].name} if a.favor and a.favor["god"] in GOD_BY_ID else None,
+            "prayers": self.store.prayers_for(agent_id),
             "allies": [self.agents[i].name for i in sorted(a.allies) if i in self.agents],
             "bonds": sorted(
                 ({"id": k, "name": self.agents[k].name, "color": self.agents[k].persona.color, **b,

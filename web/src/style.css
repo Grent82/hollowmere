@@ -121,3 +121,14 @@ body.inspecting #tabs, body.inspecting .tab.on { display: none; }
   #app { grid-template-columns: 1fr; grid-template-rows: 58vh 42vh; }
   #side { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+.ev.prayer { border-left: 3px solid var(--god); background: #15131a; }
+.ev.prayer.buff { box-shadow: inset 0 0 0 1px var(--god); }
+.ev.prayer .answer, .prayers li div { color: #cfc6b4; font-style: italic; font-size: 13.5px; margin-top: 2px; }
+.god { color: var(--god); }
+.form { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-left: 4px; }
+.favor { border-left: 3px solid var(--god); padding: 4px 10px; margin: 6px 0 10px; background: #17151c; }
+.favor small { color: var(--muted); }
+.prayers { list-style: none; margin: 0 0 10px; padding: 0; }
+.prayers li { padding: 5px 0 5px 8px; border-left: 3px solid var(--god); margin-bottom: 4px; font-size: 14px; }
+.prayers time { color: var(--muted); font-size: 12px; margin-right: 8px; }
