@@ -189,6 +189,9 @@ Plan {p.first_name}'s waking day from getting up to going to bed.
 - If the day involves another person, only give a specific time or place for them if what you know of
   them above (their trade, or what you've seen of them) supports it; otherwise stay uncertain about
   them - hoping, watching, asking around - rather than inventing a meeting that contradicts what you know.
+- A block says only what {p.first_name} does, never what another person does, that they are there, or that
+  they come along. Name no one else in a block unless {p.first_name} has promised to meet them (see the
+  promises above): hoping to run into someone is a worry, not a plan.
 - The final block is going to sleep at {p.bed}.
 - activity is a short present-tense phrase without the name, e.g. "hammers spearheads for the watch".
 - If {p.first_name} means to pray during any block, set that block's pray_to to the one god addressed
@@ -209,7 +212,11 @@ def decompose(agent: Agent, world: World, names: dict[str, str], now: datetime, 
 
 From {start:%H:%M} to {end:%H:%M} ({minutes} minutes) {p.first_name} {activity}, at {area_name}.
 Break this into the concrete steps {p.first_name} actually takes, in order. The minutes must add up to {minutes}.
-Use only the place ids allowed by the schema. Prefer specific objects when the step uses one.{seek_hint(agent)}"""
+Use only the place ids allowed by the schema. Prefer specific objects when the step uses one.
+Every step is only what {p.first_name} does on their own. Never write that another person is there, joins,
+follows, is helped or is led by {p.first_name}: nobody has agreed to that, and it is not {p.first_name}'s to
+decide. Name someone only if the block above already names them as the person {p.first_name} is to meet, and
+then say only that {p.first_name} goes to meet them, not what happens once they are together.{seek_hint(agent)}"""
 
 
 def seek_hint(agent: Agent) -> str:

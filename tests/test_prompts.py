@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from hollowmere.agents import prompts
 from hollowmere.config import Config
@@ -332,3 +332,16 @@ def test_town_review_shows_the_old_state_and_what_has_happened_since():
     assert "The plague has returned" in text
     assert "Agnes and Odo agree to meet at the tavern at 18:00." in text
     assert "Wenna has sworn to protect the goblin." in text
+
+
+async def test_planning_prompts_forbid_writing_what_other_people_do(tmp_path):
+    """Regression: Nib's plan read 'Climbs the rubble, pulling Isolde up after him' while Isolde was nowhere
+    near. A step is what the planner does alone; others are only ever hoped for or promised."""
+    engine = await _engine(tmp_path)
+    nib = engine.agents["nib"]
+    day = prompts.plan_day(nib, engine.world, engine.ctx.names, NOW, [], ["19:00 - meet Isolde at the stones"])
+    assert "never what another person does" in day and "promised to meet them" in day
+    steps = prompts.decompose(nib, engine.world, engine.ctx.names, NOW, "escorts Isolde", NOW,
+                              NOW + timedelta(hours=2), "the ruin", [])
+    assert "only what Nib does on their own" in steps
+    assert "not what happens once they are together" in steps
