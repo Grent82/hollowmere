@@ -33,3 +33,36 @@ def test_absence_days_are_configured():
     sim = Config().sim
     assert (sim.absence_min_days, sim.absence_max_days) == (1, 3)
     assert (sim.detention_min_days, sim.detention_max_days, sim.max_jailed) == (1, 3, 2)
+
+
+def _send_away(agent, days=2):
+    agent.absence = {"kind": "away", "since": NOW.isoformat(), "until": "1347-11-07T17:00:00", "reason": "wolves"}
+    agent.mode, agent.path, agent.task = "away", [], None
+
+
+async def test_an_away_agent_is_not_seen_and_does_not_see(tmp_path):
+    engine = await _engine(tmp_path)
+    tobin, other = engine.agents["tobin"], engine.agents["brannoc"]
+    other.x, other.y, tobin.x, tobin.y = 20, 20, 21, 20
+    assert engine._visible(other, tobin)
+    _send_away(tobin)
+    assert not tobin.awake
+    assert not engine._visible(other, tobin) and not engine._visible(tobin, other)
+    engine.now = NOW
+    await engine._perceive(NOW)
+    assert not any("Tobin" in m.text for m in other.memory.items if m.kind == "observation")
+
+
+async def test_an_away_agent_is_not_planned_reviewed_or_sampled(tmp_path):
+    engine = await _engine(tmp_path)
+    tobin = engine.agents["tobin"]
+    _send_away(tobin)
+    tobin.importance_acc = 10_000
+    engine.now = NOW
+    await engine._schedule(NOW)
+    engine._background(NOW)
+    assert tobin.plan == [] and tobin.mode == "away"
+    assert "reflect:tobin" not in engine._bg
+    engine._sample(NOW)
+    assert not engine.store.db.execute("select 1 from samples where agent_id='tobin'").fetchall()
+    assert engine.store.db.execute("select 1 from samples where agent_id='brannoc'").fetchall()

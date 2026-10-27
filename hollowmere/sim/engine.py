@@ -173,6 +173,8 @@ class Engine:
         for _ in range(3):
             jobs = []
             for a in self.agents.values():
+                if a.is_away:
+                    continue
                 if a.favor is not None and now >= datetime.fromisoformat(a.favor["expires"]):
                     a.favor = None
                 if a.hiding_until is not None:
@@ -473,6 +475,8 @@ class Engine:
                     reason=reason, purpose=c.purpose)
 
     def _visible(self, a: Agent, b: Agent) -> bool:
+        if a.is_away or b.is_away:
+            return False
         if math.hypot(a.x - b.x, a.y - b.y) > self.cfg.vision_radius:
             return False
         area_a, area_b = self.world.area_at(a.x, a.y), self.world.area_at(b.x, b.y)
@@ -587,6 +591,8 @@ class Engine:
                 self._event("prayer", [a.id], f"{a.first} prays to {god.name if god else p['god']}: {p['text']}",
                             form=p["form"], god=p["god"], clarity=p.get("clarity", "none"))
             a.new_prayers.clear()
+            if a.is_away:
+                continue  # out of town: no prayer, reflection or day review until they are back
             idx = a.current_block(now)
             if idx is not None and a.plan[idx].god and a.prayed_block != idx:
                 a.prayed_block = idx  # set before spawning: the next tick must not re-fire the same block
@@ -858,7 +864,7 @@ class Engine:
     def _sample(self, now: datetime) -> None:
         self.store.add_samples(now, [
             (a.id, a.x, a.y, a.mode, a.task.place if a.task else None, self.world.area_at(a.x, a.y))
-            for a in self.agents.values()])
+            for a in self.agents.values() if not a.is_away])
 
     # --------------------------------------------------------------- output
 

@@ -79,7 +79,7 @@ class Digest:
     together: list[dict] = field(default_factory=list)  # new commitments to meet the other person
     made_love: bool = False  # this agent's own judgment of whether this conversation included making love
 
-Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding", "sex"]
+Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding", "sex", "away"]
 
 
 @dataclass
@@ -282,12 +282,14 @@ class Agent:
 
     @property
     def awake(self) -> bool:
-        return self.mode != "asleep"
+        return self.mode not in ("asleep", "away")
 
     def activity_phrase(self, world: World, detail: bool = True) -> str:
         """What someone looks to be doing; detail=False keeps only where, not the planned step."""
         if self.mode == "asleep":
             return "is asleep"
+        if self.mode == "away":
+            return "is away from town"
         if self.mode == "talking":
             return "is deep in conversation"
         if self.mode == "hiding":
