@@ -204,6 +204,10 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
                         "than two things were truly agreed, keep only the two that matter most. A tentative "
                         "'maybe' that nobody confirmed can be left out entirely")),
     )
+    fields["leaving"] = (bool, Field(
+        default=False, description="true only if the two of you agreed in this very conversation to leave Hollowmere together, "
+                    "each saying yes in your own words; a wish to escape, a complaint or a talk about someone else "
+                    "leaving is false. False by default, including whenever nothing like that was said"))
     if about_goblin:
         fields["toward_goblin"] = (GoblinRegard, Field(
             description="what you mean to do about the goblin now: drive it off or tell others; stay undecided; "

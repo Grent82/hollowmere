@@ -41,6 +41,7 @@ from hollowmere.llm.client import LLMError
 from hollowmere.memory.embed import Embedder
 from hollowmere.memory.store import Store
 from hollowmere.memory.stream import MemoryStream, repeats
+from hollowmere.sim.absence import Absences
 from hollowmere.world.world import World
 
 log = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ class Conversation:
     love_done: bool = False  # making love is confirmed once per talk, by whichever path gets there first
 
 
-class Engine:
+class Engine(Absences):
     def __init__(self, cfg: SimConfig, world: World, agents: list[Agent], ctx: Ctx, store: Store,
                 embedder: Embedder):
         self.cfg = cfg
@@ -123,6 +124,7 @@ class Engine:
         self._agreements: dict[str, dict[str, Digest]] = {}  # convo id -> agent id -> their digest of it
         self._town_reviewed: date | None = None  # day_key() of the last town-wide review, if any
         self._town_task: asyncio.Task | None = None
+        self._queue: list[dict] = []  # departures and the news of them still to come, each with an "at" time
 
     # ---------------------------------------------------------------- running
 
@@ -150,6 +152,7 @@ class Engine:
 
     async def tick(self) -> None:
         now = self.now
+        await self._absences(now)
         await self._schedule(now)
         self._seek(now)
         self._move(now)
@@ -604,9 +607,10 @@ class Engine:
                 self._spawn(a, a.review_day(self.ctx, now), "review")
         self._pregnancy_phases(now)
         for preg in self.pregnancies:
-            if not preg["resolved"] and date.fromisoformat(preg["due_day"]) <= day_key(now):
+            mother = self.agents.get(preg["mother_id"])
+            if not preg["resolved"] and date.fromisoformat(preg["due_day"]) <= day_key(now) \
+                    and not (mother is not None and mother.is_away):  # out of town: it waits for her
                 preg["resolved"] = True
-                mother = self.agents.get(preg["mother_id"])
                 if mother is not None:
                     self._spawn(mother, self._give_birth(preg, now),
                                f"birth:{preg['mother_id']}:{preg['due_day']}")
@@ -687,6 +691,8 @@ class Engine:
         for m in theirs:  # b noted entries a's own digest never matched
             self._mirror_commitment(a, m, b.id)
         # Confirmed here, after both digests: a digest rewrites the bond, and would wipe what this sets.
+        if notes.get(a.id, Digest()).leaving and notes.get(b.id, Digest()).leaving:
+            self.schedule_departure(a, b, self.now)
         said_so = len(c.intimate) == 2 or (notes.get(a.id, Digest()).made_love and notes.get(b.id, Digest()).made_love)
         if said_so and not c.love_done:
             c.love_done = True
@@ -947,6 +953,7 @@ class Engine:
         self.store.put("agents", {a.id: a.snapshot() for a in self.agents.values()})
         self.store.put("town_reviewed", self._town_reviewed.isoformat() if self._town_reviewed else None)
         self.store.put("pregnancies", self.pregnancies)
+        self.store.put("absence_queue", self._queue)
         s = self.ctx.llm.stats
         self.store.put("llm_stats", {
             name: _add_counts(self._llm_before.get(name, {}), getattr(s, attr))
@@ -963,6 +970,7 @@ class Engine:
         reviewed = self.store.get("town_reviewed")
         self._town_reviewed = date.fromisoformat(reviewed) if reviewed else None
         self.pregnancies = self.store.get("pregnancies", [])
+        self._queue = self.store.get("absence_queue", [])
         self.store.trim_record(self.now)
         for aid, snap in snaps.items():
             if aid in self.agents:

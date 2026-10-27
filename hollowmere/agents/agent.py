@@ -78,6 +78,7 @@ class Digest:
     regard: str | None = None  # a human who met the goblin: what they now mean to do about it (GoblinRegard)
     together: list[dict] = field(default_factory=list)  # new commitments to meet the other person
     made_love: bool = False  # this agent's own judgment of whether this conversation included making love
+    leaving: bool = False  # this agent's own judgment that the two agreed in this talk to leave Hollowmere together
 
 Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding", "sex", "away"]
 
@@ -568,7 +569,8 @@ class Agent:
                                 "talks": bond["talks"] + 1, "last": now.isoformat(),
                                 **({"kin": bond["kin"]} if bond.get("kin") else {})}
         today = day_key(now)
-        result = Digest(made_love=romance_eligible and getattr(out, "made_love", False))
+        result = Digest(made_love=romance_eligible and getattr(out, "made_love", False),
+                        leaving=getattr(out, "leaving", False))
         for c in out.commitments:
             if c.who == "them" or not c.accepted or not spoken(c.when_said, transcript):
                 continue  # their errand, a demand nobody agreed to, or a time nobody named
@@ -784,3 +786,5 @@ class Agent:
         self.pending_dream = d.get("pending_dream")  # older saves lack this
         self.prayed_block = d.get("prayed_block", -1)  # older saves lack this
         self.absence = d.get("absence")  # older saves lack this
+        if self.is_away:
+            self.mode = "away"
