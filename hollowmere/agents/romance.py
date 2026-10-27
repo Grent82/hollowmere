@@ -11,9 +11,18 @@ from hollowmere.agents.persona import Persona, RANK, starting_affinity
 if TYPE_CHECKING:
     from hollowmere.agents.agent import Agent
 
-MALE_NAMES = ("Ned", "Fenwick", "Garrick", "Aldous", "Wymer")
-FEMALE_NAMES = ("Maude", "Thea", "Rosamund", "Enid", "Lyra")
-GOBLIN_NAMES = ("Grik", "Snurt", "Tam", "Pell", "Mossa")
+MALE_NAMES = (
+    "Ned", "Fenwick", "Garrick", "Aldous", "Wymer", "Alden", "Bram", "Cuthbert", "Dunstan", "Edric",
+    "Godwin", "Hob", "Osric", "Percival", "Rupert", "Tobias", "Wilfred", "Corwin", "Hadrian", "Jory",
+)
+FEMALE_NAMES = (
+    "Maude", "Thea", "Rosamund", "Enid", "Lyra", "Alys", "Bryony", "Cecily", "Dilys", "Edith",
+    "Gwenna", "Hilda", "Ismay", "Linnet", "Nell", "Odette", "Philippa", "Sybil", "Verity", "Wynne",
+)
+GOBLIN_NAMES = (
+    "Grik", "Snurt", "Tam", "Pell", "Mossa", "Bligg", "Dribb", "Fizzle", "Gnash", "Hobb",
+    "Krumb", "Lurk", "Nitt", "Pogg", "Quill", "Skrit", "Tarn", "Wick", "Yarg", "Zib",
+)
 
 
 def eligible_for_love(self_sex: str, other_sex: str, bond: dict | None, kin: bool = False) -> bool:
