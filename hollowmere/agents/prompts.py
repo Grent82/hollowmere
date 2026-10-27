@@ -358,6 +358,17 @@ talk, record only the time you finally settled on.{goblin_limit} Most talks agre
 list empty."""
 
 
+def infant_mind(agent: Agent) -> str:
+    """What a baby can wonder and conclude: the body and the few people it knows, never the grown world's affairs."""
+    p = agent.persona
+    if not p.infant:
+        return ""
+    return (f"\n{p.first_name} is only days old. All {p.first_name} can wonder or conclude is what a baby can feel: "
+            f"warm or cold, hungry or fed, a voice or smell it knows, the dark, being held or left. Say it in a few "
+            f"plain words. {p.first_name} knows nothing of coins, keys, the Watch, plots, the plague or what grown "
+            f"people mean, and does not guess at them.")
+
+
 def focal_questions(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:
     p = agent.persona
     return f"""{clock_line(now)}
@@ -367,7 +378,7 @@ def focal_questions(agent: Agent, names: dict[str, str], now: datetime, mems: li
 {memories(mems, now, title="RECENT MEMORIES")}
 
 Given only these memories, and thinking in {p.first_name}'s own voice, not a shared narrator's, what are the
-most important questions on {p.first_name}'s mind right now?"""
+most important questions on {p.first_name}'s mind right now?{infant_mind(agent)}"""
 
 
 def insights(agent: Agent, names: dict[str, str], now: datetime, questions: list[str], mems: list[Memory]) -> str:
@@ -385,7 +396,7 @@ QUESTIONS ON YOUR MIND
 Lying awake with these questions, in {p.first_name}'s own voice, not a shared narrator's, what does
 {p.first_name} conclude? Each conclusion must follow from the numbered memories it cites. Prefer conclusions
 about people, intentions, hopes and dangers over restating events. Fear is not the only thing worth concluding -
-let affection, pride, regret, longing or quiet contentment surface just as readily when the memories support it."""
+let affection, pride, regret, longing or quiet contentment surface just as readily when the memories support it.{infant_mind(agent)}"""
 
 
 def narrator_system_prompt() -> str:
