@@ -153,3 +153,40 @@ async def test_a_departure_survives_save_and_load(tmp_path):
     again = await _engine(tmp_path)
     assert again.agents["tobin"].is_away and again.agents["tobin"].mode == "away"
     assert again._queue == engine._queue
+
+
+# ------------------------------------------------------------------ the village notices
+
+async def _gone(engine):
+    engine.now = NOW
+    engine.schedule_departure(engine.agents["isolde"], engine.agents["tobin"], NOW)
+    await engine._absences(EVENING)
+
+
+async def test_the_circle_hears_that_someone_is_missing_the_next_morning(tmp_path):
+    engine = await _engine(tmp_path)
+    await _gone(engine)
+    agnes = engine.agents["agnes"]  # Isolde's mother: same roof
+    await engine._absences(EVENING + timedelta(hours=9))
+    assert any("Isolde and Tobin have not been seen since Sunday evening" in m.text and m.importance == 6
+               for m in agnes.memory.items)
+
+
+async def test_someone_outside_the_circle_hears_nothing(tmp_path):
+    engine = await _engine(tmp_path)
+    group = [engine.agents["isolde"], engine.agents["tobin"]]
+    inside = {o.id for o in engine.circle(group)}
+    outside = [a for a in engine.agents.values() if a.id not in inside and a not in group]
+    assert outside and "agnes" in inside
+    await _gone(engine)
+    await engine._absences(EVENING + timedelta(hours=9))
+    assert not any("Tobin have not been seen" in m.text for a in outside for m in a.memory.items)
+
+
+async def test_the_circle_hears_why_they_turned_back(tmp_path):
+    engine = await _engine(tmp_path)
+    await _gone(engine)
+    agnes = engine.agents["agnes"]
+    reason = engine.agents["isolde"].absence["reason"]
+    await engine._absences(datetime.fromisoformat(engine.agents["isolde"].absence["until"]))
+    assert any("tried to leave Hollowmere" in m.text and reason in m.text for m in agnes.memory.items)

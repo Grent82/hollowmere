@@ -12,7 +12,7 @@ import json
 from datetime import datetime, time, timedelta
 
 from hollowmere.agents.agent import Agent, day_key, due_at
-from hollowmere.agents.persona import DATA
+from hollowmere.agents.persona import DATA, RANK
 
 TURNED_BACK = json.loads((DATA / "world.json").read_text(encoding="utf-8"))["turned_back"]
 DEPARTURE = time(22, 0)
@@ -42,12 +42,17 @@ class Absences:
         return [x for x in self.agents.values() if x.persona.infant and x.persona.parents[:1] and x.persona.parents[0] in ids]
 
     def circle(self, group: list[Agent]) -> list[Agent]:
-        """Who would notice they were gone: everyone who knows one of them, and whoever shares their roof."""
+        """Who would notice they were gone: family, whoever shares their roof, and anyone fond of one of them
+        or used to talking with them. (Everyone in Hollowmere has a bond with everyone, so bonds alone say nothing.)"""
         ids = {x.id for x in group}
         homes = {x.persona.home for x in group}
+
+        def close(o: Agent) -> bool:
+            return o.persona.home in homes or any(
+                self.ctx.kin.related(o.id, i) or o.bonds.get(i, {}).get("talks", 0) >= 3
+                or RANK[o.bonds.get(i, {}).get("stance", "neutral")] >= RANK["fond"] for i in ids)
         return [o for o in self.agents.values()
-                if o.id not in ids and not o.persona.infant and not o.is_away
-                and (ids & o.bonds.keys() or o.persona.home in homes)]
+                if o.id not in ids and not o.persona.infant and not o.is_away and close(o)]
 
     async def _absences(self, now: datetime) -> None:
         """Run what has come due: departures, the morning's news, and everyone whose absence has run out."""
