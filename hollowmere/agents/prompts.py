@@ -400,6 +400,18 @@ plague, the harvest, Lord Maelor, or anything else the events above bear on, mov
 ease or resolve where they genuinely would. Do not invent a change the events above do not support."""
 
 
+def family_line(agent: Agent, names: dict[str, str]) -> str:
+    """What a parent must not lose sight of while looking back on a day: a child in the house, or one on the way."""
+    p = agent.persona
+    children = [f"{names.get(k, k)} ({b['kin'].removeprefix('your ')})" for k, b in agent.bonds.items() if b.get("kin")]
+    if not children and not agent.condition:
+        return ""
+    who = f"{p.first_name} has a child to look after: {', '.join(children)}." if children else \
+        f"{p.first_name} is with child."
+    return (f"\n{who} A baby cannot look after itself, and this weighs on {p.first_name}'s days whatever else fills "
+            f"them: say in the situation and in tomorrow's plans how {p.first_name} means to carry that.\n")
+
+
 def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:
     p = agent.persona
     return f"""{clock_line(now)} {p.first_name} is lying down to sleep.
@@ -407,7 +419,7 @@ def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Me
 {identity(agent, names)}
 
 {memories(mems, now, title="TODAY")}
-
+{family_line(agent, names)}
 Look back on {p.first_name}'s day, in {p.first_name}'s own voice, not a shared narrator's: what happened, what
 changed, and what {p.first_name} means to do tomorrow. Then say what {p.first_name} wants for themself now,
 beyond tomorrow's tasks: hold to the wish named above (if any), let it deepen, or let it become something
