@@ -108,6 +108,7 @@ export interface Bond {
   stance: Stance;
   note: string;        // what the model made of them after the last talk
   base: string;        // what the persona knew of them from the start
+  kin: string | null;  // what they are to this agent when family: "mother", "niece", "brother", ...
   talks: number;
   last: string | null;
   protects: boolean;   // the goblin's view: this human has sworn to protect him
@@ -143,5 +144,6 @@ export interface AgentDetail extends AgentView {
   allies: string[];
   bonds: Bond[];
   seeking: string | null;
+  pregnancy: { father: string | null; due: string; days_left: number; days_total: number } | null;
   chat_log: ChatLogEntry[];
 }

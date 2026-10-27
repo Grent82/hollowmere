@@ -70,6 +70,11 @@ class Persona(BaseModel):
     species: str = "human"
     abilities: str = ""          # gifts and weaknesses the agent knows it has
     resists_charm: bool = False  # sees through goblin musk
+    # family, as ids. Write a tie on one side only: Kinship reads the other side from it
+    parents: list[str] = Field(default_factory=list)  # mother and father; also set for anyone born in the run
+    siblings: list[str] = Field(default_factory=list)
+    spouse: str | None = None
+    aunt_or_uncle: list[str] = Field(default_factory=list)  # their parents' siblings, when the parents are not people
 
     @property
     def is_goblin(self) -> bool:

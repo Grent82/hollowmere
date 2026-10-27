@@ -48,6 +48,7 @@ def generate_child_persona(mother: Persona, father: Persona, born_on: date, rng:
         home=mother.home, home_object=mother.home_object, work="",
         start=f"{mother.home}/{mother.home_object}",
         relationships={mother.id: "my mother", father.id: "my father"},
+        parents=[mother.id, father.id],
         stances={mother.id: "fond", father.id: "fond"},
         species=species,
     )

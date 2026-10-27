@@ -208,6 +208,9 @@ export class UI {
         ${now ? `<small>until ${hhmm(now.end)}</small>` : ""}</p>
       <p class="muted">${esc(d.currently)}</p>
       ${d.drive ? `<p class="drive">${esc(d.drive)}</p>` : ""}
+      ${d.pregnancy ? `<p class="pregnant">🤰 Expecting a child${d.pregnancy.father ? ` by <b>${esc(d.pregnancy.father)}</b>` : ""}
+        <small>due ${d.pregnancy.due.slice(5)} · ${d.pregnancy.days_left === 0 ? "any day now"
+          : `in ${d.pregnancy.days_left} day${d.pregnancy.days_left === 1 ? "" : "s"}`}</small></p>` : ""}
       ${d.favor ? `<p class="favor" style="--god:${godColor(d.favor.god)}">✨ Favor of <b>${esc(d.favor.god_name)}</b>
         <small>until ${hhmm(d.favor.expires)}</small><br>${esc(d.favor.text)}</p>` : ""}
       <h3>Today</h3>
@@ -228,7 +231,7 @@ export class UI {
   }
 
   private renderBonds(d: AgentDetail): string {
-    return `<ul class="bonds">${d.bonds.map((b) => this.bondHtml(b)).join("") || "<li class='muted'>Knows no one yet.</li>"}</ul>`;
+    return `<ul class="bonds">${d.bonds.map((b) => this.bondHtml(b, d.first)).join("") || "<li class='muted'>Knows no one yet.</li>"}</ul>`;
   }
 
   private renderMemory(d: AgentDetail): string {
@@ -262,11 +265,12 @@ export class UI {
     }).join("");
   }
 
-  private bondHtml(b: Bond) {
+  private bondHtml(b: Bond, viewer: string) {
     const tags = [b.protects ? "protects him" : "", b.protected ? "sworn to protect" : ""].filter(Boolean);
     const talks = b.talks ? `${b.talks} talk${b.talks === 1 ? "" : "s"}` : "not yet spoken";
     return `<li data-id="${b.id}"><span class="stance s-${b.stance}">${b.stance}</span>
-      <b style="color:${b.color}">${esc(b.name)}</b> <small>${talks}${tags.length ? " · " + tags.join(" · ") : ""}</small>
+      <b style="color:${b.color}">${esc(b.name)}</b>${b.kin ? ` <span class="kin">is ${esc(b.kin)} of ${esc(viewer)}</span>` : ""}
+      <small>${talks}${tags.length ? " · " + tags.join(" · ") : ""}</small>
       ${b.note ? `<div>${esc(b.note)}</div>` : ""}
       ${b.base ? `<div class="muted">${esc(b.base)}</div>` : ""}</li>`;
   }

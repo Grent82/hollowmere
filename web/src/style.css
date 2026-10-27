@@ -86,6 +86,8 @@ body.inspecting #tabs, body.inspecting .tab.on { display: none; }
 .now small { color: var(--muted); margin-left: 6px; }
 .muted { color: var(--muted); }
 .drive { color: var(--gold); font-style: italic; margin: 2px 0 10px; }
+.pregnant { margin: 6px 0 10px; padding: 4px 8px; border-left: 2px solid var(--gold); background: var(--panel-2); }
+.pregnant small { color: var(--muted); margin-left: 6px; }
 .convo { margin-bottom: 16px; }
 .convo-head { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .convo-end { text-align: center; color: var(--muted); font-size: 12px; border-top: 1px dashed var(--line);
@@ -99,6 +101,7 @@ body.inspecting #tabs, body.inspecting .tab.on { display: none; }
 .bonds { list-style: none; margin: 0; padding: 0; }
 .bonds li { padding: 5px 0; border-bottom: 1px solid #1d1b22; font-size: 14px; cursor: pointer; }
 .bonds li div { margin-top: 2px; }
+.bonds li .kin { color: var(--gold); font-size: 12px; font-style: italic; margin-left: 2px; }
 .bonds li .muted { font-size: 12px; }
 .stance { display: inline-block; min-width: 54px; text-align: center; font-size: 11px; text-transform: uppercase;
   letter-spacing: .5px; border-radius: 3px; padding: 0 4px; margin-right: 6px; background: #221f27; color: var(--muted); }

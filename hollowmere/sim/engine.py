@@ -33,6 +33,7 @@ from typing import Awaitable, Callable
 from hollowmere.agents import prompts, romance
 from hollowmere.agents.agent import Agent, Ctx, Digest, Task, day_key, due_at
 from hollowmere.agents.gods import GOD_BY_ID
+from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import RANK, starting_affinity
 from hollowmere.agents.schemas import TownState
 from hollowmere.config import SimConfig
@@ -787,8 +788,10 @@ class Engine:
         if a is None:
             return None
         p = a.persona
+        kin = Kinship({i: x.persona for i, x in self.agents.items()})
         return {
             **a.view(),
+            "pregnancy": self._pregnancy_of(agent_id),
             "age": p.age, "traits": p.traits, "background": p.background, "currently": p.currently,
             "plan": [b.to_dict() | {"place_name": self.world.place_name(b.place)} for b in a.plan],
             "tasks": [t.to_dict() for t in a.tasks],
@@ -804,6 +807,7 @@ class Engine:
             "bonds": sorted(
                 ({"id": k, "name": self.agents[k].name, "color": self.agents[k].persona.color, **b,
                   "base": p.relationships.get(k, ""),
+                  "kin": kin.what_is(k, agent_id),  # what they are to this agent: "mother", "niece", ...
                   "protects": a.persona.is_goblin and k in a.allies,
                   "protected": self.agents[k].persona.is_goblin and a.id in self.agents[k].allies}
                  for k, b in a.bonds.items() if k in self.agents),
@@ -815,6 +819,15 @@ class Engine:
                  "with_color": self.agents[e["with"]].persona.color if e["with"] in self.agents else None}
                 for e in self.store.chat_log_for(agent_id)],
         }
+
+    def _pregnancy_of(self, agent_id: str) -> dict | None:
+        for preg in self.pregnancies:
+            if preg["mother_id"] == agent_id and not preg["resolved"]:
+                father = self.agents.get(preg["father_id"])
+                due, start = date.fromisoformat(preg["due_day"]), date.fromisoformat(preg["start_day"])
+                return {"father": father.name if father else None, "due": preg["due_day"],
+                        "days_left": max(0, (due - day_key(self.now)).days), "days_total": (due - start).days}
+        return None
 
     # ---------------------------------------------------------- persistence
 
