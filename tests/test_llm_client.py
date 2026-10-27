@@ -1,6 +1,7 @@
 import json
 
 import httpx
+import pytest
 from pydantic import BaseModel
 
 from hollowmere.config import LLMConfig
@@ -132,6 +133,26 @@ async def test_an_embedding_hiccup_is_retried(monkeypatch):
     emb = ServerEmbedder(LLMConfig(), "e")
     emb._http = httpx.AsyncClient(base_url="http://x", transport=httpx.MockTransport(handler))
     assert (await emb.embed(["the well"])).shape == (1, 2) and len(calls) == 3
+
+
+async def test_a_missing_embeddings_endpoint_is_not_retried(monkeypatch):
+    from hollowmere.memory import embed as embed_mod
+    from hollowmere.memory.embed import ServerEmbedder
+
+    async def no_wait(_):
+        return None
+    monkeypatch.setattr(embed_mod.asyncio, "sleep", no_wait)
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(404, json={"error": {"message": "not found"}})
+
+    emb = ServerEmbedder(LLMConfig(), "e")
+    emb._http = httpx.AsyncClient(base_url="http://x", transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError, match="404"):
+        await emb.embed(["the well"])
+    assert len(calls) == 1  # a server without embeddings says so at once; waiting would not change that
 
 
 async def test_only_failed_calls_are_logged(tmp_path):

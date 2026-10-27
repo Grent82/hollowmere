@@ -110,6 +110,9 @@ class ServerEmbedder:
                 error: Exception = ValueError(f"{len(rows)} embeddings for {len(chunk)} texts")
             except (httpx.HTTPError, ValueError, KeyError, TypeError) as e:
                 error = e
+                status = e.response.status_code if isinstance(e, httpx.HTTPStatusError) else 0
+                if 400 <= status < 500 and status not in (408, 429):  # e.g. 404: the server has no embeddings
+                    raise RuntimeError(f"embeddings rejected: {error!r}") from error
             if attempt == EMBED_ATTEMPTS - 1:
                 raise RuntimeError(f"embeddings failed after {EMBED_ATTEMPTS} attempts: {error!r}") from error
             log.warning("embedding request failed (%r); retrying", error)
