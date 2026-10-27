@@ -15,6 +15,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Protocol, TypeVar
 
@@ -238,7 +239,7 @@ class OpenAICompatLLM:
         """Only failures are logged: successful calls are thousands a day and say nothing."""
         if not self._log_path:
             return
-        record = {"t": time.time(), "label": label, "error": error,
+        record = {"t": datetime.now().astimezone().isoformat(timespec="seconds"),"label": label, "error": error,
                   "prompt": messages[1]["content"], "reply": reply[:4000]}
         with self._log_path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
