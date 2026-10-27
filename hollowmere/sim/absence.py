@@ -11,13 +11,14 @@ from __future__ import annotations
 import json
 from datetime import datetime, time, timedelta
 
-from hollowmere.agents.agent import Agent, day_key, due_at
+from hollowmere.agents.agent import CELL, Agent, day_key, due_at
 from hollowmere.agents.persona import DATA, RANK
 
 TURNED_BACK = json.loads((DATA / "world.json").read_text(encoding="utf-8"))["turned_back"]
 DEPARTURE = time(22, 0)
 RETURN = time(17, 0)
 NEWS_AT = time(6, 0)
+RELEASE = time(8, 0)
 
 
 def _names(agents: list[Agent]) -> str:
@@ -63,6 +64,15 @@ class Absences:
             if q["do"] == "depart":
                 if group and not any(x.absence for x in group):
                     self.depart(group, now)
+            elif q["do"] == "arrested":
+                who, by = group[0], self.agents[q["by"]]
+                await who._remember("observation", f"{by.name} had me seized and locked in the cell of the "
+                                                   "watchhouse.", now, 9)
+                await by._remember("observation", f"I had {who.name} locked in the watchhouse cell.", now, 7)
+                for o in self.circle([who]):
+                    if o is not by:
+                        await o._remember("observation", f"Word is that {who.name} was locked in the watchhouse "
+                                                         f"cell by {by.name}.", now, 7)
             elif q["do"] == "vanish":
                 for o in self.circle(group):
                     await o._remember("observation", f"{_names(group)} {'has' if len(group) == 1 else 'have'} not "
@@ -75,6 +85,8 @@ class Absences:
             done.update(x.id for x in group)
             if a.is_away:
                 await self.return_home(group, now)
+            else:
+                await self.release(group, now)
 
     def depart(self, group: list[Agent], now: datetime) -> None:
         """Out of town, with their babies. They are not seen, not planned for, and not sought."""
@@ -114,3 +126,40 @@ class Absences:
                                              f"{'was' if len(group) == 1 else 'were'} turned back by {reason}.",
                               now, 7)
         self._event("returned", [x.id for x in group], f"{_names(group)} come back to Hollowmere, turned back by {reason}.")
+
+    def arrest(self, by: Agent, who: Agent, now: datetime) -> bool:
+        """`by` has had `who` locked in the watchhouse cell for a day or three. Anyone may do it to anyone."""
+        if (by is who or any(x.persona.infant or x.persona.is_goblin or x.absence for x in (by, who))
+                or sum(1 for x in self.agents.values() if x.is_jailed and not x.persona.infant) >= self.cfg.max_jailed):
+            return False
+        everyone = [who] + self._dependents([who.id])
+        days = self.rng.randint(self.cfg.detention_min_days, self.cfg.detention_max_days)
+        until = datetime.combine(day_key(now) + timedelta(days=days), RELEASE)
+        for x in everyone:
+            convo = self.conversations.get(x.convo_id) if x.convo_id else None
+            if convo is not None:
+                self._end_conversation(convo, "goodbye")
+            x.absence = {"kind": "jailed", "since": now.isoformat(), "until": until.isoformat(),
+                         "reason": f"locked up by {by.name}", "with": [y.id for y in everyone]}
+            x.x, x.y = self.world.target_tile(CELL)
+            x.mode, x.path, x.task, x.seek, x.hiding_until, x.bubble, x.plan_date = \
+                "acting", [], None, None, None, None, None
+            self._seeking.pop(x.id, None)
+        by.learn_area("guard_cell", self.world)
+        self._queue.append({"do": "arrested", "ids": [who.id], "by": by.id, "at": now.isoformat()})  # told next tick
+        self._event("arrest", [by.id, who.id], f"{by.first} has {who.first} locked in the watchhouse cell.")
+        return True
+
+    async def release(self, everyone: list[Agent], now: datetime) -> None:
+        """Let out: home, and a fresh day to plan."""
+        since = datetime.fromisoformat(everyone[0].absence["since"])
+        days = max(1, (day_key(now) - day_key(since)).days)
+        for x in everyone:
+            x.absence = None
+            x.x, x.y = self.world.target_tile(x.persona.bed) or (x.x, x.y)
+            x.mode, x.plan, x.plan_date, x.tasks, x.tasks_block, x.task = "acting", [], None, [], -1, None
+        for x in everyone:
+            if not x.persona.infant:
+                await x._remember("observation", f"I was let out of the cell after {days} day{'s' * (days > 1)}.", now, 7)
+        self._event("released", [x.id for x in everyone if not x.persona.infant],
+                    f"{everyone[0].first} is let out of the watchhouse cell.")

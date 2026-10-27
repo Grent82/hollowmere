@@ -693,6 +693,9 @@ class Engine(Absences):
         # Confirmed here, after both digests: a digest rewrites the bond, and would wipe what this sets.
         if notes.get(a.id, Digest()).leaving and notes.get(b.id, Digest()).leaving:
             self.schedule_departure(a, b, self.now)
+        for jailer, prisoner in ((a, b), (b, a)):  # whoever says they did it; if both do, the first one stands
+            if notes.get(jailer.id, Digest()).arrested:
+                self.arrest(jailer, prisoner, self.now)
         said_so = len(c.intimate) == 2 or (notes.get(a.id, Digest()).made_love and notes.get(b.id, Digest()).made_love)
         if said_so and not c.love_done:
             c.love_done = True

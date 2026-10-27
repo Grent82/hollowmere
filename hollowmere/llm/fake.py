@@ -139,7 +139,7 @@ class FakeLLM:
             out["toward_goblin"] = self.rng.choice(["drive off", "undecided", "tolerate", "feed", "protect"])
         if "made_love" in js.get("properties", {}):
             out["made_love"] = False
-        out["leaving"] = False  # the scripted brain never decides to leave on its own
+        out["leaving"] = out["arrested"] = False  # the scripted brain never decides either on its own
         return out
 
     def _focalquestions(self, js: dict, user: str) -> dict:

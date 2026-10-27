@@ -170,6 +170,9 @@ def build_town(seed: int = 1347) -> World:
            (23, 7, 27, 10), public=True, indoor=True)
     b.area("roderic_room", "the captain's quarters", "a tidy cell of a room behind the guardroom",
            (23, 12, 27, 13), public=False, indoor=True)
+    b.area_points("guard_cell", "the watchhouse cell", "a bare stone cell behind the guardroom, with a straw pallet and a barred slit",
+                  [(26, 13), (27, 13)], public=False, indoor=True)
+    b.obj("cell_pallet", "straw pallet", "guard_cell", 27, 13, "bed")
     b.obj("duty_desk", "duty desk", "watchhouse", 26, 9, "table")
     b.obj("arms_rack", "arms rack", "watchhouse", 24, 8, "rack")
     b.obj("brazier", "brazier", "watchhouse", 23, 10, "brazier", (5, HEARTH))

@@ -78,6 +78,7 @@ class Digest:
     regard: str | None = None  # a human who met the goblin: what they now mean to do about it (GoblinRegard)
     together: list[dict] = field(default_factory=list)  # new commitments to meet the other person
     made_love: bool = False  # this agent's own judgment of whether this conversation included making love
+    arrested: bool = False  # this agent's own judgment that, in this talk, it had the other locked up (or was)
     leaving: bool = False  # this agent's own judgment that the two agreed in this talk to leave Hollowmere together
 
 Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding", "sex", "away"]
@@ -184,6 +185,9 @@ def normalise_plan(day: date, wake: datetime, raw: list[tuple[str, str, str, str
         last_end = out[-1].end if out else wake
         out.append(Block(last_end, limit, "goes to sleep", bed))
     return out
+
+
+CELL = "guard_cell/cell_pallet"  # where anyone locked up sits
 
 
 class Agent:
@@ -325,6 +329,10 @@ class Agent:
     def schedule_job(self, ctx: Ctx, now: datetime):
         """Advance the agent's schedule. Returns a coroutine if the LLM is needed before it can act."""
         today = day_key(now)
+        if self.is_jailed:  # nothing to plan: the day is the cell
+            if self.task is None or self.task.place != CELL or now >= self.task.end:
+                self._set_task(ctx.world, Task(now, now + timedelta(hours=1), "sits locked in the cell", CELL, ""))
+            return None
         if self.plan_date != today:
             return self.plan_day(ctx, now)
         idx = self.current_block(now)
@@ -570,7 +578,7 @@ class Agent:
                                 **({"kin": bond["kin"]} if bond.get("kin") else {})}
         today = day_key(now)
         result = Digest(made_love=romance_eligible and getattr(out, "made_love", False),
-                        leaving=getattr(out, "leaving", False))
+                        leaving=getattr(out, "leaving", False), arrested=getattr(out, "arrested", False))
         for c in out.commitments:
             if c.who == "them" or not c.accepted or not spoken(c.when_said, transcript):
                 continue  # their errand, a demand nobody agreed to, or a time nobody named

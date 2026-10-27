@@ -190,3 +190,82 @@ async def test_the_circle_hears_why_they_turned_back(tmp_path):
     reason = engine.agents["isolde"].absence["reason"]
     await engine._absences(datetime.fromisoformat(engine.agents["isolde"].absence["until"]))
     assert any("tried to leave Hollowmere" in m.text and reason in m.text for m in agnes.memory.items)
+
+
+# ------------------------------------------------------------------ the cell
+
+from hollowmere.agents.schemas import chat_digest_schema  # noqa: E402
+
+CELL = "guard_cell/cell_pallet"
+
+
+async def test_the_guard_cell_exists_and_is_walkable(tmp_path):
+    world = (await _engine(tmp_path)).world
+    assert world.areas["guard_cell"].indoor and not world.areas["guard_cell"].public
+    x, y = world.target_tile(CELL)
+    assert world.walkable(x, y) and world.area_at(x, y) == "guard_cell"
+    assert world.find_path((x, y), world.target_tile("watchhouse/duty_desk"))
+
+
+async def test_an_arrest_puts_the_prisoner_and_her_baby_in_the_cell(tmp_path):
+    engine = await _engine(tmp_path)
+    child = await _with_baby(engine)
+    engine.now = NOW
+    assert engine.arrest(engine.agents["roderic"], engine.agents["isolde"], NOW)
+    for who in ("isolde", child.id):
+        a = engine.agents[who]
+        assert a.is_jailed and (a.x, a.y) == engine.world.target_tile(CELL)
+    assert datetime.fromisoformat(engine.agents["isolde"].absence["until"]).hour == 8
+    await engine._absences(NOW)
+    assert any("locked" in m.text and m.importance == 9 for m in engine.agents["isolde"].memory.items)
+    assert "guard_cell" in engine.agents["roderic"].known_areas
+
+
+async def test_the_cell_holds_only_so_many(tmp_path):
+    engine = await _engine(tmp_path)
+    roderic = engine.agents["roderic"]
+    assert engine.arrest(roderic, engine.agents["mara"], NOW)
+    assert engine.arrest(roderic, engine.agents["wenna"], NOW)
+    assert not engine.arrest(roderic, engine.agents["ros"], NOW)
+    assert not engine.agents["ros"].is_jailed
+
+
+async def test_nobody_locks_up_themselves_the_absent_or_the_locked(tmp_path):
+    engine = await _engine(tmp_path)
+    roderic, mara = engine.agents["roderic"], engine.agents["mara"]
+    assert not engine.arrest(roderic, roderic, NOW)
+    _send_away(mara)
+    assert not engine.arrest(roderic, mara, NOW)
+    mara.absence = None
+    assert engine.arrest(roderic, mara, NOW)
+    assert not engine.arrest(mara, roderic, NOW)  # she is in the cell herself
+
+
+async def test_only_an_act_in_the_digest_arrests(tmp_path):
+    engine = await _engine(tmp_path)
+    assert chat_digest_schema(("tavern",)).model_fields["arrested"].default is False
+    engine.now = NOW
+    engine._settle(_talk(engine, "roderic", "mara"), {"roderic": Digest(), "mara": Digest()})
+    assert not engine.agents["mara"].is_jailed
+    engine._settle(_talk(engine, "roderic", "mara"), {"roderic": Digest(arrested=True), "mara": Digest()})
+    assert engine.agents["mara"].is_jailed and not engine.agents["roderic"].is_jailed
+
+
+async def test_a_jailed_agent_sits_in_the_cell_without_planning(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    engine.arrest(engine.agents["roderic"], mara, NOW)
+    engine.now = NOW
+    await engine._schedule(NOW)
+    assert mara.plan == [] and mara.task.place == CELL
+    assert (mara.x, mara.y) == engine.world.target_tile(CELL)
+
+
+async def test_release_returns_home_and_replans(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    engine.arrest(engine.agents["roderic"], mara, NOW)
+    await engine._absences(datetime.fromisoformat(mara.absence["until"]))
+    assert not mara.is_jailed and mara.plan_date is None
+    assert (mara.x, mara.y) == engine.world.target_tile(mara.persona.bed)
+    assert any("let out" in m.text for m in mara.memory.items)
