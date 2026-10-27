@@ -115,3 +115,28 @@ async def test_children_born_before_the_family_tie_get_it_and_a_birth_memory_onc
     for parent in (engine.agents["isolde"], engine.agents["nib"]):
         assert parent.bonds[child.id]["kin"].startswith("your newborn")
         assert sum(child.name in m.text for m in parent.memory.items) == 1
+
+
+async def test_the_mothers_family_learns_of_the_birth_but_not_the_fathers(tmp_path):
+    engine = await _engine(tmp_path)
+    preg = {"mother_id": "agnes", "father_id": "brannoc", "start_day": "1347-11-01", "due_day": "1347-11-05",
+            "resolved": False}
+    engine.pregnancies.append(preg)
+    await engine._give_birth(preg, NOW)
+    child = next(a for a in engine.agents.values() if len(a.persona.parents) == 2)
+    isolde, mara = engine.agents["isolde"], engine.agents["mara"]  # Agnes's daughter; Brannoc's sister
+    kin = isolde.bonds[child.id]["kin"]
+    assert kin.startswith("your newborn") and ("brother" in kin or "sister" in kin)
+    assert any(child.name in m.text for m in isolde.memory.items)
+    assert child.id not in mara.bonds
+    assert not any(child.name in m.text for m in mara.memory.items)
+
+
+async def test_a_mothers_own_parents_are_not_told_of_a_birth_she_kept_secret(tmp_path):
+    engine = await _engine(tmp_path)
+    preg = {"mother_id": "isolde", "father_id": "nib", "start_day": "1347-11-01", "due_day": "1347-11-05",
+            "resolved": False}
+    engine.pregnancies.append(preg)
+    await engine._give_birth(preg, NOW)
+    child = next(a for a in engine.agents.values() if len(a.persona.parents) == 2)
+    assert child.id not in engine.agents["agnes"].bonds

@@ -709,6 +709,24 @@ class Engine:
                 self._event("pregnancy", [mother.id, father.id],
                            f"{mother.first} conceives a child with {father.first}.")
 
+    async def _tell_mothers_family(self, child: Agent, mother: Agent, when: datetime) -> None:
+        """Her own family sees her give birth: parents, grown children, siblings learn whose child this is and
+        what it is to them. Not her own parents, who hear of it by eye like the town does (a secret lover stays
+        secret), and not the father's side: who the father is stays hers to say."""
+        for r in self.agents.values():
+            if r.id in (child.id, mother.id) or r.persona.infant or not self.ctx.kin.related(r.id, mother.id) \
+                    or r.id in self.ctx.kin.parents.get(mother.id, set()):
+                continue
+            word = self.ctx.kin.what_is(child.id, r.id)
+            if word is None:
+                continue
+            bond = r.bonds.setdefault(child.id, {"stance": "fond", "affinity": starting_affinity("fond"),
+                                                 "note": "", "talks": 0, "last": None})
+            bond.setdefault("kin", f"your newborn {word}")
+            text = f"{mother.name} gave birth to {child.name}, who is my {word}."
+            if not any(m.text == text for m in r.memory.items):
+                await r._remember("observation", text, when, 7)
+
     async def backfill_family(self) -> None:
         """Children born before parents carried a family tie and a memory of the birth: give them both, once."""
         for child in list(self.agents.values()):
@@ -720,6 +738,7 @@ class Engine:
             mother, father = self.agents.get(mother_id), self.agents.get(father_id)
             if mother is None or father is None:
                 continue
+            await self._tell_mothers_family(child, mother, when)
             for parent, other, is_mother in ((mother, father, True), (father, mother, False)):
                 bond = parent.bonds.setdefault(child.id, {"stance": "fond", "affinity": starting_affinity("fond"),
                                                           "note": "", "talks": 0, "last": None})
@@ -763,6 +782,7 @@ class Engine:
         self.ctx.names[child.id] = child_persona.name
         self.ctx.kin = Kinship({i: x.persona for i, x in self.agents.items()})
         romance.recognize_child(mother, father, child)
+        await self._tell_mothers_family(child, mother, now)
         await mother._remember("observation", romance.birth_memory(True, child.persona, father.persona), now, 9)
         await father._remember("observation", romance.birth_memory(False, child.persona, mother.persona), now, 9)
         generated = self.store.get("generated_personas", [])
