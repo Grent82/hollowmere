@@ -25,6 +25,12 @@ Kind = Literal["observation", "chat", "thought", "reflection", "plan"]
 
 RECENCY_HALF_LIFE_H = 8.0
 W_RECENCY, W_IMPORTANCE, W_RELEVANCE = 1.0, 1.0, 1.5
+# What a mind concluded itself, as against what it saw and heard. Conclusions carry importance 8-10 against 2-4
+# for sights, so in one pool they filled every retrieval (10 reflections, 0 observations) and, being built from
+# one another, drifted into beliefs the world never supported. The original draws on both in one pool too, but
+# with k=30 and a handful of reflections a day; with a k of 6-12 the mix has to be kept.
+OWN_KINDS = frozenset({"reflection", "thought"})
+OWN_SHARE = 0.4  # at most this share of a retrieval may be the mind's own conclusions
 
 
 @dataclass
@@ -115,22 +121,57 @@ class MemoryStream:
         if not mask.any():
             return []
         hours = np.array([(now - m.last_accessed).total_seconds() / 3600 for m in items])
-        recency = _norm(0.5 ** (hours / RECENCY_HALF_LIFE_H), mask)
-        importance = _norm(np.array([m.importance for m in items], dtype=float), mask)
+        recency_raw = 0.5 ** (hours / RECENCY_HALF_LIFE_H)
+        importance_raw = np.array([m.importance for m in items], dtype=float)
+        own = np.array([m.kind in OWN_KINDS for m in items])
+        seen_pool, own_pool = mask & ~own, mask & own
+        pools = [p for p in (seen_pool, own_pool) if p.any()]
+        # each pool is normalised on its own: conclusions compete with conclusions, sights with sights
+        recency = {id(p): _norm(recency_raw, p) for p in pools}
+        importance = {id(p): _norm(importance_raw, p) for p in pools}
         chosen: dict[int, float] = {}
         for qv in qvecs:
-            relevance = _norm(vecs @ qv, mask)
-            score = W_RECENCY * recency + W_IMPORTANCE * importance + W_RELEVANCE * relevance
-            score[~mask] = -np.inf
-            for i in np.argsort(-score)[:k]:
-                if np.isfinite(score[i]):
-                    chosen[int(i)] = max(chosen.get(int(i), -np.inf), float(score[i]))
-        top = sorted(chosen, key=chosen.get, reverse=True)[: max(k, len(queries) * k // 2)]
+            sim = vecs @ qv
+            ranked = {}
+            for p in pools:
+                score = (W_RECENCY * recency[id(p)] + W_IMPORTANCE * importance[id(p)]
+                         + W_RELEVANCE * _norm(sim, p))
+                score[~p] = -np.inf
+                ranked[id(p)] = [int(i) for i in np.argsort(-score) if p[i]], score
+            for i in self._quota(k, seen_pool, own_pool, ranked):
+                chosen[i] = max(chosen.get(i, -np.inf), float(ranked[id(seen_pool if not own[i] else own_pool)][1][i]))
+        limit = max(k, len(queries) * k // 2)
+        top = self._cap(chosen, own, limit)
         result = sorted((items[i] for i in top), key=lambda m: m.id)
-        for m in result:
+        refreshed = [m for m in result if m.kind not in OWN_KINDS]  # a recalled conclusion must not stay "fresh"
+        for m in refreshed:
             m.last_accessed = now
-        self.store.touch_memories([m.id for m in result], now)
+        self.store.touch_memories([m.id for m in refreshed], now)
         return result
+
+    @staticmethod
+    def _quota(k: int, seen_pool: np.ndarray, own_pool: np.ndarray, ranked: dict) -> list[int]:
+        """The top k indices: at most OWN_SHARE of them conclusions, a short pool made up from the other."""
+        own_n = min(int(k * OWN_SHARE), int(own_pool.sum()))
+        seen_n = min(k - own_n, int(seen_pool.sum()))
+        own_n = min(k - seen_n, int(own_pool.sum()))
+        out: list[int] = []
+        if seen_pool.any():
+            out += ranked[id(seen_pool)][0][:seen_n]
+        if own_pool.any():
+            out += ranked[id(own_pool)][0][:own_n]
+        return out
+
+    @staticmethod
+    def _cap(chosen: dict[int, float], own: np.ndarray, limit: int) -> list[int]:
+        """Merge the picks of several queries down to `limit`, keeping the same share of conclusions."""
+        by_score = sorted(chosen, key=chosen.get, reverse=True)
+        mine = [i for i in by_score if own[i]]
+        seen = [i for i in by_score if not own[i]]
+        own_n = min(int(limit * OWN_SHARE), len(mine))
+        seen_n = min(limit - own_n, len(seen))
+        own_n = min(limit - seen_n, len(mine))
+        return seen[:seen_n] + mine[:own_n]
 
 
 def repeats(text: str, earlier: Iterable[str]) -> bool:

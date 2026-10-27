@@ -619,14 +619,14 @@ class Agent:
 
     async def reflect(self, ctx: Ctx, now: datetime) -> None:
         self.importance_acc = 0
-        recent = self.memory.recent(60, kinds={"observation", "chat", "thought", "reflection"})
+        recent = self.memory.recent(60, kinds={"observation", "chat"})  # own conclusions are not evidence
         if len(recent) < 5:
             return
         try:
             qs = await ctx.llm.structured(
                 prompts.system_prompt(self), prompts.focal_questions(self, ctx.names, now, recent[-40:]),
                 FocalQuestions, label="reflect_questions")
-            mems = await self.memory.retrieve(qs.questions, now, k=8)
+            mems = await self.memory.retrieve(qs.questions, now, k=8, exclude_kinds={"reflection", "thought", "plan"})
             out = await ctx.llm.structured(
                 prompts.system_prompt(self), prompts.insights(self, ctx.names, now, qs.questions, mems),
                 Insights, label="reflect_insights")
@@ -702,7 +702,8 @@ class Agent:
 
     async def _remember(self, kind, text: str, now: datetime, importance: int) -> None:
         await self.memory.add(kind, text, now, importance)
-        self.importance_acc += importance
+        if kind in ("observation", "chat"):  # only what was experienced counts toward the next reflection:
+            self.importance_acc += importance  # thoughts and reflections never trigger one (as in the original)
 
     # ------------------------------------------------------------ persistence
 
