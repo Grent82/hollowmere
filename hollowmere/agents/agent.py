@@ -222,6 +222,7 @@ class Agent:
         # In the agent's own words, what it wants for itself beyond today's tasks; written and
         # rewritten freely by review_day(), never interpreted by any code.
         self.drive: str = ""
+        self.situation: str = ""  # carried forward by day reviews; empty until then (the persona's `currently` stands)
         # The town's current situation (plague, harvest, the Lord...), rewritten periodically by a
         # town-wide review and kept identical across every agent; empty until the first review runs,
         # in which case prompts.system_prompt() falls back to a seed sentence.
@@ -355,7 +356,7 @@ class Agent:
             who_matters = [ctx.names.get(rid, rid) for rid in self.persona.relationships]
             mems = await self.memory.retrieve(
                 [f"{self.first}'s plans and intentions", f"what {self.first} must do today",
-                 f"{self.persona.currently}",
+                 f"{self.situation or self.persona.currently}",
                  *(f"where and when {self.first} has seen {name}, their habits and comings and goings"
                    for name in who_matters)], now, k=12)
             due = [c for c in self.commitments if c["date"] == today.isoformat()]
@@ -655,6 +656,8 @@ class Agent:
             await self.memory.add("plan", f"Tomorrow: {intent}", now, 4)
         if out.drive.strip():
             self.drive = out.drive.strip()
+        if out.situation.strip():
+            self.situation = out.situation.strip()
 
     async def pray(self, ctx: Ctx, now: datetime, god_id: str) -> None:
         """Pray to one god. The god may only touch this agent: its own memory, its own favor, its own
@@ -712,7 +715,7 @@ class Agent:
             "bonds": self.bonds,
             "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
             "seek": self.seek, "seek_block": self.seek_block,
-            "drive": self.drive, "town_state": self.town_state,
+            "drive": self.drive, "situation": self.situation, "town_state": self.town_state,
             "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
         }
 
@@ -745,6 +748,7 @@ class Agent:
         for b in self.bonds.values():
             b.setdefault("affinity", starting_affinity(b.get("stance", "neutral")))  # older saves lack this
         self.drive = d.get("drive", "")  # older saves lack this
+        self.situation = d.get("situation", "")  # older saves lack this
         self.town_state = d.get("town_state", "")  # older saves lack this
         self.favor = d.get("favor")  # older saves lack this
         self.pending_dream = d.get("pending_dream")  # older saves lack this

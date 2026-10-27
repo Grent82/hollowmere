@@ -81,6 +81,9 @@ class DayReview(BaseModel):
     drive: str = Field(description="what you want for yourself now, beyond tomorrow's tasks - hold to what you "
                                    "wanted before, let it deepen, or let it become something else entirely, "
                                    "first person, one or two sentences")
+    situation: str = Field(default="", description="where your life stands now, third person by name, one to "
+                                                   "three sentences: the previous situation carried forward, "
+                                                   "changed only where today changed it")
 
 
 class DivineAnswer(BaseModel):

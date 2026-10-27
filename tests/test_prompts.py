@@ -117,6 +117,24 @@ async def test_identity_shows_the_agents_own_current_drive_when_set(tmp_path):
     assert "to finally stand up to Roderic" in text
 
 
+async def test_identity_shows_the_situation_in_place_of_the_seed_currently(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    assert f"Lately: {mara.persona.currently}" in prompts.identity(mara, engine.ctx.names)  # until reviewed
+    mara.situation = "Mara has taken the shroud to Father Odo."
+    text = prompts.identity(mara, engine.ctx.names)
+    assert "Lately: Mara has taken the shroud to Father Odo." in text
+    assert mara.persona.currently not in text
+
+
+async def test_day_review_prompt_hands_over_the_situation_to_be_carried_forward(tmp_path):
+    engine = await _engine(tmp_path)
+    mara = engine.agents["mara"]
+    mara.situation = "Mara has taken the shroud to Father Odo."
+    text = prompts.day_review(mara, engine.ctx.names, engine.now, [])
+    assert "situation" in text.lower() and "Mara has taken the shroud to Father Odo." in text
+
+
 async def test_system_prompt_falls_back_to_the_seed_town_state_until_reviewed(tmp_path):
     engine = await _engine(tmp_path)
     mara = engine.agents["mara"]

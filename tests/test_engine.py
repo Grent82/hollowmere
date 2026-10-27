@@ -557,6 +557,36 @@ async def test_day_review_sets_the_agents_own_drive_and_it_survives_a_restore(tm
     assert mara.drive == "to finally demand the truth from Roderic"
 
 
+async def test_day_review_carries_the_situation_forward_and_it_survives_a_restore(tmp_path):
+    from hollowmere.agents.agent import Ctx
+
+    engine = await _town(tmp_path, "situation.db")
+    mara = engine.agents["mara"]
+    assert mara.situation == ""
+    seen = []
+
+    class Reply:
+        async def structured(self, system, user, schema, **kw):
+            seen.append(user)
+            return schema.model_validate({
+                "summary": "A quiet day.", "importance": 5, "intentions": ["speak with Roderic"],
+                "drive": "to see the truth out", "situation": "Mara has decided to ask the watch about the shroud.",
+            })
+
+    ctx = Ctx(Reply(), engine.world, engine.ctx.names, {})
+    await mara.review_day(ctx, engine.now)
+    assert mara.situation == "Mara has decided to ask the watch about the shroud."
+
+    snap = mara.snapshot()
+    mara.situation = ""
+    mara.restore(snap)
+    assert mara.situation == "Mara has decided to ask the watch about the shroud."
+    old = dict(snap)
+    del old["situation"]  # a save from before situations
+    mara.restore(old)
+    assert mara.situation == ""
+
+
 async def test_town_review_is_due_when_never_reviewed_and_after_the_configured_interval(tmp_path):
     from datetime import timedelta
 

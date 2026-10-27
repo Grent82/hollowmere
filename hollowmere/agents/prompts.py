@@ -101,7 +101,7 @@ def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = 
         f"WHO YOU ARE\n{p.name}, {p.age}, {p.sex}. Temperament: {p.traits}.\n"
         + (f"Looks: {p.appearance}\n" if p.appearance else "")
         + f"{p.background}\n"
-        f"Lately: {p.currently}\nHabits: {p.lifestyle}\n"
+        f"Lately: {agent.situation or p.currently}\nHabits: {p.lifestyle}\n"
     )
     if p.abilities:
         text += f"Gifts and weaknesses: {p.abilities}\n"
@@ -402,7 +402,13 @@ def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Me
 Look back on {p.first_name}'s day, in {p.first_name}'s own voice, not a shared narrator's: what happened, what
 changed, and what {p.first_name} means to do tomorrow. Then say what {p.first_name} wants for themself now,
 beyond tomorrow's tasks: hold to the wish named above (if any), let it deepen, or let it become something
-else entirely."""
+else entirely.
+Last, update {p.first_name}'s situation (the "Lately" line above) to where things stand at the end of today.
+Start from that line and keep what is still true, including anything {p.first_name} keeps secret. Then fold in
+what TODAY changed: a decision made, a bond that shifted, something learned or lost - and drop what today
+settled. Take only what is in TODAY's memories; invent nothing, and do not guess what a thing means that
+{p.first_name} could not know. Third person, in your own words, at most three sentences (about 400
+characters); never copy the rest of the description or its labels."""
 
 
 
