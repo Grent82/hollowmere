@@ -140,3 +140,15 @@ async def test_a_mothers_own_parents_are_not_told_of_a_birth_she_kept_secret(tmp
     await engine._give_birth(preg, NOW)
     child = next(a for a in engine.agents.values() if len(a.persona.parents) == 2)
     assert child.id not in engine.agents["agnes"].bonds
+
+
+async def test_a_baby_is_told_it_has_no_words_and_a_grown_person_is_not(tmp_path):
+    from hollowmere.agents import prompts
+    engine = await _engine(tmp_path)
+    preg = {"mother_id": "isolde", "father_id": "nib", "start_day": "1347-11-01", "due_day": "1347-11-05",
+            "resolved": False}
+    engine.pregnancies.append(preg)
+    await engine._give_birth(preg, NOW)
+    baby = next(a for a in engine.agents.values() if len(a.persona.parents) == 2)
+    assert "no words" in prompts.infant_line(baby)
+    assert prompts.infant_line(engine.agents["agnes"]) == ""

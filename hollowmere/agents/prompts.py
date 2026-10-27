@@ -253,6 +253,17 @@ enjoys their company, that is reason enough on its own. Going over the same worr
 rarely reason enough."""
 
 
+def infant_line(agent: Agent) -> str:
+    """A baby has no words: what it 'says' is the sound or small act itself, and it does not explain itself."""
+    p = agent.persona
+    if not p.infant:
+        return ""
+    return (f"{p.first_name} is only days old and has no words. What {p.first_name} says is only what a baby does: a "
+            f"cry, a whimper, a coo, rooting for the breast, a grip on a finger. Write it as that sound or act "
+            f"in a few words, for example \"a thin, hungry wail\", never as a sentence and never about being "
+            f"unable to speak.\n")
+
+
 def converse(agent: Agent, names: dict[str, str], now: datetime, place: str, other_name: str,
              other_activity: str, purpose: str, transcript: list[tuple[str, str]], mems: list[Memory],
              aside: str = "", town_places: Iterable[str] = (), topics: list[str] = (),
@@ -302,7 +313,7 @@ These are {p.first_name}'s own private thoughts, whatever they hold - a scheme, 
 hope. They shape what {p.first_name} wants from this talk, but {p.first_name} does not speak them aloud
 uninvited: no confessing a plan, a secret or a feeling kept close, unless {p.first_name} truly trusts
 {other_name} with it, and even then guardedly.
-{warmth}{romance_line}{aside}
+{warmth}{infant_line(agent)}{romance_line}{aside}
 {recent_topics(list(topics), p.first_name) if not transcript else ""}
 CONVERSATION SO FAR
 {lines}
