@@ -54,6 +54,11 @@ class SimConfig(BaseModel):
     conception_chance: float = 1.0
     pregnancy_known_days: int = 1  # the mother knows after this many days
     pregnancy_shows_days: int = 2  # and anyone near can see it after this many
+    absence_min_days: int = 1  # a flight from the town always fails: they turn back after this many days at least
+    absence_max_days: int = 3  # and at most this many
+    detention_min_days: int = 1
+    detention_max_days: int = 3
+    max_jailed: int = 2  # the cell holds only this many at once
 
 
 class ServerConfig(BaseModel):

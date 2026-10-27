@@ -246,6 +246,9 @@ class Agent:
         self.pending_dream: dict | None = None  # {"text", "importance"}, delivered at the next plan_day()
         self.prayed_block: int = -1  # plan index already resolved this day, mirrors tasks_block/seek_block
         self.new_prayers: list[dict] = []  # not yet shown in the event feed
+        # {"kind": "away" | "jailed", "since": iso, "until": iso, "reason": str}: out of town, or in the cell.
+        # An infant's absence is its mother's, set and cleared with hers.
+        self.absence: dict | None = None
 
     def _places_in(self, world: World) -> tuple[str, ...]:
         return tuple(pid for area in self.known_areas
@@ -268,6 +271,14 @@ class Agent:
     @property
     def first(self) -> str:
         return self.persona.first_name
+
+    @property
+    def is_away(self) -> bool:
+        return self.absence is not None and self.absence["kind"] == "away"
+
+    @property
+    def is_jailed(self) -> bool:
+        return self.absence is not None and self.absence["kind"] == "jailed"
 
     @property
     def awake(self) -> bool:
@@ -298,7 +309,8 @@ class Agent:
     def view(self) -> dict:
         return {
             "id": self.id, "name": self.name, "first": self.first, "color": self.persona.color,
-            "x": self.x, "y": self.y, "steps": self.steps, "mode": self.mode, "thinking": self.thinking,
+            "x": self.x, "y": self.y, "steps": self.steps, "mode": self.mode, "absence": self.absence["kind"] if self.absence else None,
+            "thinking": self.thinking,
             "activity": self.task.activity if self.task else None,
             "emoji": "💤" if self.mode == "asleep" else (self.task.emoji if self.task else ""),
             "place": self.task.place if self.task else None, "convo": self.convo_id,
@@ -732,6 +744,7 @@ class Agent:
             "seek": self.seek, "seek_block": self.seek_block,
             "drive": self.drive, "situation": self.situation, "town_state": self.town_state,
             "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
+            "absence": self.absence,
         }
 
     def restore(self, d: dict) -> None:
@@ -768,3 +781,4 @@ class Agent:
         self.favor = d.get("favor")  # older saves lack this
         self.pending_dream = d.get("pending_dream")  # older saves lack this
         self.prayed_block = d.get("prayed_block", -1)  # older saves lack this
+        self.absence = d.get("absence")  # older saves lack this
