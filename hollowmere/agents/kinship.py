@@ -35,6 +35,10 @@ class Kinship:
     def _uncle_of(self, who: str, of: str) -> bool:
         return (who, of) in self.uncles or any(self._siblings(who, p) for p in self.parents.get(of, set()))
 
+    def related(self, a: str, b: str) -> bool:
+        """Family by blood or marriage-to-blood, spouses excluded: the people who may not become lovers."""
+        return frozenset((a, b)) not in self.spouses and self.what_is(a, b) is not None
+
     def what_is(self, who: str, of: str) -> str | None:
         """What `who` is to `of` ("mother", "niece", ...), or None when they are not family."""
         if who == of:

@@ -66,8 +66,8 @@ def bond_line(agent: Agent, other_id: str, show_stance: bool = True) -> str:
 
     show_stance=False drops the "(stance, N talks)" tag: used when the model is about to judge a fresh
     feeling toward this very person, since showing it its own last verdict just invites it to repeat it."""
-    base = agent.persona.relationships.get(other_id, "")
     b = agent.bonds.get(other_id)
+    base = agent.persona.relationships.get(other_id, "") or (b or {}).get("kin", "")
     if b is None:
         return base
     if not show_stance:
@@ -103,6 +103,8 @@ def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = 
         + f"{p.background}\n"
         f"Lately: {agent.situation or p.currently}\nHabits: {p.lifestyle}\n"
     )
+    if agent.condition:
+        text += f"{agent.condition}\n"
     if p.abilities:
         text += f"Gifts and weaknesses: {p.abilities}\n"
     if agent.drive:

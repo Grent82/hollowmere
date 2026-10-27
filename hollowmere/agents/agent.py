@@ -16,6 +16,7 @@ from typing import Literal
 
 from hollowmere.agents import prompts, romance
 from hollowmere.agents.gods import GOD_BY_ID
+from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
     DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
@@ -124,6 +125,7 @@ class Ctx:
     world: World
     names: dict[str, str]  # agent id -> full name
     known_as: dict[str, str] = field(default_factory=dict)  # agent id -> what the whole town knows of them
+    kin: Kinship | None = None  # who is family to whom; the engine keeps it current as children are born
 
 
 def day_key(now: datetime) -> date:
@@ -191,8 +193,9 @@ class Agent:
         self.name = persona.name
         own = {persona.home, persona.work}
         # The goblin cannot walk into the tavern or the bakery; plans that send him indoors only end in a bolt.
+        # A baby stays where it is carried: its mother's home, never the streets.
         self.known_areas = [a.id for a in world.areas.values()
-                            if a.id in own or (a.public and not (persona.is_goblin and a.indoor))]
+                            if a.id in own or (a.public and not persona.infant and not (persona.is_goblin and a.indoor))]
         self.place_ids = self._places_in(world)
         self.x, self.y = world.target_tile(persona.start) or (0, 0)
         self.path: list[tuple[int, int]] = []
@@ -222,6 +225,7 @@ class Agent:
         # In the agent's own words, what it wants for itself beyond today's tasks; written and
         # rewritten freely by review_day(), never interpreted by any code.
         self.drive: str = ""
+        self.condition: str = ""  # what the engine says is true of them now (with child, due in N days); not persisted
         self.situation: str = ""  # carried forward by day reviews; empty until then (the persona's `currently` stands)
         # The town's current situation (plague, harvest, the Lord...), rewritten periodically by a
         # town-wide review and kept identical across every agent; empty until the first review runs,
@@ -354,9 +358,10 @@ class Agent:
             self.pending_dream = None
         try:
             who_matters = [ctx.names.get(rid, rid) for rid in self.persona.relationships]
+            kin = [f"{ctx.names.get(k, k)}, {b['kin']}" for k, b in self.bonds.items() if b.get("kin")]
             mems = await self.memory.retrieve(
                 [f"{self.first}'s plans and intentions", f"what {self.first} must do today",
-                 f"{self.situation or self.persona.currently}",
+                 f"{self.situation or self.persona.currently}", *kin,
                  *(f"where and when {self.first} has seen {name}, their habits and comings and goings"
                    for name in who_matters)], now, k=12)
             due = [c for c in self.commitments if c["date"] == today.isoformat()]
@@ -510,7 +515,8 @@ class Agent:
         place = ctx.world.place_name(self.task.place) if self.task else "the street"
         other_doing = other.task.activity if other.task else "standing about"
         aside = prompts.goblin_aside(self, other, now) if other.persona.is_goblin and not self.persona.is_goblin else ""
-        romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id))
+        romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id),
+                                                  kin=ctx.kin is not None and ctx.kin.related(self.id, other.id))
         return await ctx.llm.structured(
             prompts.system_prompt(self),
             prompts.converse(self, ctx.names, now, place, other.name, other_doing, purpose, transcript, mems, aside,
@@ -526,7 +532,8 @@ class Agent:
         judging_goblin = other.persona.is_goblin and not self.persona.is_goblin and self.id not in other.allies
         aside = prompts.goblin_aside(self, other, now) if judging_goblin else ""
         owed = [f"{c['time']} — {c['activity']} at {c['place']}" for c in self.commitments]
-        romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id))
+        romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id),
+                                                  kin=ctx.kin is not None and ctx.kin.related(self.id, other.id))
         # a meeting is two people's: only offer places the other one will go to as well
         places = tuple(p for p in self.place_ids if other.can_go(p, ctx.world))
         try:
@@ -544,7 +551,8 @@ class Agent:
                                    out.feeling, out.importance)
         self.bonds[other.id] = {"stance": affinity_label(affinity), "affinity": affinity,
                                 "note": out.view_of_them.strip(),
-                                "talks": bond["talks"] + 1, "last": now.isoformat()}
+                                "talks": bond["talks"] + 1, "last": now.isoformat(),
+                                **({"kin": bond["kin"]} if bond.get("kin") else {})}
         today = day_key(now)
         result = Digest(made_love=romance_eligible and getattr(out, "made_love", False))
         for c in out.commitments:

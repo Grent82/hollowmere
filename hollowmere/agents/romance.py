@@ -16,10 +16,10 @@ FEMALE_NAMES = ("Maude", "Thea", "Rosamund", "Enid", "Lyra")
 GOBLIN_NAMES = ("Grik", "Snurt", "Tam", "Pell", "Mossa")
 
 
-def eligible_for_love(self_sex: str, other_sex: str, bond: dict | None) -> bool:
+def eligible_for_love(self_sex: str, other_sex: str, bond: dict | None, kin: bool = False) -> bool:
     """Whether this agent's own point of view makes "making love" with `other` a reachable outcome
     of a conversation - opposite sex, and either already intimate or already fond or better."""
-    if bond is None or self_sex == other_sex:
+    if bond is None or self_sex == other_sex or kin:
         return False
     if bond.get("intimate"):
         return True
@@ -54,9 +54,17 @@ def generate_child_persona(mother: Persona, father: Persona, born_on: date, rng:
     )
 
 
+def birth_memory(is_mother: bool, child: Persona, other: Persona) -> str:
+    word = "son" if child.sex == "male" else "daughter"
+    if is_mother:
+        return f"I gave birth to {child.name}, {other.name}'s and my {word}."
+    return f"{child.name} was born, {other.name}'s and my {word}."
+
+
 def recognize_child(mother: "Agent", father: "Agent", child: "Agent") -> None:
     """Make both parents' own bonds mechanically aware of the child - Persona.relationships isn't
     persisted across restarts, only Agent.bonds is, so this has to be a direct write to that dict."""
     for parent in (mother, father):
         parent.bonds[child.id] = {"stance": "fond", "affinity": starting_affinity("fond"),
-                                  "note": "", "talks": 0, "last": None}
+                                  "note": "", "talks": 0, "last": None,
+                                  "kin": f"your newborn {'son' if child.persona.sex == 'male' else 'daughter'}"}

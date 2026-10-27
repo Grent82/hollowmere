@@ -66,7 +66,7 @@ HIDING_PLACES = ["goblin_den/nib_nest", "witchwood/bramble_thicket", "riverbank/
 # that logic, but deliberately stays out: a god's answer is private to the one who prayed, and feeding
 # it to the shared narrator would leak it into every agent's town_state - the same boundary enforced by
 # never writing a prayer's effect into anyone's bonds (see Agent.pray()).
-TOWN_EVENT_KINDS = {"reflection", "agreement", "ally", "spurn", "warm", "sighting", "intent", "chat_end"}
+TOWN_EVENT_KINDS = {"showing", "birth", "reflection", "agreement", "ally", "spurn", "warm", "sighting", "intent", "chat_end"}
 
 Listener = Callable[[dict], Awaitable[None]]
 
@@ -100,6 +100,7 @@ class Engine:
         self.ctx = ctx
         self.store = store
         self.embedder = embedder
+        self.ctx.kin = Kinship({i: x.persona for i, x in self.agents.items()})
         self.pregnancies: list[dict] = []  # {"mother_id", "father_id", "start_day", "due_day", "resolved"}
         self.now: datetime = cfg.start
         self.tick_count = 0
@@ -194,6 +195,8 @@ class Engine:
     def _move(self, now: datetime) -> None:
         for a in self.agents.values():
             a.steps = []
+            if a.persona.infant:
+                a.path = []  # carried, never walking
             if a.convo_id is not None or not a.path:
                 continue
             fleeing = a.hiding_until is not None and now < a.hiding_until
@@ -335,7 +338,7 @@ class Engine:
         """Whoever an agent chose, when planning this stretch of the day, to go and find."""
         for g in self.agents.values():
             target = self.agents.get(g.seek) if g.seek else None
-            if (target is None or not g.awake or g.convo_id is not None or g.hiding_until is not None
+            if (target is None or g.persona.infant or not g.awake or g.convo_id is not None or g.hiding_until is not None
                     or g.seek_block != g.current_block(now) or not target.awake
                     or now - self._sought.get(target.id, datetime.min) < CHAT_COOLDOWN):
                 self._seeking.pop(g.id, None)
@@ -519,6 +522,10 @@ class Engine:
                 stored += 1
                 known = b.id in a.persona.relationships
                 await a.observe(text, now, 3 if known else 2)
+                if self.is_showing(b.id):
+                    belly = f"{b.name} is visibly with child; her belly is round under her clothes."
+                    if not a.memory.seen_recently(belly, now, minutes=720):
+                        await a.observe(belly, now, 5)
                 if candidate is None and self._may_react(a, b, now):
                     candidate = b
             if candidate is not None:
@@ -589,6 +596,7 @@ class Engine:
             elif a.mode == "asleep" and a.plan_date == day_key(now) and a.reviewed_date != a.plan_date \
                     and a.wake is not None and now > a.wake:
                 self._spawn(a, a.review_day(self.ctx, now), "review")
+        self._pregnancy_phases(now)
         for preg in self.pregnancies:
             if not preg["resolved"] and date.fromisoformat(preg["due_day"]) <= day_key(now):
                 preg["resolved"] = True
@@ -682,6 +690,8 @@ class Engine:
         """Both sides' own digest agreed this conversation included making love: close the gap in
         affinity, mark the pair as having already happened (so future occasions skip the affinity
         gate entirely), and - for a male+female pair with no pregnancy already in flight - conceive."""
+        if self.ctx.kin.related(a.id, b.id):
+            return  # family: whatever the two digests said, this was not that
         for x, y in ((a, b), (b, a)):
             bond = x.bonds[y.id]
             if RANK[bond["stance"]] < RANK["close"]:
@@ -699,6 +709,50 @@ class Engine:
                 self._event("pregnancy", [mother.id, father.id],
                            f"{mother.first} conceives a child with {father.first}.")
 
+    async def backfill_family(self) -> None:
+        """Children born before parents carried a family tie and a memory of the birth: give them both, once."""
+        for child in list(self.agents.values()):
+            if len(child.persona.parents) != 2:
+                continue
+            born = re.search(r"born on (\d{4}-\d{2}-\d{2})", child.persona.background)
+            when = datetime.fromisoformat(born.group(1)) + timedelta(hours=4, minutes=2) if born else self.now
+            mother_id, father_id = child.persona.parents
+            mother, father = self.agents.get(mother_id), self.agents.get(father_id)
+            if mother is None or father is None:
+                continue
+            for parent, other, is_mother in ((mother, father, True), (father, mother, False)):
+                bond = parent.bonds.setdefault(child.id, {"stance": "fond", "affinity": starting_affinity("fond"),
+                                                          "note": "", "talks": 0, "last": None})
+                bond.setdefault("kin", f"your newborn {'son' if child.persona.sex == 'male' else 'daughter'}")
+                text = romance.birth_memory(is_mother, child.persona, other.persona)
+                if not any(m.text == text for m in parent.memory.items):
+                    await parent._remember("observation", text, when, 9)
+
+    def _pregnancy_phases(self, now: datetime) -> None:
+        """Pregnancy shows in three steps: she notices, the town can see it, the child comes."""
+        for a in self.agents.values():
+            a.condition = ""
+        for preg in self.pregnancies:
+            mother, father = self.agents.get(preg["mother_id"]), self.agents.get(preg["father_id"])
+            if preg["resolved"] or mother is None or father is None:
+                continue
+            gone = (day_key(now) - date.fromisoformat(preg["start_day"])).days
+            left = max(0, (date.fromisoformat(preg["due_day"]) - day_key(now)).days)
+            if gone >= self.cfg.pregnancy_known_days:
+                mother.condition = (f"You are with child, {father.name}'s; it will come in about {left} days. "
+                                    "You carry it with you through all you do.")
+                if not preg.get("known"):
+                    preg["known"] = True
+                    self._spawn(mother, mother._remember(
+                        "thought", f"I am with child, {father.name}'s; I felt it change me, and it will come in "
+                        f"about {left} days.", now, 8), "pregnancy-known")
+            if gone >= self.cfg.pregnancy_shows_days and not preg.get("showing"):
+                preg["showing"] = True
+                self._event("showing", [mother.id], f"{mother.first} is visibly with child.")
+
+    def is_showing(self, agent_id: str) -> bool:
+        return any(p["mother_id"] == agent_id and p.get("showing") and not p["resolved"] for p in self.pregnancies)
+
     async def _give_birth(self, preg: dict, now: datetime) -> None:
         mother, father = self.agents.get(preg["mother_id"]), self.agents.get(preg["father_id"])
         if mother is None or father is None:
@@ -707,7 +761,10 @@ class Engine:
         child = Agent(child_persona, MemoryStream(child_persona.id, self.store, self.embedder), self.world)
         self.agents[child.id] = child
         self.ctx.names[child.id] = child_persona.name
+        self.ctx.kin = Kinship({i: x.persona for i, x in self.agents.items()})
         romance.recognize_child(mother, father, child)
+        await mother._remember("observation", romance.birth_memory(True, child.persona, father.persona), now, 9)
+        await father._remember("observation", romance.birth_memory(False, child.persona, mother.persona), now, 9)
         generated = self.store.get("generated_personas", [])
         generated.append(child_persona.model_dump(mode="json"))
         self.store.put("generated_personas", generated)

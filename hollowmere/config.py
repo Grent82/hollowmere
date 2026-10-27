@@ -52,6 +52,8 @@ class SimConfig(BaseModel):
     town_review_days: int = 7
     gestation_days: int = 5
     conception_chance: float = 1.0
+    pregnancy_known_days: int = 1  # the mother knows after this many days
+    pregnancy_shows_days: int = 2  # and anyone near can see it after this many
 
 
 class ServerConfig(BaseModel):

@@ -77,8 +77,13 @@ class Persona(BaseModel):
     aunt_or_uncle: list[str] = Field(default_factory=list)  # their parents' siblings, when the parents are not people
 
     @property
+    def infant(self) -> bool:
+        return self.age < 1
+
+    @property
     def is_goblin(self) -> bool:
-        return self.species == "goblin"
+        """Goblin stealth (hiding, being spotted) applies to grown goblins; a baby in its mother's room is no secret."""
+        return self.species == "goblin" and not self.infant
 
     @property
     def first_name(self) -> str:

@@ -69,6 +69,7 @@ class _StubAgent:
     def __init__(self, id):
         self.id = id
         self.bonds: dict[str, dict] = {}
+        self.persona = type("P", (), {"sex": "female"})()
 
 
 def test_recognize_child_sets_a_fond_bond_on_both_parents():

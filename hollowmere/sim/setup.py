@@ -63,5 +63,7 @@ async def build_engine(cfg: Config, *, fake: bool = False, fresh: bool = False,
         for a, p in zip(agents, personas):
             await seed_memories(a, p, names, engine.now)
         engine.save()
+    if resumed:
+        await engine.backfill_family()
     log.info("%s simulation at %s with %d agents", "resumed" if resumed else "new", engine.now, len(agents))
     return engine
