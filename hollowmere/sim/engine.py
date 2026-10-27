@@ -265,7 +265,8 @@ class Engine:
                     feed=False, action=action, whom=whom.id if whom else None, thought=thought,
                     stances={h.id: g.bonds.get(h.id, {}).get("stance") for h in seen})
         if (action == "approach" and whom is not None and c is None and whom.awake and whom.convo_id is None
-                and now - g.last_chat.get(whom.id, datetime.min) >= CHAT_COOLDOWN):
+                and (now - g.last_chat.get(whom.id, datetime.min) >= CHAT_COOLDOWN
+                     or self._arranged(g, whom, now) is not None)):
             g.hiding_until, g.task, g.mode = None, None, "acting"
             self._start_conversation(g, whom, out.reason or f"to see whether {whom.first} will help him", now)
             return

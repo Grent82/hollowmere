@@ -527,11 +527,13 @@ class Agent:
         aside = prompts.goblin_aside(self, other, now) if judging_goblin else ""
         owed = [f"{c['time']} — {c['activity']} at {c['place']}" for c in self.commitments]
         romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id))
+        # a meeting is two people's: only offer places the other one will go to as well
+        places = tuple(p for p in self.place_ids if other.can_go(p, ctx.world))
         try:
             out = await ctx.llm.structured(
                 prompts.system_prompt(self),
                 prompts.chat_digest(self, ctx.names, now, other.name, transcript, aside, existing=owed),
-                chat_digest_schema(self.place_ids, judging_goblin, romance_eligible), label="digest")
+                chat_digest_schema(places, judging_goblin, romance_eligible), label="digest")
         except LLMError as e:
             log.warning("%s: digest failed (%s)", self.id, e)
             await self._remember("chat", f"I spoke with {other.name}.", now, 3)
@@ -564,6 +566,12 @@ class Agent:
                                                  "protect him.", now, 8)
         return result
 
+    def can_go(self, place: str, world: World) -> bool:
+        """Whether this person goes to `place` at all: the goblin never walks indoors, except home and work."""
+        area = world.areas.get(place.split("/")[0])
+        return not (self.persona.is_goblin and area is not None and area.indoor
+                    and area.id not in (self.persona.home, self.persona.work))
+
     def _acceptable(self, c: dict, world: World, now: datetime) -> bool:
         """Small models list routine, past events and contradictions as promises; keep only real ones."""
         try:
@@ -574,9 +582,7 @@ class Agent:
             return False  # already past: a record of the talk, not a plan
         if self.first.lower() in c["activity"].lower().split():
             return False  # "report to Brannoc" in Brannoc's own list: the other person's side
-        area = world.areas.get(c["place"].split("/")[0])
-        if self.persona.is_goblin and area is not None and area.indoor and area.id not in (
-                self.persona.home, self.persona.work):
+        if not self.can_go(c["place"], world):
             return False  # the goblin does not walk into the tavern
         return not any(abs(due_at(o) - at) < PROMISE_GAP for o in self.commitments if not o.get("met"))
 

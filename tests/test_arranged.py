@@ -127,3 +127,86 @@ async def test_a_meeting_just_kept_does_not_block_the_next_promise_of_the_hour(t
     a.commitments.append(other)
     assert not a._acceptable({**follow_up, "time": (NOW + timedelta(minutes=50)).strftime("%H:%M")},
                              engine.world, NOW + timedelta(minutes=25))
+
+
+# ---------------------------------------------------------------- the goblin's side of it
+
+from types import SimpleNamespace  # noqa: E402
+
+
+def _goblin_approaches(engine, nib, target):
+    """Nib's own choice says: approach `target`."""
+    async def choice(ctx, now, seen, talking_with, hidden, cover=None):
+        return (SimpleNamespace(action="approach", whom=target.name, thought="she is near", reason="to see her"),
+                {target.name: target})
+    nib.goblin_choice = choice
+
+
+async def test_the_goblin_may_approach_inside_the_cooldown_for_an_arranged_meeting(tmp_path):
+    """The human path got this exception, the goblin's own approach still demanded the full cooldown: a meeting
+    arranged with Nib stayed silent."""
+    engine = await _engine(tmp_path)
+    nib, isolde = engine.agents["nib"], engine.agents["isolde"]
+    _arrange(nib, isolde, NOW, "meet at the weeping stones", "standing_stones")
+    _just_talked(nib, isolde)
+    _goblin_approaches(engine, nib, isolde)
+    engine.now = NOW
+    await engine._goblin_chooses(nib, [isolde], None, None, NOW)
+    assert nib.convo_id is not None and nib.convo_id == isolde.convo_id
+
+
+async def test_the_goblin_still_waits_out_the_cooldown_without_an_arrangement(tmp_path):
+    engine = await _engine(tmp_path)
+    nib, isolde = engine.agents["nib"], engine.agents["isolde"]
+    nib.mode = isolde.mode = "acting"
+    _just_talked(nib, isolde)
+    _goblin_approaches(engine, nib, isolde)
+    engine.now = NOW
+    await engine._goblin_chooses(nib, [isolde], None, None, NOW)
+    assert nib.convo_id is None
+
+
+def test_where_the_goblin_can_go():
+    from hollowmere.agents.persona import Persona
+    from hollowmere.world.town import build_town
+    world = build_town()
+    base = dict(age=30, color="#fff", traits="t", background="b", currently="c", lifestyle="l", work="w",
+                start="x/y", home_object="ho")
+    from hollowmere.agents.agent import Agent
+    nib = Agent(Persona(id="nib", name="Nib", sex="male", species="goblin", home="goblin_den", **{**base, "work": "ruin"}),
+                None, world)
+    human = Agent(Persona(id="h", name="H", sex="female", home="tavern", **base), None, world)
+    assert nib.can_go("riverbank/reeds", world) and nib.can_go("standing_stones", world)  # outdoors
+    assert nib.can_go("goblin_den/nib_nest", world) and nib.can_go("ruin/idols", world)  # his own
+    assert not nib.can_go("tavern/bar", world) and not nib.can_go("mill", world)  # indoors that are not his
+    assert human.can_go("tavern/bar", world) and human.can_go("mill", world)
+
+
+async def test_a_human_is_only_offered_meeting_places_the_goblin_can_go_to(tmp_path):
+    """Isolde proposed a meeting at the mill, Nib's side refused it (he does not walk indoors), and she kept a
+    promise that he did not: the two ended up planning past each other."""
+    import json
+    engine = await _engine(tmp_path)
+    nib, isolde = engine.agents["nib"], engine.agents["isolde"]
+    isolde.learn_area("goblin_den", engine.world)
+    seen = []
+    fake = engine.ctx.llm
+
+    class Spy:
+        stats = fake.stats
+
+        async def structured(self, system, user, schema, *, label, temperature=None):
+            if label == "digest":
+                seen.append(json.dumps(schema.model_json_schema()))
+            return await fake.structured(system, user, schema, label=label, temperature=temperature)
+
+    engine.ctx.llm = Spy()
+    await isolde.digest_chat(engine.ctx, NOW, nib, [(isolde.name, "Meet me?"), (nib.name, "Aye.")])
+    assert seen
+    offered = seen[0]
+    assert '"tavern' not in offered and '"mill' not in offered
+    assert '"riverbank' in offered and '"goblin_den' in offered
+    # a talk between two humans still offers the whole town
+    seen.clear()
+    await isolde.digest_chat(engine.ctx, NOW, engine.agents["tobin"], [(isolde.name, "Meet me?"), ("Tobin", "Aye.")])
+    assert '"tavern' in seen[0] and '"mill' in seen[0]

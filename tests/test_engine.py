@@ -875,12 +875,12 @@ async def test_an_agreement_to_go_now_is_kept_and_set_just_ahead(tmp_path):
     isolde, nib = engine.agents["isolde"], engine.agents["nib"]
     now = engine.now
     isolde.commitments = []
-    engine.ctx.llm = _Digest("now", now.strftime("%H:%M"), "tavern")
+    engine.ctx.llm = _Digest("now", now.strftime("%H:%M"), "riverbank")  # outdoors: Nib does not go into the tavern
     talk = [("Nib", "Come, let us go."), ("Isolde Vell", "Lead on.")]
     digest = await isolde.digest_chat(engine.ctx, now, nib, talk)
     assert len(digest.together) == 1 and due_at(digest.together[0]) == now + PROMISE_LEAD
     isolde.commitments = []
-    engine.ctx.llm = _Digest("at midnight", "00:00", "tavern")  # not said anywhere: still refused
+    engine.ctx.llm = _Digest("at midnight", "00:00", "riverbank")  # not said anywhere: still refused
     assert (await isolde.digest_chat(engine.ctx, now, nib, talk)).together == []
 
 
