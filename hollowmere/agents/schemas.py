@@ -208,10 +208,10 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
         default=False, description="true only if the two of you agreed in this very conversation to leave Hollowmere together, "
                     "each saying yes in your own words; a wish to escape, a complaint or a talk about someone else "
                     "leaving is false. False by default, including whenever nothing like that was said"))
-    fields["arrested"] = (bool, Field(
-        default=False, description="true only if, in this very conversation, you actually had the other person "
-                    "seized and locked up, or they had you seized, as an act the transcript shows; a threat, a "
-                    "warning or a demand to be locked up is false. False by default"))
+    fields["arrested"] = (Literal["no", "i_locked_them_up", "they_locked_me_up"], Field(
+        default="no", description="only if, in this very conversation, someone was actually seized and locked up, "
+                    "as an act the transcript shows: i_locked_them_up if you had them seized, they_locked_me_up if "
+                    "they had you seized. A threat, a warning or a demand to be locked up is no. Default no"))
     if about_goblin:
         fields["toward_goblin"] = (GoblinRegard, Field(
             description="what you mean to do about the goblin now: drive it off or tell others; stay undecided; "

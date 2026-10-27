@@ -344,7 +344,7 @@ class Engine(Absences):
         for g in self.agents.values():
             target = self.agents.get(g.seek) if g.seek else None
             if (target is None or g.persona.infant or not g.awake or g.convo_id is not None or g.hiding_until is not None
-                    or g.seek_block != g.current_block(now) or not target.awake
+                    or g.seek_block != g.current_block(now) or not target.awake or target.absence
                     or now - self._sought.get(target.id, datetime.min) < CHAT_COOLDOWN):
                 self._seeking.pop(g.id, None)
                 continue
@@ -432,6 +432,8 @@ class Engine(Absences):
             said = [t for _, t in c.transcript]
             invited = listener.id in c.intimate and speaker.id not in c.intimate  # the other has proposed: answer
             out = await speaker.say(self.ctx, now, listener, purpose, c.transcript, invited=invited)
+            if c.done:  # someone was taken away while the model was answering
+                return
             line = out.says.strip().strip('"')
             if repeats(line, said):  # own lines, or parroting the other: small models loop
                 out = await speaker.say(self.ctx, now, listener, purpose, c.transcript, avoid=line, invited=invited)
@@ -549,7 +551,7 @@ class Engine(Absences):
         return None
 
     def _may_react(self, a: Agent, b: Agent, now: datetime) -> bool:
-        if not b.awake or b.convo_id is not None or a.convo_id is not None:
+        if not b.awake or a.absence or b.absence or b.convo_id is not None or a.convo_id is not None:
             return False
         if now - a.last_chat.get(b.id, datetime.min) < CHAT_COOLDOWN and self._arranged(a, b, now) is None:
             return False
@@ -571,7 +573,7 @@ class Engine(Absences):
         arranged = self._arranged(a, b, now)
         if now - a.last_chat.get(b.id, datetime.min) < CHAT_COOLDOWN and arranged is None:
             return
-        if a.convo_id is not None or b.convo_id is not None or not b.awake:
+        if a.convo_id is not None or b.convo_id is not None or not b.awake or a.absence or b.absence:
             return
         for x, y in ((a, b), (b, a)):  # the arrangement is kept by this very talk: it cannot be cashed in twice
             for c in x.commitments:
@@ -609,7 +611,7 @@ class Engine(Absences):
         for preg in self.pregnancies:
             mother = self.agents.get(preg["mother_id"])
             if not preg["resolved"] and date.fromisoformat(preg["due_day"]) <= day_key(now) \
-                    and not (mother is not None and mother.is_away):  # out of town: it waits for her
+                    and not (mother is not None and mother.absence):  # away or in the cell: it waits for her
                 preg["resolved"] = True
                 if mother is not None:
                     self._spawn(mother, self._give_birth(preg, now),
@@ -693,9 +695,10 @@ class Engine(Absences):
         # Confirmed here, after both digests: a digest rewrites the bond, and would wipe what this sets.
         if notes.get(a.id, Digest()).leaving and notes.get(b.id, Digest()).leaving:
             self.schedule_departure(a, b, self.now)
-        for jailer, prisoner in ((a, b), (b, a)):  # whoever says they did it; if both do, the first one stands
-            if notes.get(jailer.id, Digest()).arrested:
-                self.arrest(jailer, prisoner, self.now)
+        for me, other in ((a, b), (b, a)):  # each side says which way it went; the first told stands
+            said = notes.get(me.id, Digest()).arrested
+            if said != "no":
+                self.arrest(*((me, other) if said == "i_locked_them_up" else (other, me)), self.now)
         said_so = len(c.intimate) == 2 or (notes.get(a.id, Digest()).made_love and notes.get(b.id, Digest()).made_love)
         if said_so and not c.love_done:
             c.love_done = True

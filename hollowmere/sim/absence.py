@@ -9,6 +9,7 @@ the rest of the town learns it as it learns everything else, in talk.
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, time, timedelta
 
 from hollowmere.agents.agent import CELL, Agent, day_key, due_at
@@ -19,6 +20,9 @@ DEPARTURE = time(22, 0)
 RETURN = time(17, 0)
 NEWS_AT = time(6, 0)
 RELEASE = time(8, 0)
+
+
+log = logging.getLogger(__name__)
 
 
 def _names(agents: list[Agent]) -> str:
@@ -60,33 +64,39 @@ class Absences:
         due, self._queue = [q for q in self._queue if datetime.fromisoformat(q["at"]) <= now], \
             [q for q in self._queue if datetime.fromisoformat(q["at"]) > now]
         for q in due:
-            group = [self.agents[i] for i in q["ids"] if i in self.agents]
-            if q["do"] == "depart":
-                if group and not any(x.absence for x in group):
-                    self.depart(group, now)
-            elif q["do"] == "arrested":
-                who, by = group[0], self.agents[q["by"]]
-                await who._remember("observation", f"{by.name} had me seized and locked in the cell of the "
-                                                   "watchhouse.", now, 9)
-                await by._remember("observation", f"I had {who.name} locked in the watchhouse cell.", now, 7)
-                for o in self.circle([who]):
-                    if o is not by:
-                        await o._remember("observation", f"Word is that {who.name} was locked in the watchhouse "
-                                                         f"cell by {by.name}.", now, 7)
-            elif q["do"] == "vanish":
-                for o in self.circle(group):
-                    await o._remember("observation", f"{_names(group)} {'has' if len(group) == 1 else 'have'} not "
-                                      f"been seen since {q['since']}; no one knows where.", now, 6)
+            try:
+                await self._run_entry(q, now)
+            except Exception:  # noqa: BLE001 - one bad entry must not cost the others their news
+                log.exception("absence queue entry failed: %s", q)
         done: set[str] = set()
         for a in list(self.agents.values()):
             if a.absence is None or a.id in done or datetime.fromisoformat(a.absence["until"]) > now:
                 continue
-            group = [self.agents[i] for i in a.absence["with"] if i in self.agents]
+            group = [self.agents[i] for i in a.absence.get("with", [a.id]) if i in self.agents]  # old saves lack it
             done.update(x.id for x in group)
             if a.is_away:
                 await self.return_home(group, now)
             else:
                 await self.release(group, now)
+
+    async def _run_entry(self, q: dict, now: datetime) -> None:
+        group = [self.agents[i] for i in q["ids"] if i in self.agents]
+        if q["do"] == "depart":
+            if group and not any(x.absence for x in group):
+                self.depart(group, now)
+        elif q["do"] == "arrested":
+            who, by = group[0], self.agents[q["by"]]
+            await who._remember("observation", f"{by.name} had me seized and locked in the cell of the "
+                                               "watchhouse.", now, 9)
+            await by._remember("observation", f"I had {who.name} locked in the watchhouse cell.", now, 7)
+            for o in self.circle([who]):
+                if o is not by:
+                    await o._remember("observation", f"Word is that {who.name} was locked in the watchhouse "
+                                                     f"cell by {by.name}.", now, 7)
+        elif q["do"] == "vanish":
+            for o in self.circle(group):
+                await o._remember("observation", f"{_names(group)} {'has' if len(group) == 1 else 'have'} not "
+                                  f"been seen since {q['since']}; no one knows where.", now, 6)
 
     def depart(self, group: list[Agent], now: datetime) -> None:
         """Out of town, with their babies. They are not seen, not planned for, and not sought."""
@@ -134,7 +144,9 @@ class Absences:
             return False
         everyone = [who] + self._dependents([who.id])
         days = self.rng.randint(self.cfg.detention_min_days, self.cfg.detention_max_days)
-        until = datetime.combine(day_key(now) + timedelta(days=days), RELEASE)
+        until = datetime.combine((now + timedelta(days=days)).date(), RELEASE)
+        if until < now + timedelta(days=days):  # a full day or more, whatever the hour
+            until += timedelta(days=1)
         for x in everyone:
             convo = self.conversations.get(x.convo_id) if x.convo_id else None
             if convo is not None:

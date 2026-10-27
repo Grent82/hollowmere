@@ -78,7 +78,7 @@ class Digest:
     regard: str | None = None  # a human who met the goblin: what they now mean to do about it (GoblinRegard)
     together: list[dict] = field(default_factory=list)  # new commitments to meet the other person
     made_love: bool = False  # this agent's own judgment of whether this conversation included making love
-    arrested: bool = False  # this agent's own judgment that, in this talk, it had the other locked up (or was)
+    arrested: str = "no"  # this agent's own judgment: "i_locked_them_up", "they_locked_me_up", or "no"
     leaving: bool = False  # this agent's own judgment that the two agreed in this talk to leave Hollowmere together
 
 Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding", "sex", "away"]
@@ -578,7 +578,7 @@ class Agent:
                                 **({"kin": bond["kin"]} if bond.get("kin") else {})}
         today = day_key(now)
         result = Digest(made_love=romance_eligible and getattr(out, "made_love", False),
-                        leaving=getattr(out, "leaving", False), arrested=getattr(out, "arrested", False))
+                        leaving=getattr(out, "leaving", False), arrested=getattr(out, "arrested", "no"))
         for c in out.commitments:
             if c.who == "them" or not c.accepted or not spoken(c.when_said, transcript):
                 continue  # their errand, a demand nobody agreed to, or a time nobody named

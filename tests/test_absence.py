@@ -243,11 +243,11 @@ async def test_nobody_locks_up_themselves_the_absent_or_the_locked(tmp_path):
 
 async def test_only_an_act_in_the_digest_arrests(tmp_path):
     engine = await _engine(tmp_path)
-    assert chat_digest_schema(("tavern",)).model_fields["arrested"].default is False
+    assert chat_digest_schema(("tavern",)).model_fields["arrested"].default == "no"
     engine.now = NOW
     engine._settle(_talk(engine, "roderic", "mara"), {"roderic": Digest(), "mara": Digest()})
     assert not engine.agents["mara"].is_jailed
-    engine._settle(_talk(engine, "roderic", "mara"), {"roderic": Digest(arrested=True), "mara": Digest()})
+    engine._settle(_talk(engine, "roderic", "mara"), {"roderic": Digest(arrested="i_locked_them_up"), "mara": Digest()})
     assert engine.agents["mara"].is_jailed and not engine.agents["roderic"].is_jailed
 
 
@@ -269,3 +269,61 @@ async def test_release_returns_home_and_replans(tmp_path):
     assert not mara.is_jailed and mara.plan_date is None
     assert (mara.x, mara.y) == engine.world.target_tile(mara.persona.bed)
     assert any("let out" in m.text for m in mara.memory.items)
+
+
+# ------------------------------------------------------------------ fixes from the final review
+
+async def test_the_direction_of_an_arrest_is_what_the_digest_says(tmp_path):
+    engine = await _engine(tmp_path)
+    engine.now = NOW
+    # Mara walked up to Roderic (she is `a`); only she wrote it down, as "they locked me up"
+    engine._settle(_talk(engine, "mara", "roderic"), {"mara": Digest(arrested="they_locked_me_up"), "roderic": Digest()})
+    assert engine.agents["mara"].is_jailed and not engine.agents["roderic"].is_jailed
+
+
+async def test_the_jailer_saying_so_jails_the_other_even_when_he_is_the_one_who_walked_up(tmp_path):
+    engine = await _engine(tmp_path)
+    engine.now = NOW
+    engine._settle(_talk(engine, "roderic", "mara"), {"roderic": Digest(arrested="i_locked_them_up"), "mara": Digest()})
+    assert engine.agents["mara"].is_jailed and not engine.agents["roderic"].is_jailed
+
+
+async def test_a_birth_waits_for_a_jailed_mother_too(tmp_path):
+    engine = await _engine(tmp_path)
+    engine.arrest(engine.agents["roderic"], engine.agents["isolde"], NOW)
+    engine.pregnancies.append({"mother_id": "isolde", "father_id": "tobin", "start_day": "1347-11-01",
+                               "due_day": "1347-11-05", "resolved": False})
+    engine.now = NOW
+    engine._background(NOW)
+    assert engine.pregnancies[0]["resolved"] is False
+
+
+async def test_nobody_in_the_cell_or_out_of_town_is_sought_or_reacted_to(tmp_path):
+    engine = await _engine(tmp_path)
+    mara, agnes = engine.agents["mara"], engine.agents["agnes"]
+    engine.arrest(engine.agents["roderic"], mara, NOW)
+    agnes.mode = "acting"
+    assert not engine._may_react(agnes, mara, NOW) and not engine._may_react(mara, agnes, NOW)
+    before = len(engine.conversations)
+    engine._start_conversation(agnes, mara, "to visit", NOW)
+    engine._start_conversation(mara, agnes, "to leave", NOW)
+    assert len(engine.conversations) == before and agnes.convo_id is None
+
+
+async def test_a_one_day_detention_lasts_a_day_whenever_it_starts(tmp_path):
+    engine = await _engine(tmp_path)
+    engine.cfg.detention_min_days = engine.cfg.detention_max_days = 1
+    late = datetime(1347, 11, 6, 2, 0)  # before 04:00 still counts as the day before
+    engine.arrest(engine.agents["roderic"], engine.agents["mara"], late)
+    assert datetime.fromisoformat(engine.agents["mara"].absence["until"]) - late >= timedelta(days=1)
+
+
+async def test_a_bad_queue_entry_does_not_lose_the_others(tmp_path):
+    engine = await _engine(tmp_path)
+    engine._queue = [{"do": "arrested", "ids": ["nobody"], "by": "roderic", "at": NOW.isoformat()},
+                     {"do": "vanish", "ids": ["isolde"], "at": NOW.isoformat(), "since": "Sunday evening"}]
+    await engine._absences(NOW)
+    assert any("not been seen" in m.text for m in engine.agents["agnes"].memory.items)
+    engine.agents["mara"].absence = {"kind": "away", "since": NOW.isoformat(), "until": NOW.isoformat(), "reason": "x"}
+    await engine._absences(NOW)  # an old save without "with" must not freeze the town
+    assert engine.agents["mara"].absence is None
