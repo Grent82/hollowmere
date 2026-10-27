@@ -484,7 +484,7 @@ class Agent:
         return out.talk, out.reason
 
     async def goblin_choice(self, ctx: Ctx, now: datetime, seen: list[tuple["Agent", float, bool]],
-                            talking_with: "Agent | None", hidden: bool):
+                            talking_with: "Agent | None", hidden: bool, cover: str | None = None):
         """The goblin sees people who could give him away. seen: (person, distance, they have seen him).
 
         Returns the GoblinChoice and a map from the names offered back to the agents."""
@@ -495,7 +495,7 @@ class Agent:
             place = ctx.world.place_name(self.task.place) if self.task else "the edge of the road"
             out = await ctx.llm.structured(
                 prompts.system_prompt(self),
-                prompts.goblin_choice(self, ctx.world, ctx.names, now, place, seen, talking_with, hidden, mems),
+                prompts.goblin_choice(self, ctx.world, ctx.names, now, place, seen, talking_with, hidden, mems, cover),
                 goblin_choice_schema(tuple(by_name)), label="goblin_choice")
         finally:
             self.thinking = None

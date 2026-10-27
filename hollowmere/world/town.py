@@ -367,6 +367,22 @@ def build_town(seed: int = 1347) -> World:
     b.obj("reeds", "tall reeds", "riverbank", 55, 18, "reeds")
     b.set(7, 41, Tile.GRASS)
     b.obj("brambles", "brambles", "standing_stones", 7, 41, "thicket")
+    # Cover inside the town, in corners nobody plans to visit (not public, so no one's day is drawn to them).
+    b.area_points("tavern_back", "behind the Drowned Lantern", "rain barrels in the lee of the tavern's blind west wall",
+                  [(4, 12), (4, 13), (4, 14)], public=False, indoor=False)
+    b.obj("rain_barrels", "rain barrels", "tavern_back", 4, 13, "barrel")
+    b.area_points("tavern_front", "outside the Drowned Lantern", "stacked ale barrels beside the doorstep, under the signboard",
+                  [(15, 20), (16, 20), (15, 21)], public=False, indoor=False)
+    b.obj("ale_barrels", "ale barrels", "tavern_front", 15, 20, "barrel")
+    b.area_points("tavern_side", "beside the Drowned Lantern", "firewood stacked against the tavern's east wall, out of the square's sight",
+                  [(21, 14), (21, 15), (22, 15)], public=False, indoor=False)
+    b.obj("firewood", "stacked firewood", "tavern_side", 21, 15, "sacks")
+    b.area_points("mill_race", "the mill race", "mossy stones where the wheel's tail water runs off the town's edge",
+                  [(21, 39), (21, 40), (22, 40)], public=False, indoor=False)
+    b.obj("race_stones", "mossy stones", "mill_race", 21, 40, "rock")
+    b.area_points("south_gap", "the gap off the south lane", "a handcart under sacking between the weaver's wall and the almshouse",
+                  [(29, 48), (29, 49), (30, 48)], public=False, indoor=False)
+    b.obj("handcart", "handcart under sacking", "south_gap", 29, 48, "sacks")
 
     if SOUTH_EXTRA:
         _southern_woods(b, random.Random(seed + 1))  # its own rng: the map above must not shift by a single tile

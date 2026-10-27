@@ -895,3 +895,19 @@ def test_an_hour_already_gone_today_means_tomorrow():
     assert roll_past_hour(entry("08:50"), now)["date"] == "1347-11-03"  # near now: left for settle_near_now
     night = datetime.fromisoformat("1347-11-03T23:50:00")
     assert roll_past_hour(entry("00:35"), night)["date"] == "1347-11-03"  # after midnight is still ahead
+
+
+async def test_cover_is_picked_clear_of_every_human_and_kept_while_it_holds(tmp_path):
+    engine, place = await _goblin_scene(tmp_path, "cover.db", [])
+    nib, silas, mara = (engine.agents[k] for k in ("nib", "silas", "mara"))
+    place(nib, 0), place(silas, None), place(mara, None)
+    thicket = engine.world.target_tile("witchwood/bramble_thicket")
+    silas.x, silas.y = thicket[0], thicket[1] - 3  # digging right beside the nearest cover
+    engine._flee(nib, [mara], engine.now)  # only Mara set him off, but Silas is by the thicket
+    assert nib.task.place != "witchwood/bramble_thicket"
+    kept = nib.task
+    engine._flee(nib, [mara], engine.now, far=True)  # asked again: the cover still holds, so no new run
+    assert nib.task is kept
+    silas.x, silas.y = engine.world.target_tile(kept.place)  # someone walks onto it: pick again
+    engine._flee(nib, [silas], engine.now)
+    assert nib.task is not kept

@@ -451,8 +451,8 @@ power, and say for how many hours it lingers."""
 
 
 def goblin_choice(agent: Agent, world: World, names: dict[str, str], now: datetime, place: str,
-                  seen: list, talking_with: Agent | None, hidden: bool, mems: list[Memory]) -> str:
-    """seen: (person, distance in tiles, whether they have seen him)."""
+                  seen: list, talking_with: Agent | None, hidden: bool, mems: list[Memory], cover: str | None = None) -> str:
+    """seen: (person, distance in tiles, whether they have seen him). cover: where he is already heading for or lying in."""
     p = agent.persona
     people = []
     for h, dist, saw in seen:
@@ -465,6 +465,8 @@ def goblin_choice(agent: Agent, world: World, names: dict[str, str], now: dateti
         people.append(f"- {h.name}{mark}, {dist:.0f} paces off, {h.activity_phrase(world)}; {noticed}. "
                       f"To you: {known}.{spoke}{f' Their mind: {history}.' if history else ''}")
     where = "hidden in cover" if hidden else f"at {place}"
+    already = (f"You are already {'lying hidden' if hidden else 'making for cover'} at {cover}; "
+               "the choices below can keep you there.\n") if cover else ""
     talk = (f"You are in the middle of talking with {talking_with.name} when the others come into sight.\n"
             if talking_with else "")
     alone = "alone" if len(seen) == 1 else f"{len(seen)} of them together"
@@ -476,7 +478,7 @@ def goblin_choice(agent: Agent, world: World, names: dict[str, str], now: dateti
 
 IN SIGHT
 {chr(10).join(people)}
-{talk}
+{already}{talk}
 What does {p.first_name} do? Any human could hang {p.first_name}, or feed him; several together are harder to
 read than one alone. Decide from what {p.first_name} knows of each of them."""
 

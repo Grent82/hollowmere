@@ -56,8 +56,11 @@ SAVE_EVERY_TICKS = 30
 SAMPLE_EVERY_TICKS = 10  # where everyone is, for `hollowmere report`
 FLEE_TILES = 6
 HIDE_FOR = timedelta(minutes=10)
+COVER_CLEAR = 8  # tiles: cover this far from every human he avoids (past sight range) is still good cover
 HIDING_PLACES = ["goblin_den/nib_nest", "witchwood/bramble_thicket", "riverbank/reeds",
-                 "standing_stones/brambles", "graveyard/dead_yew"]
+                 "standing_stones/brambles", "graveyard/dead_yew",
+                 "tavern_back/rain_barrels", "tavern_front/ale_barrels", "tavern_side/firewood",
+                 "mill_race/race_stones", "south_gap/handcart"]
 # Event kinds that bear on the town as a whole; raw chat lines and routine plans are left out so the
 # town review's prompt stays small and focused on what actually shifted. "prayer" belongs here too by
 # that logic, but deliberately stays out: a god's answer is private to the one who prayed, and feeding
@@ -245,8 +248,10 @@ class Engine:
         seen = sorted(seen, key=lambda h: math.hypot(h.x - g.x, h.y - g.y))
         entries = [(h, math.hypot(h.x - g.x, h.y - g.y),
                     now - self._noticed.get((g.id, h.id), datetime.min) < timedelta(minutes=10)) for h in seen]
+        cover = (self.world.place_name(g.task.place)
+                 if g.hiding_until is not None and g.task is not None and g.task.place in HIDING_PLACES else None)
         try:
-            out, by_name = await g.goblin_choice(self.ctx, now, entries, partner, g.mode == "hiding")
+            out, by_name = await g.goblin_choice(self.ctx, now, entries, partner, g.mode == "hiding", cover)
             action, whom, thought = out.action, by_name.get(out.whom), out.thought.strip()
         except LLMError as e:
             log.warning("%s: choice failed (%s); hiding", g.id, e)
@@ -275,7 +280,11 @@ class Engine:
         self._event("watch", [g.id], f"{g.first} keeps still and watches {names}{said}")
 
     def _flee(self, g: Agent, threats: list[Agent], now: datetime, far: bool = False, said: str = ".") -> None:
-        spot = self._hiding_place(g, threats, far)
+        hostile = self._hostile(g, threats)
+        if self._cover_holds(g, hostile):
+            g.hiding_until = now + HIDE_FOR  # already on his way to cover, or in it, and it is still clear of them all
+            return
+        spot = self._hiding_place(g, hostile, far)
         if spot is not None:
             place, path = spot
             g.hiding_until = now + HIDE_FOR
@@ -286,6 +295,24 @@ class Engine:
             verb = f"bolts from {names} to" if far else f"spots {names} and slinks off to hide at"
             self._event("flee" if far else "hide", [g.id],
                         f"{g.first} {verb} {self.world.place_name(place)}{said}")
+
+    def _hostile(self, g: Agent, threats: list[Agent]) -> list[Agent]:
+        """Whoever he must keep clear of when picking cover: those who set him off, and every other outdoor
+        human who is not his ally. Cover chosen against the trigger alone runs him into the next person."""
+        out = list(threats)
+        for h in self._humans():
+            area = self.world.area_at(h.x, h.y)
+            if h in out or not h.awake or h.id in g.allies or (area is not None and self.world.areas[area].indoor):
+                continue
+            out.append(h)
+        return out
+
+    def _cover_holds(self, g: Agent, hostile: list[Agent]) -> bool:
+        """His current cover (reached or still under way) is clear of everyone he is avoiding."""
+        if g.hiding_until is None or g.task is None or g.task.place not in HIDING_PLACES:
+            return False
+        tile = self.world.target_tile(g.task.place)
+        return tile is not None and min(math.hypot(tile[0] - h.x, tile[1] - h.y) for h in hostile) > COVER_CLEAR
 
     def _hiding_place(self, g: Agent, threats: list[Agent], far: bool = False) -> tuple[str, list[tuple[int, int]]] | None:
         """Nearby cover to hide, or the cover farthest from them to flee to."""
