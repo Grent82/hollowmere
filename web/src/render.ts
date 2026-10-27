@@ -106,6 +106,7 @@ export class Scene {
     const [tx, ty] = this.screenToTile(sx, sy);
     let best: string | null = null, bestD = 0.9;
     for (const [id, s] of this.sprites) {
+      if (s.view.mode === "away") continue;
       const d = Math.hypot(s.x + 0.5 - tx, s.y + 0.3 - ty);
       if (d < bestD) { best = id; bestD = d; }
     }
@@ -165,7 +166,7 @@ export class Scene {
     this.drawWater(c, now);
     this.drawActiveObjects(c, now);
 
-    const sorted = [...this.sprites.values()].sort((a, b) => a.y - b.y);
+    const sorted = [...this.sprites.values()].filter((s) => s.view.mode !== "away").sort((a, b) => a.y - b.y);
     for (const s of sorted) this.drawAgent(c, s, now);
 
     const dark = darkness(this.hour);

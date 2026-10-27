@@ -96,6 +96,8 @@ export class UI {
 
   private doing(a: AgentView): string {
     if (a.thinking) return a.thinking;
+    if (a.mode === "away") return "away from town";
+    if (a.absence === "jailed") return "locked in the cell";
     if (a.mode === "asleep") return "asleep";
     if (a.mode === "talking") return "in conversation";
     if (a.mode === "waiting") return "being approached";

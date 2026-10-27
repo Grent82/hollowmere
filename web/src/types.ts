@@ -34,7 +34,7 @@ export interface WorldData {
   lights: Light[];
 }
 
-export type Mode = "asleep" | "walking" | "acting" | "talking" | "waiting" | "hiding";
+export type Mode = "asleep" | "walking" | "acting" | "talking" | "waiting" | "hiding" | "sex" | "away";
 
 export interface AgentView {
   id: string;
@@ -45,6 +45,7 @@ export interface AgentView {
   y: number;
   steps: [number, number][];
   mode: Mode;
+  absence: "away" | "jailed" | null;  // out of town, or locked in the watchhouse cell
   thinking: string | null;
   activity: string | null;
   emoji: string;
