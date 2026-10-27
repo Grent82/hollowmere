@@ -1,12 +1,12 @@
 # Hollowmere configuration. Every value here can be left out; these are the defaults.
 
 [llm]
-base_url = "http://127.0.0.1:8080/v1"   # llama-server (llama.cpp), OpenAI-compatible
-api_key = "local"                         # llama-server ignores the key unless started with --api-key
-model = "qwen3.8"                         # llama-server serves its one loaded model whatever this says
-max_concurrency = 2                       # parallel requests; match llama-server --parallel
+base_url = "http://127.0.0.1:8080/v1"
+api_key = "local"
+model = "qwen3.8-flash-next-q2_0"
+max_concurrency = 8
 temperature = 0.7
-max_tokens = 1500                        # replies cut off here fail; raise if that happens
+max_tokens = 1500
 timeout_s = 240
 # How to ask for JSON: "json_schema" (constrained decoding), "json_object", or "prompt".
 # The client downgrades automatically if the server rejects a mode.
@@ -15,19 +15,12 @@ disable_thinking = true                   # ask Qwen to skip <think> (needs llam
 log_path = "saves/llm_log.jsonl"          # failed LLM calls only (invalid replies, server errors); "" disables
 
 [embeddings]
-provider = "auto"        # "auto" (server, falling back to hashing), "server", or "hashing"
-                         # llama-server only serves embeddings when started with --embeddings
+provider = "hashing"     # Strata serves no /embeddings (404), so skip the probe; "auto" would fall back to hashing anyway
 model = "embedding"
 hashing_dim = 768
 
 [sim]
-start = "1347-11-02T05:00"   # in-game start time
-tick_seconds = 60            # in-game seconds per tick
-tick_interval = 0.6          # real seconds per tick at 1x speed (LLM work can slow it down)
 save_path = "saves/hollowmere.db"
-agents = []                  # agent ids to include; empty = everyone in personas.json
-reflection_threshold = 150   # summed importance that triggers a reflection (the paper used 150)
-vision_radius = 6
 
 [server]
 host = "127.0.0.1"
