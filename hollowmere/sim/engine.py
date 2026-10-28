@@ -31,7 +31,7 @@ from datetime import date, datetime, timedelta
 from typing import Awaitable, Callable
 
 from hollowmere.agents import prompts, romance
-from hollowmere.agents.agent import Agent, Ctx, Digest, Task, day_key, due_at
+from hollowmere.agents.agent import Agent, Ctx, Digest, Task, agreed_meetings, day_key, due_at
 from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import RANK, starting_affinity
@@ -473,6 +473,8 @@ class Engine(Absences):
                     self._judging.add((y.id, x.id))
                 self._spawn(x, x.digest_chat(self.ctx, self.now, y, list(c.transcript)), f"digest:{c.id}",
                             on_done=self._digested(c, x, y))
+        if c.transcript:  # what they agreed to do together is read once, for both of them
+            self._spawn(c.a, self._agree(c), f"agree:{c.id}")
         if reason not in ("fled", "never_reached"):  # they actually came face to face, not just tried to
             self._sought[c.a.id] = self._sought[c.b.id] = self.now  # either side's seek should back off now, too
         self._event("chat_end", [c.a.id, c.b.id], f"{c.a.first} and {c.b.first} part ways.",
@@ -663,35 +665,25 @@ class Engine(Absences):
                 self._settle(c, notes)
         return done
 
-    def _settle(self, c: Conversation, notes: dict[str, Digest]) -> None:
-        """Both sides wrote down the meeting separately; make them agree on one time and place.
+    async def _agree(self, c: Conversation) -> None:
+        """The meetings the two agreed on, read once from the whole talk and put on both calendars alike.
 
-        Both notes come from digesting this same conversation `c`, so any entry on one side and any
-        entry on the other describe the same real meeting - a large gap between them is one side
-        mis-hearing the hour (an "at six" read as dawn by one and dusk by the other), never evidence
-        of two different meetings. So every pairing is reconciled, however far apart the guesses land;
-        there is nothing to gain by leaving two people with contradictory ideas of their own appointment.
-        The one who sought the talk proposed it, so their version wins.
-
-        A meeting only one side noted means the other side's own digest didn't recognise it as theirs
-        to keep (small models misjudge "who" easily) - that side still needs the meeting on their
-        calendar, not just a bystander's private intention, so it is mirrored onto them mechanically."""
+        A meeting needs both of them there, so it is kept only if it fits both calendars; a clash drops it
+        for both rather than leaving one person waiting alone."""
         a, b = c.a, c.b
-        mine, theirs = list(notes.get(a.id, Digest()).together), list(notes.get(b.id, Digest()).together)
-        unmatched: list[dict] = []
-        for m in mine:
-            if not theirs:
-                unmatched.append(m)
+        for entry in await agreed_meetings(self.ctx, a, b, self.now, list(c.transcript)):
+            mine, theirs = {**entry, "with": b.id}, {**entry, "with": a.id}
+            if not (a._acceptable(mine, self.world, self.now) and b._acceptable(theirs, self.world, self.now)):
                 continue
-            match = min(theirs, key=lambda o: abs(due_at(o) - due_at(m)))
-            theirs.remove(match)
-            if (match["time"], match["place"]) != (m["time"], m["place"]):
-                b.move_commitment(match, m["time"], m["place"], self.now)
-            self._agreement_event(a, b, m)
-        for m in unmatched:
-            self._mirror_commitment(b, m, a.id)
-        for m in theirs:  # b noted entries a's own digest never matched
-            self._mirror_commitment(a, m, b.id)
+            await a._commit(mine, self.world, self.now)
+            await b._commit(theirs, self.world, self.now)
+            self._agreement_event(a, b, entry)
+
+    def _settle(self, c: Conversation, notes: dict[str, Digest]) -> None:
+        """Both sides wrote down the talk separately; act on what both of them say happened in it.
+
+        Meetings are not decided here: `_agree` reads them once for both."""
+        a, b = c.a, c.b
         # Confirmed here, after both digests: a digest rewrites the bond, and would wipe what this sets.
         if notes.get(a.id, Digest()).leaving and notes.get(b.id, Digest()).leaving:
             self.schedule_departure(a, b, self.now)
@@ -816,14 +808,6 @@ class Engine(Absences):
                     f"{a.first} and {b.first} agree to meet at {self.world.place_name(m['place'])} "
                     f"at {m['time']}{'' if m['date'] == day_key(self.now).isoformat() else ' tomorrow'}.",
                     date=m["date"], at=m["time"], place=m["place"])
-
-    def _mirror_commitment(self, missing: Agent, entry: dict, proposer_id: str) -> None:
-        """Put the other half of a mutual commitment on the person whose own digest missed it."""
-        mirrored = {**entry, "with": proposer_id}
-        if missing._acceptable(mirrored, self.world, self.now):
-            self._agreement_event(self.agents[proposer_id], missing, entry)
-            self._spawn(missing, missing._commit(mirrored, self.world, self.now),
-                       f"mirror:{proposer_id}:{entry['time']}")
 
     def _judged(self, human: Agent, goblin: Agent):
         if not goblin.persona.is_goblin or human.persona.is_goblin:

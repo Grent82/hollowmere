@@ -19,8 +19,8 @@ from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
-    DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
-    chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
+    TIME_OF_DAY, DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
+    agreement_schema, chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
 )
 from hollowmere.llm.client import LLM, LLMError
 from hollowmere.memory.stream import MemoryStream, repeats
@@ -76,7 +76,6 @@ def spoken(when: str, transcript: list[tuple[str, str]]) -> bool:
 class Digest:
     """What digesting a conversation produced that the engine acts on."""
     regard: str | None = None  # a human who met the goblin: what they now mean to do about it (GoblinRegard)
-    together: list[dict] = field(default_factory=list)  # new commitments to meet the other person
     made_love: bool = False  # this agent's own judgment of whether this conversation included making love
     arrested: str = "no"  # this agent's own judgment: "i_locked_them_up", "they_locked_me_up", or "no"
     leaving: bool = False  # this agent's own judgment that the two agreed in this talk to leave Hollowmere together
@@ -185,6 +184,36 @@ def normalise_plan(day: date, wake: datetime, raw: list[tuple[str, str, str, str
         last_end = out[-1].end if out else wake
         out.append(Block(last_end, limit, "goes to sleep", bed))
     return out
+
+
+async def agreed_meetings(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
+                          transcript: list[tuple[str, str]]) -> list[dict]:
+    """What `a` and `b` agreed to do together in this one talk, decided once for both of them.
+
+    Each side digesting the talk on its own used to read a vague hour differently and then had to be reconciled;
+    one shared reading cannot disagree with itself. Entries are {date, time, activity, place} for the engine to
+    put on both calendars. Only places both of them go to are offered, so a goblin is never sent into the tavern
+    and a visit to either one's home is possible."""
+    places = tuple(p for p in dict.fromkeys(a.place_ids + b.place_ids)
+                   if a.can_go(p, ctx.world) and b.can_go(p, ctx.world))
+    try:
+        out = await ctx.llm.structured(
+            prompts.agreement_system_prompt(),
+            prompts.agreement(a.first, b.first, now, transcript, {p: ctx.world.place_name(p) for p in places}),
+            agreement_schema(places), label="agree", temperature=0.2)
+    except LLMError as e:
+        log.warning("%s and %s: agreement failed (%s)", a.id, b.id, e)
+        return []
+    today = day_key(now)
+    found = []
+    for m in out.meetings:
+        if not m.both_agreed or not spoken(m.when_said, transcript):
+            continue  # one-sided, or a time nobody named
+        when = today if m.day == "today" else today + timedelta(days=1)
+        entry = {"date": when.isoformat(), "time": TIME_OF_DAY[m.time_of_day] or now.strftime("%H:%M"),
+                 "activity": m.activity.strip(), "place": m.place}
+        found.append(settle_near_now(roll_past_hour(entry, now) if m.day == "today" else entry, now))
+    return found
 
 
 CELL = "guard_cell/cell_pallet"  # where anyone locked up sits
@@ -580,17 +609,15 @@ class Agent:
         result = Digest(made_love=romance_eligible and getattr(out, "made_love", False),
                         leaving=getattr(out, "leaving", False), arrested=getattr(out, "arrested", "no"))
         for c in out.commitments:
-            if c.who == "them" or not c.accepted or not spoken(c.when_said, transcript):
-                continue  # their errand, a demand nobody agreed to, or a time nobody named
+            if c.who != "me" or not c.accepted or not spoken(c.when_said, transcript):
+                continue  # their errand, a shared meeting (agreed_meetings), an unanswered demand, or a time nobody named
             when = today if c.day == "today" else today + timedelta(days=1)
             entry = {"date": when.isoformat(), "time": c.time, "activity": c.activity, "place": c.place,
-                     "with": other.id if c.who == "both" else None}
+                     "with": None}
             entry = settle_near_now(roll_past_hour(entry, now) if c.day == "today" else entry, now)
             if not self._acceptable(entry, ctx.world, now):
                 continue
             await self._commit(entry, ctx.world, now)
-            if c.who == "both":
-                result.together.append(entry)
         if judging_goblin:
             result.regard = out.toward_goblin
             if out.toward_goblin == "protect":
@@ -630,21 +657,6 @@ class Agent:
         if c["date"] == today.isoformat() and self.plan_date == today and due_at(c) > now:
             self._insert_commitment(c, today)
             self.tasks_block = -1
-
-    def move_commitment(self, c: dict, time_: str, place: str, now: datetime) -> None:
-        """Adopt the time and place the other side of an agreement remembers."""
-        old = due_at(c)
-        i = next((i for i, b in enumerate(self.plan) if b.start == old and b.activity == c["activity"]), None)
-        if i is not None and len(self.plan) > 1:  # hand its hour to a neighbour so the day has no gap
-            gone = self.plan.pop(i)
-            if i > 0:
-                self.plan[i - 1].end = gone.end
-            else:
-                self.plan[0].start = gone.start
-            self.tasks_block = -1
-        c["time"], c["place"] = time_, place
-        self.commitments = [o for o in self.commitments if o is c or abs(due_at(o) - due_at(c)) >= PROMISE_GAP]
-        self._schedule_commitment(c, now)
 
     def _drop_old_commitments(self, now: datetime) -> None:
         self.commitments = [c for c in self.commitments if due_at(c) > now - timedelta(hours=2)]

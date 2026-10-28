@@ -147,6 +147,40 @@ def decomposition_schema(places: tuple[str, ...], seekable: tuple[str, ...] = ()
                         steps=(list[step], Field(min_length=1, max_length=8)))  # type: ignore[valid-type]
 
 
+# The parts of a day a talk can name; there are no clocks in Hollowmere, and asking for HH:MM made two readings
+# of "when the bell rings" land hours apart. The code turns each into one fixed hour; None means "go now".
+TIME_OF_DAY: dict[str, str | None] = {
+    "straightaway": None, "dawn": "06:00", "morning": "09:00", "midday": "12:00", "afternoon": "15:00",
+    "dusk": "18:00", "evening": "20:00", "night": "22:00", "deep night": "02:00",
+}
+
+
+@lru_cache(maxsize=256)
+def agreement_schema(places: tuple[str, ...]) -> type[BaseModel]:
+    """What two people agreed to do together in one talk, answered once for both of them."""
+    place_t = Literal[places]  # type: ignore[valid-type]
+    meeting = create_model(
+        "Meeting",
+        when_said=(str, Field(description="the words for the time exactly as spoken in the talk, "
+                                          "e.g. 'at dusk', 'when the bell rings'")),
+        both_agreed=(bool, Field(description="true only if one of them proposed it and the other said yes "
+                                             "or offered the same")),
+        day=(Literal["today", "tomorrow"], Field(
+            description="today if that part of the day has not yet passed today, otherwise tomorrow")),
+        time_of_day=(Literal[tuple(TIME_OF_DAY)], Field(  # type: ignore[valid-type]
+            description="the part of the day when_said names: straightaway (going now), dawn, morning, midday, "
+                        "afternoon, dusk, evening, night, deep night (after midnight). Bells and sunrise or "
+                        "sunset words map to the nearest one")),
+        activity=(str, Field(description="what the two will do together, a short phrase without either name")),
+        place=(place_t, Field(description="where they will meet, one id from the PLACES list")),
+    )
+    return create_model(
+        "Agreement",
+        meetings=(list[meeting], Field(  # type: ignore[valid-type]
+            max_length=2, description="only meetings the two agreed on in this talk, to spend time in the same "
+                                      "place at a definite time later today or tomorrow; usually empty")))
+
+
 @lru_cache(maxsize=256)
 def goblin_choice_schema(people: tuple[str, ...]) -> type[BaseModel]:
     return create_model(

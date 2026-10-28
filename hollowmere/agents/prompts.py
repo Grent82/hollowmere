@@ -358,6 +358,29 @@ talk, record only the time you finally settled on.{goblin_limit} Most talks agre
 list empty."""
 
 
+def agreement_system_prompt() -> str:
+    return "You read a conversation and report, as a neutral listener, what the speakers agreed."
+
+
+def agreement(first_a: str, first_b: str, now: datetime, transcript: list[tuple[str, str]],
+              places: dict[str, str]) -> str:
+    lines = "\n".join(f'{who}: "{text}"' for who, text in transcript)
+    where = "\n".join(f"- {pid}: {name}" for pid, name in places.items())
+    return f"""{clock_line(now)} {first_a} and {first_b} have just finished talking.
+
+CONVERSATION
+{lines}
+
+PLACES
+{where}
+
+Decide whether {first_a} and {first_b} agreed in this talk to meet or spend time together somewhere at a definite
+time later today or tomorrow. Both must have said yes, or offered it themselves. Not their usual work, not
+anything already done, not what they would do anyway, not a threat, an order nobody accepted, a vague "maybe",
+or a time that has already passed. If no time was spoken, there is no meeting. Most talks agree on nothing: then
+leave the list empty."""
+
+
 def infant_mind(agent: Agent) -> str:
     """What a baby can wonder and conclude: the body and the few people it knows, never the grown world's affairs."""
     p = agent.persona

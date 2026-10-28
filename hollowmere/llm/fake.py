@@ -142,6 +142,9 @@ class FakeLLM:
         out["leaving"], out["arrested"] = False, "no"  # the scripted brain never decides either on its own
         return out
 
+    def _agreement(self, js: dict, user: str) -> dict:
+        return {"meetings": []}  # the scripted brain never arranges anything on its own
+
     def _focalquestions(self, js: dict, user: str) -> dict:
         return {"questions": ["Who can I trust in this town?", "Will the plague reach my door?"]}
 

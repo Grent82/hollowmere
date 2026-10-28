@@ -301,91 +301,6 @@ async def test_only_real_promises_are_kept(tmp_path):
     assert any(b.activity == "keep watch" for b in brannoc.plan)
 
 
-async def test_both_sides_of_a_meeting_end_up_at_the_same_time_and_place(tmp_path):
-    from hollowmere.agents.agent import Digest
-    from hollowmere.sim.engine import Conversation
-    engine = await _town(tmp_path, "meet.db")
-    isolde, tobin, world, now = engine.agents["isolde"], engine.agents["tobin"], engine.world, engine.now
-    day = now.date().isoformat()
-    hers = {"date": day, "time": "16:00", "activity": "meet Tobin", "place": "riverbank", "with": "tobin"}
-    his = {"date": day, "time": "18:30", "activity": "meet Isolde", "place": "riverbank/fishing_rock", "with": "isolde"}
-    await isolde._commit(hers, world, now)
-    await tobin._commit(his, world, now)
-    plan_before = len(tobin.plan)
-    c = Conversation("c99", isolde, tobin, "see Tobin", now, transcript=[("Isolde", "Meet me at four?")])
-    engine._digested(c, isolde, tobin)(Digest(together=[hers]))
-    engine._digested(c, tobin, isolde)(Digest(together=[his]))
-    assert (his["time"], his["place"]) == ("16:00", "riverbank")
-    assert [e["kind"] for e in engine.events].count("agreement") == 1
-    assert not any(b.activity == "meet Isolde" and b.start.hour == 18 for b in tobin.plan)
-    for a, b in zip(tobin.plan, tobin.plan[1:]):
-        assert a.end == b.start  # moving the meeting left no hole in his day
-    assert len(tobin.plan) >= plan_before - 1
-
-
-async def test_a_meeting_one_side_forgot_still_lands_on_their_calendar(tmp_path):
-    """Regression for the real Isolde/Nib, Isolde/Odo, Odo/Clemence and Roderic/Agnes bugs: each side's
-    own digest call independently decides whether a shared meeting is their commitment to keep, and a
-    small model can decide it isn't (who="them"/"me", or no commitment extracted at all) even when the
-    other side clearly recorded it as "both". Whoever DID recognise it should still put the other person
-    on the calendar - a meeting needs both people there, not just the one who remembered agreeing to it."""
-    import asyncio
-
-    from hollowmere.agents.agent import Digest
-    from hollowmere.sim.engine import Conversation
-    engine = await _town(tmp_path, "forgot.db")
-    roderic, agnes, world, now = engine.agents["roderic"], engine.agents["agnes"], engine.world, engine.now
-    day = now.date().isoformat()
-    his = {"date": day, "time": "21:00", "activity": "drink wine in the back room", "place": "tavern_back_room",
-           "with": "agnes"}
-    await roderic._commit(his, world, now)
-    c = Conversation("c200", roderic, agnes, "drink with Agnes", now,
-                     transcript=[("Roderic", "Join me in the back room tonight?")])
-    engine._digested(c, roderic, agnes)(Digest(together=[his]))
-    engine._digested(c, agnes, roderic)(Digest())  # her own digest missed it entirely
-    await asyncio.gather(*engine._bg.values())
-    assert any(cm["with"] == "roderic" and cm["time"] == "21:00" for cm in agnes.commitments)
-    agreed = [e for e in engine.events if e["kind"] == "agreement"]
-    assert len(agreed) == 1 and set(agreed[0]["agents"]) == {"roderic", "agnes"}  # news for the feed all the same
-
-
-async def test_a_mirrored_meeting_that_is_not_acceptable_makes_no_agreement(tmp_path):
-    import asyncio
-
-    from hollowmere.agents.agent import Digest
-    from hollowmere.sim.engine import Conversation
-    engine = await _town(tmp_path, "nomirror.db")
-    roderic, agnes, world, now = engine.agents["roderic"], engine.agents["agnes"], engine.world, engine.now
-    day = now.date().isoformat()
-    agnes.commitments = [{"date": day, "time": "21:00", "activity": "count the takings", "place": "tavern", "with": None}]
-    his = {"date": day, "time": "21:10", "activity": "drink wine", "place": "tavern_back_room", "with": "agnes"}
-    c = Conversation("c201", roderic, agnes, "drink with Agnes", now, transcript=[("Roderic", "Tonight?")])
-    engine._digested(c, roderic, agnes)(Digest(together=[his]))
-    engine._digested(c, agnes, roderic)(Digest())
-    await asyncio.gather(*engine._bg.values())
-    assert [e for e in engine.events if e["kind"] == "agreement"] == []  # she is busy within the hour
-
-
-async def test_a_meeting_is_settled_even_when_the_two_sides_guessed_hours_apart(tmp_path):
-    """Both digests come from the one talk, so a wide gap is one side misreading the hour (dawn vs
-    dusk), never two different meetings - it must still be reconciled, not left standing for both."""
-    from hollowmere.agents.agent import Digest
-    from hollowmere.sim.engine import Conversation
-    engine = await _town(tmp_path, "far_apart.db")
-    isolde, tobin, world, now = engine.agents["isolde"], engine.agents["tobin"], engine.world, engine.now
-    day = now.date().isoformat()
-    hers = {"date": day, "time": "06:00", "activity": "meet Tobin", "place": "riverbank", "with": "tobin"}
-    his = {"date": day, "time": "19:00", "activity": "meet Isolde", "place": "riverbank/fishing_rock", "with": "isolde"}
-    await isolde._commit(hers, world, now)
-    await tobin._commit(his, world, now)
-    c = Conversation("c100", isolde, tobin, "see Tobin", now, transcript=[("Isolde", "Meet me at six?")])
-    engine._digested(c, isolde, tobin)(Digest(together=[hers]))
-    engine._digested(c, tobin, isolde)(Digest(together=[his]))
-    assert (his["time"], his["place"]) == ("06:00", "riverbank")
-    assert [e["kind"] for e in engine.events].count("agreement") == 1
-    assert not any(b.activity == "meet Isolde" and b.start.hour == 19 for b in tobin.plan)
-
-
 async def test_an_old_save_loses_its_duplicate_promises(tmp_path):
     engine = await _town(tmp_path, "old.db")
     roderic = engine.agents["roderic"]
@@ -850,38 +765,6 @@ def test_a_promise_that_lands_on_the_minute_of_the_talk_is_moved_just_ahead():
     late = datetime.fromisoformat("1347-11-08T01:40:00")  # past midnight, still the day that began on the 7th
     moved = settle_near_now(entry("01:45", "1347-11-07"), late)
     assert due_at(moved) == late + PROMISE_LEAD
-
-
-class _Digest(FakeLLM):
-    """The fake brain, except that a chat digest names one agreed commitment."""
-
-    def __init__(self, when_said, time_, place):
-        super().__init__(latency=0)
-        self.when_said, self.time, self.place = when_said, time_, place
-
-    async def structured(self, system, user, schema, *, label, temperature=None):
-        if label != "digest":
-            return await super().structured(system, user, schema, label=label, temperature=temperature)
-        return schema.model_validate({
-            "summary": "We agreed to go.", "importance": 6, "feeling": "fond", "view_of_them": "Kind.",
-            "toward_goblin": "tolerate", "made_love": False,
-            "commitments": [{"when_said": self.when_said, "who": "both", "accepted": True, "day": "today",
-                             "time": self.time, "activity": "walk to the burrow", "place": self.place}]})
-
-
-async def test_an_agreement_to_go_now_is_kept_and_set_just_ahead(tmp_path):
-    from hollowmere.agents.agent import PROMISE_LEAD, due_at
-    engine = await _town(tmp_path, "now.db")
-    isolde, nib = engine.agents["isolde"], engine.agents["nib"]
-    now = engine.now
-    isolde.commitments = []
-    engine.ctx.llm = _Digest("now", now.strftime("%H:%M"), "riverbank")  # outdoors: Nib does not go into the tavern
-    talk = [("Nib", "Come, let us go."), ("Isolde Vell", "Lead on.")]
-    digest = await isolde.digest_chat(engine.ctx, now, nib, talk)
-    assert len(digest.together) == 1 and due_at(digest.together[0]) == now + PROMISE_LEAD
-    isolde.commitments = []
-    engine.ctx.llm = _Digest("at midnight", "00:00", "riverbank")  # not said anywhere: still refused
-    assert (await isolde.digest_chat(engine.ctx, now, nib, talk)).together == []
 
 
 def test_an_hour_already_gone_today_means_tomorrow():
