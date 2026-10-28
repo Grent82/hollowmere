@@ -90,27 +90,11 @@ def _talk(engine, a, b):
     return Conversation("c1", engine.agents[a], engine.agents[b], "to plan", NOW)
 
 
-async def test_both_digests_saying_leaving_schedules_a_departure(tmp_path):
-    engine = await _engine(tmp_path)
-    engine.now = NOW
-    engine._settle(_talk(engine, "isolde", "tobin"),
-                   {"isolde": Digest(leaving=True), "tobin": Digest(leaving=True)})
-    assert [(q["do"], q["ids"], q["at"]) for q in engine._queue] == [
-        ("depart", ["isolde", "tobin"], "1347-11-05T22:00:00")]
-
-
-async def test_one_digest_saying_leaving_does_nothing(tmp_path):
-    engine = await _engine(tmp_path)
-    engine.now = NOW
-    engine._settle(_talk(engine, "isolde", "tobin"), {"isolde": Digest(leaving=True), "tobin": Digest()})
-    assert engine._queue == []
-
-
 async def test_a_departure_takes_the_baby_along_and_hides_everyone(tmp_path):
     engine = await _engine(tmp_path)
     child = await _with_baby(engine)
     engine.now = NOW
-    engine.schedule_departure(engine.agents["isolde"], engine.agents["tobin"], NOW)
+    engine.schedule_departure([engine.agents["isolde"], engine.agents["tobin"]], NOW)
     await engine._absences(EVENING)
     for who in ("isolde", "tobin", child.id):
         a = engine.agents[who]
@@ -122,7 +106,7 @@ async def test_a_departure_takes_the_baby_along_and_hides_everyone(tmp_path):
 async def test_turning_back_writes_the_reason_into_both_memories(tmp_path):
     engine = await _engine(tmp_path)
     engine.now = NOW
-    engine.schedule_departure(engine.agents["isolde"], engine.agents["tobin"], NOW)
+    engine.schedule_departure([engine.agents["isolde"], engine.agents["tobin"]], NOW)
     await engine._absences(EVENING)
     isolde, tobin = engine.agents["isolde"], engine.agents["tobin"]
     reason = isolde.absence["reason"]
@@ -147,7 +131,7 @@ async def test_a_birth_waits_for_an_away_mother(tmp_path):
 async def test_a_departure_survives_save_and_load(tmp_path):
     engine = await _engine(tmp_path)
     engine.now = NOW
-    engine.schedule_departure(engine.agents["isolde"], engine.agents["tobin"], NOW)
+    engine.schedule_departure([engine.agents["isolde"], engine.agents["tobin"]], NOW)
     await engine._absences(EVENING)
     engine.save()
     again = await _engine(tmp_path)
@@ -159,7 +143,7 @@ async def test_a_departure_survives_save_and_load(tmp_path):
 
 async def _gone(engine):
     engine.now = NOW
-    engine.schedule_departure(engine.agents["isolde"], engine.agents["tobin"], NOW)
+    engine.schedule_departure([engine.agents["isolde"], engine.agents["tobin"]], NOW)
     await engine._absences(EVENING)
 
 

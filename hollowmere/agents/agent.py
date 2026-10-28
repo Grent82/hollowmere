@@ -21,6 +21,7 @@ from hollowmere.agents.persona import Persona, affinity_label, starting_affinity
 from hollowmere.agents.schemas import (
     TIME_OF_DAY, DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
     agreement_schema, chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
+    leaving_schema,
 )
 from hollowmere.llm.client import LLM, LLMError
 from hollowmere.memory.stream import MemoryStream, repeats
@@ -78,7 +79,6 @@ class Digest:
     regard: str | None = None  # a human who met the goblin: what they now mean to do about it (GoblinRegard)
     made_love: bool = False  # this agent's own judgment of whether this conversation included making love
     arrested: str = "no"  # this agent's own judgment: "i_locked_them_up", "they_locked_me_up", or "no"
-    leaving: bool = False  # this agent's own judgment that the two agreed in this talk to leave Hollowmere together
 
 Mode = Literal["asleep", "walking", "acting", "talking", "waiting", "hiding", "sex", "away"]
 
@@ -214,6 +214,25 @@ async def agreed_meetings(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
                  "activity": m.activity.strip(), "place": m.place}
         found.append(settle_near_now(roll_past_hour(entry, now) if m.day == "today" else entry, now))
     return found
+
+
+async def agreed_departure(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
+                           transcript: list[tuple[str, str]]) -> list["Agent"]:
+    """Who, if anyone, settled in this one talk on leaving Hollowmere, decided once for both of them.
+
+    Two digests each had to say so and almost never both did: Isolde and Silas agreed to flee in seven talks
+    and set out in none. One shared reading cannot disagree with itself. The engine carries it out."""
+    try:
+        out = await ctx.llm.structured(
+            prompts.leaving_system_prompt(), prompts.leaving(a.first, b.first, now, transcript),
+            leaving_schema(a.first, b.first), label="leave", temperature=0.2)
+    except LLMError as e:
+        log.warning("%s and %s: leaving failed (%s)", a.id, b.id, e)
+        return []
+    for d in out.departures:
+        if d.settled and spoken(d.words, transcript):  # the words are really in the talk
+            return [a, b] if d.who == "both" else [a if d.who == a.first else b]
+    return []
 
 
 CELL = "guard_cell/cell_pallet"  # where anyone locked up sits
@@ -607,7 +626,7 @@ class Agent:
                                 **({"kin": bond["kin"]} if bond.get("kin") else {})}
         today = day_key(now)
         result = Digest(made_love=romance_eligible and getattr(out, "made_love", False),
-                        leaving=getattr(out, "leaving", False), arrested=getattr(out, "arrested", "no"))
+                        arrested=getattr(out, "arrested", "no"))
         for c in out.commitments:
             if c.who != "me" or not c.accepted or not spoken(c.when_said, transcript):
                 continue  # their errand, a shared meeting (agreed_meetings), an unanswered demand, or a time nobody named

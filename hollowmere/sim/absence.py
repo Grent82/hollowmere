@@ -1,6 +1,6 @@
 """Leaving Hollowmere and turning back: the engine's side of Agent.absence.
 
-The model decides that two people mean to go (Digest.leaving, from both of them); the engine only carries it
+The model decides that someone means to go (agreed_departure, one reading of the talk); the engine only carries it
 out. A flight from the town always fails, after a day or three, for a reason drawn from data/world.json, so
 nobody is lost for good. Those who know the missing hear that they are gone, and later why they came back;
 the rest of the town learns it as it learns everything else, in talk.
@@ -32,10 +32,10 @@ def _names(agents: list[Agent]) -> str:
 class Absences:
     """Mixed into Engine. Needs: agents, world, cfg, rng, now, _queue, _event()."""
 
-    def schedule_departure(self, a: Agent, b: Agent, now: datetime) -> None:
-        """Two people agreed to leave: they set out at the next 22:00."""
-        ids = [a.id, b.id]
-        if any(x.absence for x in (a, b)) or any(q["do"] == "depart" and set(ids) & set(q["ids"]) for q in self._queue):
+    def schedule_departure(self, group: list[Agent], now: datetime) -> None:
+        """One person or two settled on leaving: they set out at the next 22:00."""
+        ids = [x.id for x in group]
+        if any(x.absence for x in group) or any(q["do"] == "depart" and set(ids) & set(q["ids"]) for q in self._queue):
             return
         at = datetime.combine(day_key(now), DEPARTURE)
         if at <= now:

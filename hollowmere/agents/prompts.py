@@ -381,6 +381,24 @@ or a time that has already passed. If no time was spoken, there is no meeting. M
 leave the list empty."""
 
 
+def leaving_system_prompt() -> str:
+    return "You read a conversation and report, as a neutral listener, what the speakers settled."
+
+
+def leaving(first_a: str, first_b: str, now: datetime, transcript: list[tuple[str, str]]) -> str:
+    lines = "\n".join(f'{who}: "{text}"' for who, text in transcript)
+    return f"""{clock_line(now)} {first_a} and {first_b} have just finished talking.
+
+CONVERSATION
+{lines}
+
+Decide whether in this talk either of them settled on leaving Hollowmere itself: setting out from the town onto
+the road or into the wild. It must be decided here: someone who says firmly that they are going and, if they mean
+to take the other along, the other agrees. Not a wish, a complaint, a warning to flee, an offer someone refused,
+a plan only talked over, hiding for a night, a visit, going home or going to any other place inside the town.
+Most talks settle nothing: then leave the list empty."""
+
+
 def infant_mind(agent: Agent) -> str:
     """What a baby can wonder and conclude: the body and the few people it knows, never the grown world's affairs."""
     p = agent.persona

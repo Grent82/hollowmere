@@ -182,6 +182,23 @@ def agreement_schema(places: tuple[str, ...]) -> type[BaseModel]:
 
 
 @lru_cache(maxsize=256)
+def leaving_schema(first_a: str, first_b: str) -> type[BaseModel]:
+    """Whether anyone settled in one talk on leaving Hollowmere, answered once for both of them."""
+    departure = create_model(
+        "Departure",
+        words=(str, Field(description="the words from the talk that settle it, copied exactly")),
+        who=(Literal[first_a, first_b, "both"], Field(  # type: ignore[valid-type]
+            description="who sets out from Hollowmere: one of them, or both together")),
+        settled=(bool, Field(description="true only if whoever goes has firmly decided it in this talk and, if the "
+                                         "other is to come along, the other said yes")),
+    )
+    return create_model(
+        "Leaving",
+        departures=(list[departure], Field(  # type: ignore[valid-type]
+            max_length=1, description="a decision made in this talk to leave Hollowmere; almost always empty")))
+
+
+@lru_cache(maxsize=256)
 def goblin_choice_schema(people: tuple[str, ...]) -> type[BaseModel]:
     return create_model(
         "GoblinChoice",
@@ -238,10 +255,6 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
                         "than two things were truly agreed, keep only the two that matter most. A tentative "
                         "'maybe' that nobody confirmed can be left out entirely")),
     )
-    fields["leaving"] = (bool, Field(
-        default=False, description="true only if the two of you agreed in this very conversation to leave Hollowmere together, "
-                    "each saying yes in your own words; a wish to escape, a complaint or a talk about someone else "
-                    "leaving is false. False by default, including whenever nothing like that was said"))
     fields["arrested"] = (Literal["no", "i_locked_them_up", "they_locked_me_up"], Field(
         default="no", description="only if, in this very conversation, someone was actually seized and locked up, "
                     "as an act the transcript shows: i_locked_them_up if you had them seized, they_locked_me_up if "

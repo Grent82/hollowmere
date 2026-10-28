@@ -31,7 +31,7 @@ from datetime import date, datetime, timedelta
 from typing import Awaitable, Callable
 
 from hollowmere.agents import prompts, romance
-from hollowmere.agents.agent import Agent, Ctx, Digest, Task, agreed_meetings, day_key, due_at
+from hollowmere.agents.agent import Agent, Ctx, Digest, Task, agreed_departure, agreed_meetings, day_key, due_at
 from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import RANK, starting_affinity
@@ -475,6 +475,7 @@ class Engine(Absences):
                             on_done=self._digested(c, x, y))
         if c.transcript:  # what they agreed to do together is read once, for both of them
             self._spawn(c.a, self._agree(c), f"agree:{c.id}")
+            self._spawn(c.a, self._leave(c), f"leave:{c.id}")
         if reason not in ("fled", "never_reached"):  # they actually came face to face, not just tried to
             self._sought[c.a.id] = self._sought[c.b.id] = self.now  # either side's seek should back off now, too
         self._event("chat_end", [c.a.id, c.b.id], f"{c.a.first} and {c.b.first} part ways.",
@@ -679,14 +680,17 @@ class Engine(Absences):
             await b._commit(theirs, self.world, self.now)
             self._agreement_event(a, b, entry)
 
+    async def _leave(self, c: Conversation) -> None:
+        """Whoever settled in the talk on leaving Hollowmere, read once for both, sets out that night."""
+        group = await agreed_departure(self.ctx, c.a, c.b, self.now, list(c.transcript))
+        if group:
+            self.schedule_departure(group, self.now)
+
     def _settle(self, c: Conversation, notes: dict[str, Digest]) -> None:
         """Both sides wrote down the talk separately; act on what both of them say happened in it.
 
         Meetings are not decided here: `_agree` reads them once for both."""
         a, b = c.a, c.b
-        # Confirmed here, after both digests: a digest rewrites the bond, and would wipe what this sets.
-        if notes.get(a.id, Digest()).leaving and notes.get(b.id, Digest()).leaving:
-            self.schedule_departure(a, b, self.now)
         for me, other in ((a, b), (b, a)):  # each side says which way it went; the first told stands
             said = notes.get(me.id, Digest()).arrested
             if said != "no":

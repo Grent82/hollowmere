@@ -139,11 +139,14 @@ class FakeLLM:
             out["toward_goblin"] = self.rng.choice(["drive off", "undecided", "tolerate", "feed", "protect"])
         if "made_love" in js.get("properties", {}):
             out["made_love"] = False
-        out["leaving"], out["arrested"] = False, "no"  # the scripted brain never decides either on its own
+        out["arrested"] = "no"  # the scripted brain never decides this on its own
         return out
 
     def _agreement(self, js: dict, user: str) -> dict:
         return {"meetings": []}  # the scripted brain never arranges anything on its own
+
+    def _leaving(self, js: dict, user: str) -> dict:
+        return {"departures": []}  # the scripted brain never leaves on its own
 
     def _focalquestions(self, js: dict, user: str) -> dict:
         return {"questions": ["Who can I trust in this town?", "Will the plague reach my door?"]}
