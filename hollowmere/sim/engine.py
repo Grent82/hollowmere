@@ -537,7 +537,7 @@ class Engine(Absences):
                 known = b.id in a.persona.relationships
                 await a.observe(text, now, 3 if known else 2)
                 if self.is_showing(b.id):
-                    belly = f"{b.name} is visibly with child; her belly is round under her clothes."
+                    belly = self._belly_text(b)
                     if not a.memory.seen_recently(belly, now, minutes=720):
                         await a.observe(belly, now, 5)
                 if candidate is None and self._may_react(a, b, now):
@@ -749,6 +749,21 @@ class Engine(Absences):
             if not any(m.text == text for m in r.memory.items):
                 await r._remember("observation", text, when, 7)
 
+    @staticmethod
+    def _belly_text(mother: Agent) -> str:
+        return f"{mother.name} is visibly with child; her belly is round under her clothes."
+
+    async def _tell_witnesses(self, child: Agent, mother: Agent, when: datetime) -> None:
+        """Whoever saw her belly hears the child has come (the town review carries it to the rest). The parents
+        and her family have their own memory already; only mother and child are named, never the father."""
+        belly = self._belly_text(mother)
+        text = f"Word is that {mother.name} has given birth to {child.name}."
+        for r in self.agents.values():
+            if r.id == child.id or r.id in child.persona.parents or r.persona.infant or any(child.name in m.text for m in r.memory.items):
+                continue
+            if any(m.text == belly for m in r.memory.items):
+                await r._remember("observation", text, when, 6)
+
     async def backfill_family(self) -> None:
         """Children born before parents carried a family tie and a memory of the birth: give them both, once."""
         for child in list(self.agents.values()):
@@ -761,6 +776,7 @@ class Engine(Absences):
             if mother is None or father is None:
                 continue
             await self._tell_mothers_family(child, mother, when)
+            await self._tell_witnesses(child, mother, when)
             for parent, other, is_mother in ((mother, father, True), (father, mother, False)):
                 bond = parent.bonds.setdefault(child.id, {"stance": "fond", "affinity": starting_affinity("fond"),
                                                           "note": "", "talks": 0, "last": None})
@@ -805,6 +821,7 @@ class Engine(Absences):
         self.ctx.kin = Kinship({i: x.persona for i, x in self.agents.items()})
         romance.recognize_child(mother, father, child)
         await self._tell_mothers_family(child, mother, now)
+        await self._tell_witnesses(child, mother, now)
         await mother._remember("observation", romance.birth_memory(True, child.persona, father.persona), now, 9)
         await father._remember("observation", romance.birth_memory(False, child.persona, mother.persona), now, 9)
         generated = self.store.get("generated_personas", [])

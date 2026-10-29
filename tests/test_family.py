@@ -152,3 +152,41 @@ async def test_a_baby_is_told_it_has_no_words_and_a_grown_person_is_not(tmp_path
     baby = next(a for a in engine.agents.values() if len(a.persona.parents) == 2)
     assert "no words" in prompts.infant_line(baby)
     assert prompts.infant_line(engine.agents["agnes"]) == ""
+
+
+async def _seen_belly(engine, who, mother, at):
+    await who.observe(engine._belly_text(mother), at, 5)
+
+
+async def test_given_witnesses_of_the_belly_when_the_child_is_born_then_they_hear_of_it_and_others_do_not(tmp_path):
+    # Given Agnes is with child, and Wat has seen her belly while Ros has not
+    engine = await _engine(tmp_path)
+    mother, wat, ros = engine.agents["agnes"], engine.agents["wat"], engine.agents["ros"]
+    await _seen_belly(engine, wat, mother, NOW)
+    preg = {"mother_id": "agnes", "father_id": "brannoc", "start_day": "1347-11-01", "due_day": "1347-11-05",
+            "resolved": False}
+    engine.pregnancies.append(preg)
+    # When the child is born
+    await engine._give_birth(preg, NOW)
+    child = next(a for a in engine.agents.values() if len(a.persona.parents) == 2)
+    # Then Wat is told of it as word going round, and Ros, who never saw her belly, is not
+    assert any(child.name in m.text and "Word is" in m.text and m.importance >= 5 for m in wat.memory.items)
+    assert not any(child.name in m.text for m in ros.memory.items)
+
+
+async def test_given_an_old_save_when_family_is_backfilled_twice_then_a_witness_hears_of_the_birth_once(tmp_path):
+    # Given a child born before witnesses were told, whose mother Wat had seen with child
+    engine = await _engine(tmp_path)
+    mother, wat = engine.agents["agnes"], engine.agents["wat"]
+    await _seen_belly(engine, wat, mother, NOW)
+    preg = {"mother_id": "agnes", "father_id": "brannoc", "start_day": "1347-11-01", "due_day": "1347-11-05",
+            "resolved": False}
+    engine.pregnancies.append(preg)
+    await engine._give_birth(preg, NOW)
+    child = next(a for a in engine.agents.values() if len(a.persona.parents) == 2)
+    wat.memory.items[:] = [m for m in wat.memory.items if child.name not in m.text]
+    # When the family is backfilled twice
+    await engine.backfill_family()
+    await engine.backfill_family()
+    # Then Wat has the one memory
+    assert sum(child.name in m.text for m in wat.memory.items) == 1
