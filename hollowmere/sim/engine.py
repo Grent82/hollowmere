@@ -41,6 +41,7 @@ from hollowmere.llm.client import LLMError
 from hollowmere.memory.embed import Embedder
 from hollowmere.memory.store import Store
 from hollowmere.memory.stream import MemoryStream, repeats
+from hollowmere.sim import reports
 from hollowmere.sim.absence import Absences
 from hollowmere.world.world import World
 
@@ -124,6 +125,8 @@ class Engine(Absences):
         self._agreements: dict[str, dict[str, Digest]] = {}  # convo id -> agent id -> their digest of it
         self._town_reviewed: date | None = None  # day_key() of the last town-wide review, if any
         self._town_task: asyncio.Task | None = None
+        self._reported: date | None = None  # the day the evening reports last started
+        self._report_task: asyncio.Task | None = None
         self._queue: list[dict] = []  # departures and the news of them still to come, each with an "at" time
 
     # ---------------------------------------------------------------- running
@@ -639,6 +642,18 @@ class Engine(Absences):
                                f"birth:{preg['mother_id']}:{preg['due_day']}")
         if self._town_review_due(now) and (self._town_task is None or self._town_task.done()):
             self._town_task = asyncio.create_task(self._run_town_review(now))
+        if self._report_due(now) and (self._report_task is None or self._report_task.done()):
+            self._reported = day_key(now)  # once a day, even if it fails
+            self._report_task = asyncio.create_task(self._run_reports(now))
+
+    def _report_due(self, now: datetime) -> bool:
+        return now.time() >= reports.REPORT_AT and self._reported != day_key(now)
+
+    async def _run_reports(self, now: datetime) -> None:
+        try:
+            await reports.run(self, now)
+        except Exception:  # noqa: BLE001 - a collection for the player's eyes must never hurt the town
+            log.exception("evening reports failed")
 
     def _town_review_due(self, now: datetime) -> bool:
         if self._town_reviewed is None:
@@ -1002,6 +1017,7 @@ class Engine(Absences):
         self.store.put("clock", self.now.isoformat())
         self.store.put("agents", {a.id: a.snapshot() for a in self.agents.values()})
         self.store.put("town_reviewed", self._town_reviewed.isoformat() if self._town_reviewed else None)
+        self.store.put("reported", self._reported.isoformat() if self._reported else None)
         self.store.put("pregnancies", self.pregnancies)
         self.store.put("absence_queue", self._queue)
         s = self.ctx.llm.stats
@@ -1019,6 +1035,8 @@ class Engine(Absences):
         self._llm_before = self.store.get("llm_stats", {})
         reviewed = self.store.get("town_reviewed")
         self._town_reviewed = date.fromisoformat(reviewed) if reviewed else None
+        reported = self.store.get("reported")
+        self._reported = date.fromisoformat(reported) if reported else None
         self.pregnancies = self.store.get("pregnancies", [])
         self._queue = self.store.get("absence_queue", [])
         self.store.trim_record(self.now)

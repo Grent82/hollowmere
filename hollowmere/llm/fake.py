@@ -167,6 +167,12 @@ class FakeLLM:
     def _townstate(self, js: dict, user: str) -> dict:
         return {"text": "The plague lingers and the harvest is still thin, but the Watch keeps the peace."}
 
+    def _godwishes(self, js: dict, user: str) -> dict:
+        return {"wishes": []}
+
+    def _worldideas(self, js: dict, user: str) -> dict:
+        return {"ideas": []}
+
     def _babyhome(self, js: dict, user: str) -> dict:
         return {"reason": "It is my child, and I will keep it near.", "where": "keep"}
 

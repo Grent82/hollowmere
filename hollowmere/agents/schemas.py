@@ -90,6 +90,35 @@ class DayReview(BaseModel):
         "leave out one that has passed, add one today brought; at most three; may be empty"))
 
 
+class GodWish(BaseModel):
+    wish: str = Field(description="what you would most like to do among mortals or in the world but cannot yet, "
+                                  "in your own voice, one or two sentences")
+    towards: str = Field(description="whom it is about: a mortal's name, or \"the world\" or \"mortals\"")
+    why: str = Field(description="one short sentence on what in the prayers stirred it")
+
+
+class GodWishes(BaseModel):
+    wishes: list[GodWish] = Field(max_length=3, description="only wishes not already on the list; may be empty")
+
+
+@lru_cache(maxsize=8)
+def world_ideas_schema(areas: tuple[str, ...]) -> type[BaseModel]:
+    """The ideas a day holds for the world, each tied to one of the town's places."""
+    idea = create_model(
+        "WorldIdea",
+        kind=(Literal["change", "missing_item", "item_use"], Field(description=(
+            "change = they would like to alter a building, place or thing in the world; missing_item = something "
+            "is mentioned that the game does not have; item_use = how they used or would use such a thing"))),
+        item=(str, Field(max_length=40, description="the thing in one to three words, e.g. \"hopper\"")),
+        where=(Literal[areas], Field(description="the place of the town where it belongs or would be used")),  # type: ignore[valid-type]
+        what=(str, Field(description="the idea in one short sentence, plain words")),
+        evidence=(str, Field(description="a few words copied exactly from today's memories or plan that show it")),
+    )
+    return create_model(
+        "WorldIdeas",
+        ideas=(list[idea], Field(max_length=4, description="only ideas not already collected; may be empty")))  # type: ignore[valid-type]
+
+
 class BabyHome(BaseModel):
     """Where a mother puts the goblin child she has just borne."""
     reason: str = Field(description="one or two sentences, in the mother's own voice, on what she fears and wants "

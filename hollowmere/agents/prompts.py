@@ -591,6 +591,67 @@ WHERE THE CHILD COULD LIVE
 Decide where the child will live, as {p.first_name} would."""
 
 
+def wishes_system_prompt(god: God) -> str:
+    return (
+        f"You speak as {god.name}, {god.domain}, one of the four gods worshipped at Hollowmere's chapel. "
+        f"{WORLD_FACTS} Your temperament: {god.temperament}. Your voice: {god.voice}\n\n"
+        "Mortals pray to you and you answer from afar, only through dreams, signs, omens and moods. Say what you "
+        "would most like to do among them and in the world, if you could, and cannot yet."
+    )
+
+
+def god_wishes(god: God, now: datetime, prayers: list[dict], names: dict[str, str], existing: list[str]) -> str:
+    lines = "\n".join(f"- {p['time'][:16]} {names.get(p['agent'], p['agent'])} ({p['form']}): {p['text']}"
+                      for p in prayers)
+    have = "\n".join(existing) or "(none yet)"
+    return f"""{clock_line(now)} The day is ending.
+
+PRAYERS YOU HAVE ANSWERED (oldest first)
+{lines}
+
+WISHES YOU HAVE ALREADY NAMED
+{have}
+
+From these prayers and what they show of the mortals, say what you would like to do among them or in the world
+that you cannot yet: not what you did, but what you long for. Only wishes not already named; none if there is
+nothing new."""
+
+
+def world_ideas_system_prompt() -> str:
+    return ("You read one person's day in the town of Hollowmere and report, as a neutral listener, how they "
+            "wish to deal with the world around them. You invent nothing: every idea rests on words from their day.")
+
+
+def world_ideas(agent: Agent, now: datetime, plan: list[str], mems: list[Memory], objects: list[str],
+                existing: list[str], places: dict[str, str]) -> str:
+    p = agent.persona
+    have = "\n".join(existing) or "(none yet)"
+    return f"""{clock_line(now)} {p.name}'s day is over.
+
+THE DAY'S PLAN
+{chr(10).join(f"- {x}" for x in plan) or "(none)"}
+
+{memories(mems, now, title="TODAY'S MEMORIES")}
+
+WHAT THE GAME HAS AT PRESENT (every kind of object in the town)
+{", ".join(objects)}
+
+THE TOWN'S PLACES (id: name)
+{"; ".join(f"{k}: {v}" for k, v in places.items())}
+
+IDEAS ALREADY COLLECTED
+{have}
+
+Find in today's plan and memories only physical things you could build or place in the town: tools, furniture,
+goods, containers, buildings, rooms, paths. Three kinds of idea:
+- change: {p.first_name} wants to alter a building, place or thing of the town.
+- missing_item: a physical thing {p.first_name} handles or mentions that is NOT in the list of what the game has
+  (check the list; skip it if something close is there).
+- item_use: how {p.first_name} used or would use such a missing thing, in one short sentence.
+Never a person, a god, an animal, a feeling, a smell, a sound, a saying or a metaphor. Name each in one to three words
+and say in which of the places it belongs. Copy a few words from the plan or memories as evidence. Only ideas not already collected; none if there is nothing new."""
+
+
 def goblin_choice(agent: Agent, world: World, names: dict[str, str], now: datetime, place: str,
                   seen: list, talking_with: Agent | None, hidden: bool, mems: list[Memory], cover: str | None = None) -> str:
     """seen: (person, distance in tiles, whether they have seen him). cover: where he is already heading for or lying in."""

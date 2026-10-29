@@ -157,6 +157,21 @@ class Store:
                 break
         return out
 
+    def prayers_to(self, god_id: str, limit: int = 30) -> list[dict]:
+        """The latest prayers this god answered and how, oldest first."""
+        rows = self.db.execute(
+            "SELECT time, agents, text, extra FROM events WHERE kind = 'prayer' ORDER BY id DESC LIMIT 2000").fetchall()
+        out: list[dict] = []
+        for r in rows:
+            extra = json.loads(r["extra"])
+            if extra.get("god") != god_id:
+                continue
+            out.append({"time": r["time"], "agent": json.loads(r["agents"])[0], "form": extra.get("form"),
+                        "text": r["text"].split(": ", 1)[-1]})
+            if len(out) >= limit:
+                break
+        return out[::-1]
+
     def add_samples(self, time: datetime, rows: list[tuple]) -> None:
         """rows: (agent_id, x, y, mode, task place, area under the agent)."""
         self.db.executemany("INSERT INTO samples VALUES (?,?,?,?,?,?,?)", [(time.isoformat(), *r) for r in rows])
