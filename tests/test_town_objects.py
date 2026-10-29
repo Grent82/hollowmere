@@ -14,7 +14,6 @@ WANTED = [
     ("mill_stove", "mill stove", "mill"),
     ("stew_pot", "stew pot", "bakery"),
     ("wool_bales", "bales of grey wool", "weaver_cottage"),
-    ("ward_wool", "bundle of grey wool", "almshouse"),
 ]
 
 

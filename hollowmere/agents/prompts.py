@@ -398,10 +398,13 @@ def leaving(first_a: str, first_b: str, now: datetime, transcript: list[tuple[st
 CONVERSATION
 {lines}
 
-Decide whether in this talk either of them settled on leaving Hollowmere itself: setting out from the town onto
-the road or into the wild. It must be decided here: someone who says firmly that they are going and, if they mean
-to take the other along, the other agrees. Not a wish, a complaint, a warning to flee, an offer someone refused,
-a plan only talked over, hiding for a night, a visit, going home or going to any other place inside the town.
+Decide whether in this talk either of them settled on leaving Hollowmere itself: setting out from the town
+onto the road or into the wild, to be gone for days. Someone must say plainly that they are leaving, running away
+from, or going out of the town (through a gate, onto the road, away for good), and, if they mean to take the other
+along, the other agrees. Not a walk to meet or find someone, or to a place in or beside the town (the riverbank, the
+reeds, the mill, the Hollow Keep, the burrow, the herb-wife's hut, the old stones), nor slipping past the Watch to
+get there, hiding for a night, a wish, a complaint, a warning to flee, an offer someone refused, a plan only
+talked over, a visit or going home.
 Most talks settle nothing: then leave the list empty."""
 
 

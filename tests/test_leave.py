@@ -80,6 +80,15 @@ def test_given_a_talk_when_the_prompt_is_built_then_it_carries_the_names_the_wor
     assert "Hollowmere" in text and "home" in text
 
 
+def test_given_a_walk_to_a_place_beside_the_town_when_the_prompt_is_built_then_it_is_ruled_out_as_leaving():
+    # Given a finished talk
+    # When the leaving prompt is built
+    text = prompts.leaving("Silas", "Isolde", datetime(1347, 11, 12, 15, 0), TALK)
+    # Then sneaking past the Watch, a walk by the river and the places beside the town are named as not leaving
+    assert "slipping past the Watch" in text and "riverbank" in text and "Hollow Keep" in text
+    assert "to be gone for days" in text
+
+
 # ------------------------------------------------------------------ the shared call
 
 
