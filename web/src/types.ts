@@ -131,6 +131,7 @@ export interface ChatLogEntry {
 export interface AgentDetail extends AgentView {
   age: number;
   traits: string;
+  history: { text: string; since: string }[];
   states: { text: string; since: string | null }[];
   background: string;
   currently: string;

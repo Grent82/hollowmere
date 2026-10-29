@@ -20,6 +20,7 @@ from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
     BabyHome,
+    LifeFacts,
     TIME_OF_DAY, DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
     agreement_schema, chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
     leaving_schema, moving_schema,
@@ -253,6 +254,8 @@ async def agreed_move(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
 
 
 MAX_STATES = 3
+MAX_HISTORY = 6  # lasting life facts per person
+LIFE_FACT_IMPORTANCE = 8  # a day holds a memory at least this weighty before lasting facts are even asked for
 
 CELL = "guard_cell/cell_pallet"  # where anyone locked up sits
 
@@ -300,6 +303,7 @@ class Agent:
         # Passing states of mind: {"text", "since": iso date or None until the first review dates it}.
         # Only the day review ends or adds one; there is no fixed span.
         self.states: list[dict] = [{"text": s, "since": None} for s in persona.states]
+        self.history: list[dict] = []  # lasting facts, {"text", "since"}: what happened to them that stays true
         self.condition: str = ""  # what the engine says is true of them now (with child, due in N days); not persisted
         self.situation: str = ""  # carried forward by day reviews; empty until then (the persona's `currently` stands)
         # The town's current situation (plague, harvest, the Lord...), rewritten periodically by a
@@ -778,6 +782,34 @@ class Agent:
         if out.situation.strip():
             self.situation = out.situation.strip()
         self.set_states(out.states, now)
+        await self.update_history(ctx, now, today)
+
+    async def update_history(self, ctx: Ctx, now: datetime, today: list) -> None:
+        """After a very important day: one new lasting fact, if the day's own memories show it. Never deletes by
+        itself: a held fact goes only to make room for a new one."""
+        if not any(m.importance >= LIFE_FACT_IMPORTANCE for m in today):
+            return
+        shown = [m for m in today if m.importance >= 6][-15:]
+        try:
+            out = await ctx.llm.structured(
+                prompts.life_facts_system_prompt(), prompts.life_facts(self, ctx.names, now, shown),
+                LifeFacts, label="life_facts", temperature=0.3)
+        except LLMError as e:
+            log.warning("%s: life facts failed (%s)", self.id, e)
+            return
+        held = {f["text"].strip().lower() for f in self.history}
+        new = [t.strip() for t in out.facts if t.strip() and t.strip().lower() not in held]
+        proof = " ".join(WORD_RE.findall(out.evidence.lower()))
+        if not new or not proof or proof not in " ".join(WORD_RE.findall(" ".join(m.text for m in shown).lower())):
+            return  # nothing new, or nothing in the day that shows it
+        kept = {t.strip().lower() for t in out.facts}
+        history = [*self.history, {"text": new[0], "since": day_key(now).isoformat()}]
+        for f in list(self.history):  # over the limit: what the model left out makes room first, then the oldest
+            if len(history) <= MAX_HISTORY:
+                break
+            if f["text"].strip().lower() not in kept:
+                history.remove(f)
+        self.history = history[-MAX_HISTORY:]
 
     def state_ages(self, now: datetime) -> list[tuple[dict, int]]:
         """Each state with its age in days; one that has no date yet starts counting today."""
@@ -889,7 +921,7 @@ class Agent:
             "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
             "seek": self.seek, "seek_block": self.seek_block,
             "drive": self.drive, "situation": self.situation, "town_state": self.town_state,
-            "states": self.states, "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
+            "states": self.states, "history": self.history, "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
             "absence": self.absence, "home": self.persona.home, "home_object": self.persona.home_object,
         }
 
@@ -925,6 +957,7 @@ class Agent:
         self.situation = d.get("situation", "")  # older saves lack this
         self.town_state = d.get("town_state", "")  # older saves lack this
         self.states = d.get("states", self.states)  # older saves lack this: the persona's own stand
+        self.history = d.get("history", [])  # older saves lack this
         self.favor = d.get("favor")  # older saves lack this
         self.pending_dream = d.get("pending_dream")  # older saves lack this
         self.prayed_block = d.get("prayed_block", -1)  # older saves lack this

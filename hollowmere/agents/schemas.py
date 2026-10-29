@@ -119,6 +119,14 @@ def world_ideas_schema(areas: tuple[str, ...]) -> type[BaseModel]:
         ideas=(list[idea], Field(max_length=4, description="only ideas not already collected; may be empty")))  # type: ignore[valid-type]
 
 
+class LifeFacts(BaseModel):
+    facts: list[Annotated[str, Field(max_length=200)]] = Field(max_length=8, description=(
+        "the lasting facts of this life as they stand: each held fact repeated in exactly the same words, plus at "
+        "most one new one (third person, one plain sentence); six at most, so merge or leave one out to make room"))
+    evidence: str = Field(description="a few words copied exactly from today's memories that show the new fact; "
+                                      "empty if there is none")
+
+
 class BabyHome(BaseModel):
     """Where a mother puts the goblin child she has just borne."""
     reason: str = Field(description="one or two sentences, in the mother's own voice, on what she fears and wants "

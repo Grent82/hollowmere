@@ -101,7 +101,9 @@ def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = 
         f"WHO YOU ARE\n{p.name}, {p.age}, {p.sex}. Temperament: {p.traits}.\n"
         + (f"Looks: {p.appearance}\n" if p.appearance else "")
         + f"{p.background}\n"
-        f"Lately: {agent.situation or p.currently}\nHabits: {p.lifestyle}\n"
+        + (f"Since the story began: {'; '.join(f['text'].rstrip('.') for f in agent.history)}.\n"
+           if agent.history else "")
+        + f"Lately: {agent.situation or p.currently}\nHabits: {p.lifestyle}\n"
     )
     if agent.states:
         text += f"Right now: {', '.join(s['text'] for s in agent.states)}.\n"
@@ -494,6 +496,32 @@ def family_line(agent: Agent, names: dict[str, str]) -> str:
         f"{p.first_name} is with child."
     return (f"\n{who} A baby cannot look after itself, and this weighs on {p.first_name}'s days whatever else fills "
             f"them: say in the situation and in tomorrow's plans how {p.first_name} means to carry that.\n")
+
+
+def life_facts_system_prompt() -> str:
+    return ("You keep the lasting facts of one life in the town of Hollowmere, as a neutral recorder. You invent "
+            "nothing: a fact rests on what the person's own memories show.")
+
+
+def life_facts(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:
+    p = agent.persona
+    held = "\n".join(f"- {f['text']}" for f in agent.history) or "(none yet)"
+    return f"""{clock_line(now)} {p.first_name}'s day is over.
+
+{p.name}, {p.age}, {p.sex}. {p.traits}. {p.background}
+
+LASTING FACTS HELD SO FAR
+{held}
+
+{memories(mems, now, title="TODAY'S IMPORTANT MEMORIES")}
+
+Say whether today made something true of {p.first_name} that will still be true long from now: a birth, a break
+with someone, a jailing, a flight, a lover, a secret out, a death, a new home or work. Not a mood, a worry or any
+passing state (anything gone in a week), and not what the description or the held facts already say. Answer with
+the list as it stands: repeat each held fact in the same words, and add at most one new fact (third person, one
+plain sentence), only if the memories above show it, with a few words copied from them as evidence. Six facts at
+most: to make room merge two or leave one out. Most days nothing qualifies: then repeat the list unchanged and
+leave the evidence empty."""
 
 
 def states_block(agent: Agent, now: datetime) -> str:

@@ -456,6 +456,8 @@ async def test_day_review_sets_the_agents_own_drive_and_it_survives_a_restore(tm
 
     class Reply:
         async def structured(self, system, user, schema, **kw):
+            if schema.__name__ == "LifeFacts":
+                return schema.model_validate({"facts": [], "evidence": ""})
             return schema.model_validate({
                 "summary": "A quiet day, but Roderic's name came up again.", "importance": 5,
                 "intentions": ["speak with Roderic"],
@@ -483,6 +485,8 @@ async def test_day_review_carries_the_situation_forward_and_it_survives_a_restor
     class Reply:
         async def structured(self, system, user, schema, **kw):
             seen.append(user)
+            if schema.__name__ == "LifeFacts":
+                return schema.model_validate({"facts": [], "evidence": ""})
             return schema.model_validate({
                 "summary": "A quiet day.", "importance": 5, "intentions": ["speak with Roderic"],
                 "drive": "to see the truth out", "situation": "Mara has decided to ask the watch about the shroud.",

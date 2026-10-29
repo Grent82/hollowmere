@@ -167,6 +167,9 @@ class FakeLLM:
     def _townstate(self, js: dict, user: str) -> dict:
         return {"text": "The plague lingers and the harvest is still thin, but the Watch keeps the peace."}
 
+    def _lifefacts(self, js: dict, user: str) -> dict:
+        return {"facts": [], "evidence": ""}
+
     def _godwishes(self, js: dict, user: str) -> dict:
         return {"wishes": []}
 

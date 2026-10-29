@@ -130,6 +130,7 @@ body.inspecting #tabs, body.inspecting .tab.on { display: none; }
 .ev.prayer .answer, .prayers li div { color: #cfc6b4; font-style: italic; font-size: 13.5px; margin-top: 2px; }
 .god { color: var(--god); }
 .form { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-left: 4px; }
+.history { margin: 2px 0 8px; padding-left: 18px; color: var(--muted); font-size: 13px; }
 .states { margin: 2px 0 10px; display: flex; flex-wrap: wrap; gap: 6px; }
 .state { font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--muted); color: var(--muted); }
 .favor { border-left: 3px solid var(--god); padding: 4px 10px; margin: 6px 0 10px; background: #17151c; }

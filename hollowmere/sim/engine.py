@@ -974,7 +974,7 @@ class Engine(Absences):
         return {
             **a.view(),
             "pregnancy": self._pregnancy_of(agent_id),
-            "age": p.age, "traits": p.traits, "states": a.states, "background": p.background, "currently": a.situation or p.currently,
+            "age": p.age, "traits": p.traits, "states": a.states, "history": a.history, "background": p.background, "currently": a.situation or p.currently,
             "plan": [b.to_dict() | {"place_name": self.world.place_name(b.place)} for b in a.plan],
             "tasks": [t.to_dict() for t in a.tasks],
             "memories": [m.as_dict() for m in a.memory.items[-60:]][::-1],

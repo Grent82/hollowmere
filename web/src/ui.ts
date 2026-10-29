@@ -210,6 +210,8 @@ export class UI {
         ${now ? `<small>until ${hhmm(now.end)}</small>` : ""}</p>
       <p class="muted">${esc(d.currently)}</p>
       ${d.drive ? `<p class="drive">${esc(d.drive)}</p>` : ""}
+      ${d.history.length ? `<ul class="history">${d.history.map((h) =>
+        `<li title="since ${h.since}">${esc(h.text)}</li>`).join("")}</ul>` : ""}
       ${d.states.length ? `<p class="states">${d.states.map((s) =>
         `<span class="state" title="since ${s.since ?? "the start"}">${esc(s.text)}</span>`).join("")}</p>` : ""}
       ${d.pregnancy ? `<p class="pregnant">🤰 Expecting a child${d.pregnancy.father ? ` by <b>${esc(d.pregnancy.father)}</b>` : ""}
