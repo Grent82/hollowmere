@@ -158,9 +158,15 @@ async def test_given_two_who_already_share_a_home_when_a_move_is_settled_then_no
     assert queued(engine) == []
 
 
-async def test_given_a_goblin_when_a_move_is_settled_then_nothing_is_queued(tmp_path):
+async def test_given_a_human_moving_to_a_goblin_when_a_move_is_settled_then_it_is_queued(tmp_path):
     engine = await town(tmp_path, Brain([move("Isolde")]))
-    await finished(engine, "nib", "isolde")  # a goblin keeps to his den and no one lives in it
+    await finished(engine, "nib", "isolde")  # the den is his home, and she may choose to live in it
+    assert queued(engine) == [(["isolde"], "nib")]
+
+
+async def test_given_a_goblin_moving_to_a_human_when_a_move_is_settled_then_nothing_is_queued(tmp_path):
+    engine = await town(tmp_path, Brain([move("Nib")]))
+    await finished(engine, "nib", "isolde")  # a goblin cannot go indoors, so he cannot live under a roof
     assert queued(engine) == []
 
 
@@ -259,3 +265,15 @@ async def test_given_a_move_when_the_game_is_saved_and_loaded_then_the_new_home_
     c2 = again.agents["clemence"]
     assert c2.persona.home == silas.persona.home and c2.persona.bed == silas.persona.bed
     assert silas.persona.home in c2.known_areas
+
+
+async def test_given_a_human_moves_into_the_den_when_the_move_runs_then_she_sleeps_in_the_nest_and_knows_the_den(tmp_path):
+    engine = await town(tmp_path, Brain())
+    isolde, nib = engine.agents["isolde"], engine.agents["nib"]
+    # Given Isolde settled on living with Nib
+    engine.schedule_move_in(isolde, nib, LATER - timedelta(hours=3))
+    # When the evening comes
+    await engine._absences(datetime(1347, 11, 6, 20, 0))
+    # Then her bed is the nest and the den is a place she can name; the tavern stays hers for work
+    assert isolde.persona.bed == nib.persona.bed == "goblin_den/nib_nest"
+    assert "goblin_den" in isolde.known_areas and isolde.persona.work in isolde.known_areas

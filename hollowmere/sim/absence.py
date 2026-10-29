@@ -45,7 +45,8 @@ class Absences:
 
     def schedule_move_in(self, mover: Agent, host: Agent, now: datetime) -> None:
         """Settled on living under the host's roof: the mover carries their things over at the next 20:00."""
-        if (mover.persona.is_goblin or host.persona.is_goblin or mover.persona.infant or host.persona.infant
+        # A human may move into the den, but a goblin cannot go indoors, so he cannot live under a roof.
+        if (mover.persona.is_goblin or mover.persona.infant or host.persona.infant
                 or mover.absence or host.absence or mover.persona.home == host.persona.home
                 or any(q["do"] == "move_in" and mover.id in q["ids"] for q in self._queue)):
             return
