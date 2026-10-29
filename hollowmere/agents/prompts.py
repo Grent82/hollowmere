@@ -9,11 +9,11 @@ slots; here each prompt is a small function and the shared parts are written onc
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING, Iterable
 
 from hollowmere.agents.gods import GOD_BY_ID, God
-from hollowmere.agents.persona import DATA, RANK
+from hollowmere.agents.persona import DATA, RANK, Persona
 from hollowmere.memory.stream import Memory
 
 if TYPE_CHECKING:
@@ -496,6 +496,36 @@ def family_line(agent: Agent, names: dict[str, str]) -> str:
         f"{p.first_name} is with child."
     return (f"\n{who} A baby cannot look after itself, and this weighs on {p.first_name}'s days whatever else fills "
             f"them: say in the situation and in tomorrow's plans how {p.first_name} means to carry that.\n")
+
+
+def child_draft_system_prompt() -> str:
+    return ("You write the newborn of a mother and a father in the town of Hollowmere, as a neutral storyteller. "
+            f"{WORLD_FACTS}")
+
+
+def child_draft(mother: Persona, father: Persona, species: str, sex: str, born_on: date, names: list[str],
+                refused: str = "", keep_name: str = "") -> str:
+    def who(p: Persona) -> str:
+        return (f"{p.name}, {p.age}, {p.species}. Temperament: {p.traits}. "
+                + (f"Looks: {p.appearance}. " if p.appearance else "") + p.background)
+    kind = "a goblin" if species == "goblin" else "a human"
+    surname = "" if species == "goblin" else f" A human child takes its father's family name ({father.name.split()[-1]})."
+    return f"""A child is born on {born_on.isoformat()}: {'a son' if sex == 'male' else 'a daughter'}, {kind}.
+
+MOTHER
+{who(mother)}
+
+FATHER
+{who(father)}
+
+FIRST NAMES ALREADY IN TOWN (do not reuse any of them)
+{", ".join(names)}
+{f"The name {refused} is taken: choose another." if refused else ""}{f"The child is already named {keep_name}: repeat that name as the name." if keep_name else ""}
+Write the newborn: its name (a short, plain medieval name that fits its family and kind; a goblin child gets a
+single short goblin name).{surname} Then what others see of it: {"small, grey-green and goblin" if species == "goblin" else "a human baby"},
+with one or two features from its parents. Then one plain sentence of background: whose child it is, and nothing
+else. Invent no events, no place, no midwife or other people present, no weather, no gifts and no temperament: it is
+only days old."""
 
 
 def life_facts_system_prompt() -> str:

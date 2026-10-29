@@ -119,6 +119,14 @@ def world_ideas_schema(areas: tuple[str, ...]) -> type[BaseModel]:
         ideas=(list[idea], Field(max_length=4, description="only ideas not already collected; may be empty")))  # type: ignore[valid-type]
 
 
+class ChildDraft(BaseModel):
+    name: str = Field(max_length=40, description="the newborn's name, fitting its family and kind")
+    appearance: str = Field(max_length=600, description="what others see of the baby, one or two short sentences, "
+                                                         "with features from its parents")
+    background: str = Field(max_length=500, description="whose child it is, in one plain sentence, third person; "
+                                                         "no place, no people present, no weather")
+
+
 class LifeFacts(BaseModel):
     facts: list[Annotated[str, Field(max_length=200)]] = Field(max_length=8, description=(
         "the lasting facts of this life as they stand: each held fact repeated in exactly the same words, plus at "

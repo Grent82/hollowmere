@@ -846,7 +846,11 @@ class Engine(Absences):
         if mother is None or father is None:
             return
         child_persona = romance.generate_child_persona(mother.persona, father.persona, day_key(now), self.rng)
+        child_persona = await romance.write_child_persona(self.ctx, child_persona, mother.persona, father.persona,
+                                                          day_key(now))
         child = Agent(child_persona, MemoryStream(child_persona.id, self.store, self.embedder), self.world)
+        child.history = [{"text": f"Born on {day_key(now).isoformat()} to {mother.name} and {father.name}.",
+                          "since": day_key(now).isoformat()}]
         self.agents[child.id] = child
         self.ctx.names[child.id] = child_persona.name
         self.ctx.kin = Kinship({i: x.persona for i, x in self.agents.items()})

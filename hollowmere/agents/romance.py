@@ -19,6 +19,7 @@ FEMALE_NAMES = (
     "Maude", "Thea", "Rosamund", "Enid", "Lyra", "Alys", "Bryony", "Cecily", "Dilys", "Edith",
     "Gwenna", "Hilda", "Ismay", "Linnet", "Nell", "Odette", "Philippa", "Sybil", "Verity", "Wynne",
 )
+GOBLIN_TRAITS = ("horny", "lustful", "driven to breed")  # every goblin has these; the rest comes from the parents
 GOBLIN_NAMES = (
     "Grik", "Snurt", "Tam", "Pell", "Mossa", "Bligg", "Dribb", "Fizzle", "Gnash", "Hobb",
     "Krumb", "Lurk", "Nitt", "Pogg", "Quill", "Skrit", "Tarn", "Wick", "Yarg", "Zib",
@@ -40,7 +41,7 @@ def generate_child_persona(mother: Persona, father: Persona, born_on: date, rng:
     named as family. Deterministic given `rng`'s state - callers pass the engine's one shared,
     ever-advancing rng, so two births never actually draw from the same state."""
     sex = rng.choice(["male", "female"])
-    species = father.species
+    species = "goblin" if "goblin" in (mother.species, father.species) else father.species  # a goblin's child is one
     if species == "goblin":
         first = rng.choice(GOBLIN_NAMES)
         name = first
@@ -61,6 +62,37 @@ def generate_child_persona(mother: Persona, father: Persona, born_on: date, rng:
         stances={mother.id: "fond", father.id: "fond"},
         species=species,
     )
+
+
+async def write_child_persona(ctx, base: Persona, mother: Persona, father: Persona, born_on: date,
+                              keep_name: str = "") -> Persona:
+    """The newborn as the model writes it from its parents: name, looks, background. What the code fixed on `base`
+    (sex, species, parents, age, home, a temperament too young to show) stays; a failed call, or a name that is
+    already taken, leaves the generated persona as it was."""
+    from hollowmere.agents import prompts
+    from hollowmere.agents.schemas import ChildDraft
+    from hollowmere.llm.client import LLMError
+
+    firsts = sorted({n.split()[0] for n in ctx.names.values() if n.split()})
+    taken = {n.lower() for n in firsts} | {n.lower() for n in ctx.names.values()}
+    refused, out = "", None
+    for _ in range(2):  # once more if the name it chose is already someone's
+        try:
+            out = await ctx.llm.structured(
+                prompts.child_draft_system_prompt(),
+                prompts.child_draft(mother, father, base.species, base.sex, born_on, firsts, refused, keep_name),
+                ChildDraft, label="child_persona", temperature=0.8)
+        except LLMError:
+            return base
+        name = keep_name or out.name.strip()
+        if keep_name or (name and name.split()[0].lower() not in taken and name.lower() not in taken):
+            break
+        refused = name
+    else:
+        return base
+    return base.model_copy(update={
+        "name": name, "appearance": out.appearance.strip(),
+        "background": f"{out.background.strip()} {name} was born on {born_on.isoformat()}."})
 
 
 def birth_memory(is_mother: bool, child: Persona, other: Persona) -> str:

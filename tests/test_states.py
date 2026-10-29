@@ -134,7 +134,7 @@ async def test_given_lonely_haunted_and_afraid_when_the_town_starts_then_they_ar
     engine = await _engine(tmp_path)
     nib, brannoc, roderic = engine.agents["nib"], engine.agents["brannoc"], engine.agents["roderic"]
     # Then loneliness, being haunted and the fear of the plague are passing states
-    assert [s["text"] for s in nib.states] == ["lonely"]
+    assert [s["text"] for s in nib.states] == ["lonely", "sentimental about his dead kin"]
     assert [s["text"] for s in brannoc.states] == ["haunted"]
     assert [s["text"] for s in roderic.states] == ["privately afraid of the plague"]
     # And they are no longer part of the temperament, while what is Nib's nature as a goblin stays
