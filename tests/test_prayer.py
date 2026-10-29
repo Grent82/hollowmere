@@ -54,7 +54,7 @@ class DivineReply:
 async def test_pray_observes_the_text_for_every_form_except_dream_which_is_deferred(tmp_path):
     engine = await _engine(tmp_path)
     odo, now = engine.agents["odo"], engine.now
-    for form in ("sign", "omen", "coincidence", "buff", "silence"):
+    for form in ("sign", "omen", "coincidence", "buff"):
         before = len(odo.memory.items)
         ctx = Ctx(DivineReply(form, text=f"the {form} text"), engine.world, engine.ctx.names, {})
         await odo.pray(ctx, now, "caedros")
@@ -71,7 +71,7 @@ async def test_pray_observes_the_text_for_every_form_except_dream_which_is_defer
 async def test_pray_sets_favor_only_on_buff_and_otherwise_leaves_it_untouched(tmp_path):
     engine = await _engine(tmp_path)
     odo, now = engine.agents["odo"], engine.now
-    for form in ("sign", "omen", "coincidence", "silence", "dream"):
+    for form in ("sign", "omen", "coincidence", "dream"):
         odo.favor = None
         ctx = Ctx(DivineReply(form), engine.world, engine.ctx.names, {})
         await odo.pray(ctx, now, "caedros")
@@ -92,7 +92,7 @@ async def test_pray_never_writes_to_bonds_for_any_form(tmp_path):
     engine = await _engine(tmp_path)
     odo, now = engine.agents["odo"], engine.now
     before = copy.deepcopy({a.id: dict(a.bonds) for a in engine.agents.values()})
-    for form in ("dream", "sign", "omen", "coincidence", "buff", "silence"):
+    for form in ("dream", "sign", "omen", "coincidence", "buff"):
         ctx = Ctx(DivineReply(form, duration_hours=1), engine.world, engine.ctx.names, {})
         await odo.pray(ctx, now, "caedros")
     after = {a.id: dict(a.bonds) for a in engine.agents.values()}

@@ -343,6 +343,14 @@ class Agent:
             if task.place == old_bed:
                 task.place = bed
 
+    def looks_now(self) -> str:
+        """What another person sees of them: their usual looks, and a changed bearing while a favor lingers.
+        The god is never named - the other only sees the change."""
+        looks = self.persona.appearance
+        if not self.favor:
+            return looks
+        return f"{looks} Today they carry themselves differently: {self.favor['text'].rstrip('.')}.".strip()
+
     def learn_area(self, area_id: str, world: World) -> None:
         """A place this person was not free to name before, e.g. the goblin's burrow once they swore to protect him."""
         if area_id in world.areas and area_id not in self.known_areas:
@@ -585,7 +593,7 @@ class Agent:
                 prompts.system_prompt(self),
                 prompts.react(self, ctx.names, now, place, self.task.activity if self.task else "standing about",
                               other_name, other.activity_phrase(ctx.world), mems, aside,
-                              topics=list(self.topics), other_looks=other.persona.appearance, arranged=arranged),
+                              topics=list(self.topics), other_looks=other.looks_now(), arranged=arranged),
                 Reaction, label="react")
         except LLMError as e:
             log.warning("%s: reaction failed (%s)", self.id, e)
@@ -629,7 +637,7 @@ class Agent:
             prompts.converse(self, ctx.names, now, place, other.name, other_doing, purpose, transcript, mems, aside,
                              town_places=[ctx.world.areas[a].name for a in self.known_areas],
                              topics=list(self.topics), known_as=ctx.known_as, avoid=avoid,
-                             other_looks=other.persona.appearance, romance_eligible=romance_eligible,
+                             other_looks=other.looks_now(), romance_eligible=romance_eligible,
                              invited=invited),
             utterance_schema(romance_eligible), label="converse", temperature=0.85)
 
@@ -777,8 +785,11 @@ class Agent:
         try:
             mems = await self.memory.retrieve(
                 [f"{self.first}'s past prayers and dealings with {god.name}", god.domain], now, k=8)
+            seen = {m.id for m in mems}
+            recent = [m for m in self.memory.items if m.id not in seen and m.kind in ("observation", "chat", "reflection")
+                      and m.importance >= 5 and now - m.created <= timedelta(days=1)][-6:]
             out = await ctx.llm.structured(
-                prompts.god_system_prompt(god), prompts.divine_prayer(self, god, now, offering, mems),
+                prompts.god_system_prompt(god), prompts.divine_prayer(self, god, now, offering, mems, recent),
                 DivineAnswer, label="divine_answer")
         except LLMError as e:
             log.warning("%s: prayer to %s failed (%s)", self.id, god.name, e)

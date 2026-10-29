@@ -325,6 +325,44 @@ async def test_divine_prayer_prompt_shows_the_offering_and_addresses_the_god_dir
     assert "prays for the dying" in text and god.name in text
 
 
+async def test_given_a_praying_person_when_the_god_is_asked_then_it_sees_how_things_stand_for_them(tmp_path):
+    # Given Odo, with a situation, a drive and something heavy on his mind lately
+    engine = await _engine(tmp_path)
+    from hollowmere.agents.gods import GOD_BY_ID
+    odo, god = engine.agents["odo"], GOD_BY_ID["caedros"]
+    odo.situation, odo.drive, odo.town_state = "Odo hides a letter from the Watch.", "to keep his niece safe", "The plague is worse."
+    recent = [Memory(1, "observation", "Clemence wept at the almshouse door.", NOW, NOW, 7)]
+    # When the prayer prompt is built with those recent memories
+    text = prompts.divine_prayer(odo, god, NOW, "prays for mercy", [], recent)
+    # Then the god sees his situation, drive, the town's state and what has weighed on him
+    assert "Odo hides a letter from the Watch." in text and "to keep his niece safe" in text
+    assert "The plague is worse." in text and "Clemence wept at the almshouse door." in text
+
+
+async def test_given_a_favor_when_the_identity_is_built_then_it_is_told_to_colour_speech_and_choices(tmp_path):
+    # Given Odo under a favor
+    engine = await _engine(tmp_path)
+    odo = engine.agents["odo"]
+    odo.favor = {"god": "caedros", "text": "a quiet calm", "clarity": "doubt", "expires": "1347-10-23T00:00:00"}
+    # When his identity is built
+    text = prompts.identity(odo, engine.ctx.names)
+    # Then the mood is named and he is told it shapes how he speaks and chooses
+    assert "a quiet calm" in text and "colour how Odo speaks and chooses" in text
+
+
+async def test_given_a_favor_when_another_looks_at_them_then_the_change_in_bearing_is_visible(tmp_path):
+    # Given Odo, first without and then with a favor
+    engine = await _engine(tmp_path)
+    odo = engine.agents["odo"]
+    plain = odo.looks_now()
+    odo.favor = {"god": "caedros", "text": "a quiet calm", "clarity": "doubt", "expires": "1347-10-23T00:00:00"}
+    # When another person sees him
+    seen = odo.looks_now()
+    # Then they see the usual looks, and with the favor also a changed bearing, without the god's name
+    assert plain == odo.persona.appearance
+    assert seen.startswith(odo.persona.appearance) and "a quiet calm" in seen and "Caedros" not in seen
+
+
 def test_town_review_shows_the_old_state_and_what_has_happened_since():
     text = prompts.town_review(
         "The plague has returned, the harvest has failed, and Lord Maelor has not left his keep in months.",

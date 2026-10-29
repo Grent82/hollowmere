@@ -115,6 +115,7 @@ def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = 
             text += f"A favor from {god.name if god else agent.favor['god']} lingers on {p.first_name}: {agent.favor['text']}\n"
         else:
             text += f"A strange mood lingers on {p.first_name}: {agent.favor['text']}\n"
+        text += f"Let it colour how {p.first_name} speaks and chooses while it lasts.\n"
     if p.is_goblin:
         friends = ", ".join(names.get(a, a) for a in sorted(agent.allies)) or "no one yet"
         kind = ", ".join(f"{names.get(k, k)} ({REGARD_WORDS[r['step']]})" for k, r in sorted(agent.regard.items())
@@ -516,9 +517,8 @@ def god_system_prompt(god: God) -> str:
         f"You speak as {god.name}, {god.domain}, one of the four gods worshipped at Hollowmere's chapel. "
         f"{WORLD_FACTS} Your temperament: {god.temperament}. How you answer prayers: {god.response_bias}. "
         f"Your voice: {god.voice}\n\n"
-        "Someone has just prayed to you. Decide freely whether and how to answer - a dream, a waking sign, "
-        "an omen, a mere coincidence, a tangible favor, or silence; silence is common and never a failure "
-        "to decide. Your answer is usually deniable, even a favor: it reads as something that could equally "
+        "Someone has just prayed to you. Decide freely how to answer, for you always do - a dream, a waking sign, "
+        "an omen, a mere coincidence, or a tangible favor. Your answer is usually deniable, even a favor: it reads as something that could equally "
         "be chance, mood, or the asker's own hope. How surely the asker knows it was you is yours to set "
         "(clarity), in keeping with your nature and with what you sent: only a sign that could not be "
         "mistaken, and rarely, is unmistakably yours. "
@@ -528,11 +528,19 @@ def god_system_prompt(god: God) -> str:
     )
 
 
-def divine_prayer(agent: Agent, god: God, now: datetime, offering: str, mems: list[Memory]) -> str:
+def divine_prayer(agent: Agent, god: God, now: datetime, offering: str, mems: list[Memory],
+                  recent: list[Memory] | None = None) -> str:
     p = agent.persona
+    lately = (f"WHAT HAS WEIGHED ON {p.first_name.upper()} LATELY\n{memories(recent, now)}\n\n") if recent else ""
     return f"""{clock_line(now)} {p.name}, {p.age}, {p.sex}, {p.background}
 
-{p.first_name} prays to you, {god.name}: {offering}
+HOW THINGS STAND FOR {p.first_name.upper()}
+Temperament: {p.traits}.
+Lately: {agent.situation or p.currently}
+{p.first_name} wants, for themself: {agent.drive or "nothing they could name"}
+The town: {agent.town_state or DEFAULT_TOWN_STATE}
+
+{lately}{p.first_name} prays to you, {god.name}: {offering}
 
 WHAT YOU KNOW OF {p.first_name.upper()}'S PAST DEALINGS WITH YOU
 {memories(mems, now)}

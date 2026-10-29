@@ -24,7 +24,7 @@ from hollowmere.agents.persona import Stance
 GoblinRegard = Literal["drive off", "undecided", "tolerate", "feed", "protect"]
 
 PrayTo = Literal[GOD_IDS + ("none",)]
-DivineForm = Literal["dream", "sign", "omen", "coincidence", "buff", "silence"]
+DivineForm = Literal["dream", "sign", "omen", "coincidence", "buff"]
 DivineClarity = Literal["none", "doubt", "suspected", "certain"]
 
 HHMM = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"  # [0-9], not \d: llama.cpp's grammar lets anything through for \d
@@ -88,8 +88,8 @@ class DayReview(BaseModel):
 
 class DivineAnswer(BaseModel):
     form: DivineForm = Field(description="how you answer: a dream, a waking sign, an omen, a mere "
-                                         "coincidence, a tangible favor (buff), or silence - choose freely; "
-                                         "silence is common and not a failure to decide")
+                                         "coincidence, a tangible favor (buff) - choose freely; you "
+                                         "always answer")
     text: str = Field(description="what the praying mortal perceives, in your own voice, kept deniable - "
                                   "something that could equally be chance, mood, or their own hope, never a "
                                   "flat statement that you have acted")

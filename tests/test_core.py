@@ -65,12 +65,12 @@ def test_day_plan_block_requires_pray_to_naming_a_known_god_or_none():
         schema.model_validate(bad)
 
 
-def test_divine_answer_form_is_constrained_to_the_six_known_kinds():
+def test_divine_answer_form_is_constrained_to_the_five_known_kinds():
     from typing import get_args
 
     from hollowmere.agents.schemas import DivineAnswer
     assert set(get_args(DivineAnswer.model_fields["form"].annotation)) == {
-        "dream", "sign", "omen", "coincidence", "buff", "silence"}
+        "dream", "sign", "omen", "coincidence", "buff"}
 
 
 def test_normalise_plan_fills_gaps_and_ends_in_bed():
