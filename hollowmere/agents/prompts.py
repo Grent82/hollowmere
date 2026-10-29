@@ -565,7 +565,10 @@ WHAT YOU KNOW OF {p.first_name.upper()}'S PAST DEALINGS WITH YOU
 
 Decide your answer, and if any, what {p.first_name} alone perceives of it - never announced to the town. If
 you grant a favor, describe it only as a mood or aura that colours {p.first_name}'s own bearing, not a named
-power, and say for how many hours it lingers."""
+power, and say for how many hours it lingers.
+Your answer may also ease one of the passing states under "Right now" (name it exactly in `eases`) and/or leave
+a new one in {p.first_name} (`lingers`), which lasts until {p.first_name}'s own days wear it away. Do so only
+when your nature and what you sent truly would."""
 
 
 def baby_home(agent: Agent, names: dict[str, str], now: datetime, child: Agent, father: Agent,

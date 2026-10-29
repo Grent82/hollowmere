@@ -168,3 +168,83 @@ async def test_pray_records_clarity_on_the_favor_and_the_prayer_event_payload(tm
     await odo.pray(ctx, now, "caedros")
     assert odo.favor["clarity"] == "suspected"
     assert odo.new_prayers[-1]["clarity"] == "suspected"
+
+
+class StatefulReply(DivineReply):
+    """A god who also eases one of the mortal's passing states, or leaves a new one."""
+
+    def __init__(self, eases: str = "", lingers: str = "", **kw):
+        super().__init__(kw.pop("form", "sign"), **kw)
+        self.eases, self.lingers = eases, lingers
+
+    async def structured(self, system, user, schema, *, label, temperament=None, temperature=None):
+        self.asked.append(user)
+        return schema.model_validate({
+            "form": self.form, "text": self.text, "effect": self.effect, "duration_hours": self.duration_hours,
+            "importance": self.importance, "eases": self.eases, "lingers": self.lingers})
+
+
+async def _pray_with(engine, who, reply):
+    await who.pray(Ctx(reply, engine.world, engine.ctx.names, {}), engine.now, "yevra")
+
+
+async def test_given_a_grieving_woman_when_the_god_eases_her_grief_then_the_state_ends_and_others_stay(tmp_path):
+    # Given Odo, exhausted and guilt-ridden
+    engine = await _engine(tmp_path)
+    odo = engine.agents["odo"]
+    # When the god eases his guilt
+    await _pray_with(engine, odo, StatefulReply(eases="guilt-ridden"))
+    # Then only the exhaustion is left
+    assert [s["text"] for s in odo.states] == ["exhausted"]
+
+
+async def test_given_a_name_the_mortal_does_not_carry_when_the_god_eases_it_then_nothing_changes(tmp_path):
+    # Given Odo with two states
+    engine = await _engine(tmp_path)
+    odo = engine.agents["odo"]
+    # When the god eases a state he does not have
+    await _pray_with(engine, odo, StatefulReply(eases="lovesick"))
+    # Then both remain
+    assert [s["text"] for s in odo.states] == ["exhausted", "guilt-ridden"]
+
+
+async def test_given_an_answer_that_leaves_a_state_when_the_mortal_prays_then_it_begins_today(tmp_path):
+    # Given Clemence, exhausted
+    engine = await _engine(tmp_path)
+    clemence = engine.agents["clemence"]
+    # When the god leaves her a quiet certainty
+    await _pray_with(engine, clemence, StatefulReply(lingers="a quiet certainty that she was heard"))
+    # Then she carries it, dated today, beside the old one
+    assert [s["text"] for s in clemence.states] == ["exhausted", "a quiet certainty that she was heard"]
+    assert clemence.states[1]["since"] == engine.now.date().isoformat()
+
+
+async def test_given_an_answer_that_eases_and_leaves_when_the_mortal_prays_then_one_makes_room_for_the_other(tmp_path):
+    # Given Odo with two states and room for one more
+    engine = await _engine(tmp_path)
+    odo = engine.agents["odo"]
+    # When the god lifts the guilt and leaves him peace
+    await _pray_with(engine, odo, StatefulReply(eases="guilt-ridden", lingers="at peace with the night"))
+    # Then the new state replaces the old one
+    assert [s["text"] for s in odo.states] == ["exhausted", "at peace with the night"]
+
+
+async def test_given_a_prayer_when_the_god_changes_states_then_no_one_elses_are_touched(tmp_path):
+    # Given everyone's states
+    engine = await _engine(tmp_path)
+    before = {a.id: [dict(s) for s in a.states] for a in engine.agents.values() if a.id != "odo"}
+    # When the god answers Odo and eases and leaves a state
+    await _pray_with(engine, engine.agents["odo"], StatefulReply(eases="exhausted", lingers="rested"))
+    # Then no one else's states changed
+    assert before == {a.id: a.states for a in engine.agents.values() if a.id != "odo"}
+
+
+async def test_given_a_praying_mortal_when_the_prayer_is_written_then_the_god_is_told_how_to_ease_a_state(tmp_path):
+    # Given Odo with states
+    engine = await _engine(tmp_path)
+    reply = StatefulReply()
+    # When he prays
+    await _pray_with(engine, engine.agents["odo"], reply)
+    # Then the god's prompt names his states and the two things it may do with them
+    asked = reply.asked[0]
+    assert "Right now: exhausted, guilt-ridden" in asked and "eases" in asked and "lingers" in asked

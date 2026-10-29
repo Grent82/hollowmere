@@ -119,6 +119,11 @@ class DivineAnswer(BaseModel):
                                                           "otherwise 0")
     importance: int = Field(ge=1, le=10, description="how much this should weigh on the mortal who "
                                                       "receives it, 1 faint to 10 unforgettable")
+    eases: str = Field(default="", description="a passing state the mortal now carries, copied exactly as listed "
+                                               "under 'Right now', that your answer lifts from them; otherwise empty")
+    lingers: str = Field(default="", description="a short phrase for a passing state your answer leaves in them, "
+                                                 "lower case, without their name, e.g. \"a quiet certainty that "
+                                                 "someone heard\"; otherwise empty")
 
 
 @lru_cache(maxsize=256)

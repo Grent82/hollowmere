@@ -857,6 +857,10 @@ class Agent:
             hours = max(1, out.duration_hours)
             self.favor = {"god": god.id, "text": out.effect or out.text, "clarity": out.clarity,
                          "expires": (now + timedelta(hours=hours)).isoformat()}
+        eased = out.eases.strip().lower()
+        if eased or out.lingers.strip():
+            self.set_states([s["text"] for s in self.states if s["text"].lower() != eased] + [out.lingers],
+                            now)
         self.new_prayers.append({"god": god.id, "form": out.form, "text": out.text, "clarity": out.clarity})
 
     async def observe(self, text: str, now: datetime, importance: int) -> None:
