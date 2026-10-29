@@ -127,3 +127,16 @@ async def test_given_a_state_when_the_agent_is_shown_in_the_ui_then_it_is_sent(t
     # Then the state is sent with its text
     assert detail["states"][0]["text"] == "grieving for her child"
     assert "grieving" not in detail["traits"]
+
+
+async def test_given_lonely_haunted_and_afraid_when_the_town_starts_then_they_are_states_and_the_goblin_drives_stay_traits(tmp_path):
+    # Given Nib, Brannoc and Roderic as the persona file writes them
+    engine = await _engine(tmp_path)
+    nib, brannoc, roderic = engine.agents["nib"], engine.agents["brannoc"], engine.agents["roderic"]
+    # Then loneliness, being haunted and the fear of the plague are passing states
+    assert [s["text"] for s in nib.states] == ["lonely"]
+    assert [s["text"] for s in brannoc.states] == ["haunted"]
+    assert [s["text"] for s in roderic.states] == ["privately afraid of the plague"]
+    # And they are no longer part of the temperament, while what is Nib's nature as a goblin stays
+    assert "lonely" not in nib.persona.traits and "horny" in nib.persona.traits and "driven to breed" in nib.persona.traits
+    assert "haunted" not in brannoc.persona.traits and "afraid of the plague" not in roderic.persona.traits
