@@ -34,7 +34,11 @@ class Absences:
     """Mixed into Engine. Needs: agents, world, cfg, rng, now, _queue, _event()."""
 
     def schedule_departure(self, group: list[Agent], now: datetime) -> None:
-        """One person or two settled on leaving: they set out at the next 22:00."""
+        """One person or two settled on leaving: they set out at the next 22:00. A child never goes alone: it
+        travels with its mother (see `_dependents`)."""
+        group = [x for x in group if not x.persona.dependent]
+        if not group:
+            return
         ids = [x.id for x in group]
         if any(x.absence for x in group) or any(q["do"] == "depart" and set(ids) & set(q["ids"]) for q in self._queue):
             return
@@ -46,7 +50,7 @@ class Absences:
     def schedule_move_in(self, mover: Agent, host: Agent, now: datetime) -> None:
         """Settled on living under the host's roof: the mover carries their things over at the next 20:00."""
         # A human may move into the den, but a goblin cannot go indoors, so he cannot live under a roof.
-        if (mover.persona.is_goblin or mover.persona.infant or host.persona.infant
+        if (mover.persona.is_goblin or mover.persona.dependent or host.persona.dependent
                 or mover.absence or host.absence or mover.persona.home == host.persona.home
                 or any(q["do"] == "move_in" and mover.id in q["ids"] for q in self._queue)):
             return
@@ -57,7 +61,7 @@ class Absences:
 
     def _dependents(self, ids: list[str]) -> list[Agent]:
         """Infants stay with their mother, wherever she goes."""
-        return [x for x in self.agents.values() if x.persona.infant and x.persona.parents[:1] and x.persona.parents[0] in ids]
+        return [x for x in self.agents.values() if x.persona.dependent and x.persona.parents[:1] and x.persona.parents[0] in ids]
 
     def circle(self, group: list[Agent]) -> list[Agent]:
         """Who would notice they were gone: family, whoever shares their roof, and anyone fond of one of them
@@ -70,7 +74,7 @@ class Absences:
                 self.ctx.kin.related(o.id, i) or o.bonds.get(i, {}).get("talks", 0) >= 3
                 or RANK[o.bonds.get(i, {}).get("stance", "neutral")] >= RANK["fond"] for i in ids)
         return [o for o in self.agents.values()
-                if o.id not in ids and not o.persona.infant and not o.is_away and close(o)]
+                if o.id not in ids and not o.persona.dependent and not o.is_away and close(o)]
 
     async def _absences(self, now: datetime) -> None:
         """Run what has come due: departures, the morning's news, and everyone whose absence has run out."""
@@ -147,7 +151,7 @@ class Absences:
 
     async def return_home(self, everyone: list[Agent], now: datetime) -> None:
         """The way was closed to them: back home, with a memory of why, and the people who know them are told."""
-        group = [x for x in everyone if not x.persona.infant]
+        group = [x for x in everyone if not x.persona.dependent]
         reason = everyone[0].absence["reason"]
         for x in everyone:
             x.absence = None
@@ -166,8 +170,8 @@ class Absences:
 
     def arrest(self, by: Agent, who: Agent, now: datetime) -> bool:
         """`by` has had `who` locked in the watchhouse cell for a day or three. Anyone may do it to anyone."""
-        if (by is who or any(x.persona.infant or x.persona.is_goblin or x.absence for x in (by, who))
-                or sum(1 for x in self.agents.values() if x.is_jailed and not x.persona.infant) >= self.cfg.max_jailed):
+        if (by is who or any(x.persona.dependent or x.persona.is_goblin or x.absence for x in (by, who))
+                or sum(1 for x in self.agents.values() if x.is_jailed and not x.persona.dependent) >= self.cfg.max_jailed):
             return False
         everyone = [who] + self._dependents([who.id])
         days = self.rng.randint(self.cfg.detention_min_days, self.cfg.detention_max_days)
@@ -198,7 +202,7 @@ class Absences:
             x.x, x.y = self.world.target_tile(x.persona.bed) or (x.x, x.y)
             x.mode, x.plan, x.plan_date, x.tasks, x.tasks_block, x.task = "acting", [], None, [], -1, None
         for x in everyone:
-            if not x.persona.infant:
+            if not x.persona.dependent:
                 await x._remember("observation", f"I was let out of the cell after {days} day{'s' * (days > 1)}.", now, 7)
-        self._event("released", [x.id for x in everyone if not x.persona.infant],
+        self._event("released", [x.id for x in everyone if not x.persona.dependent],
                     f"{everyone[0].first} is let out of the watchhouse cell.")

@@ -127,6 +127,20 @@ class ChildDraft(BaseModel):
                                                          "no place, no people present, no weather")
 
 
+@lru_cache(maxsize=64)
+def child_growth_schema(pool: tuple[str, ...], low: int, high: int) -> type[BaseModel]:
+    """A newborn written on as a child: its traits can only be words its parents already have."""
+    return create_model(
+        "ChildGrowth",
+        traits=(list[Literal[pool]], Field(min_length=low, max_length=high, description=(  # type: ignore[valid-type]
+            f"{low} to {high} of the parents' own traits that the child shows, the ones that fit it best"))),
+        look_now=(str, Field(max_length=200, description="one short sentence on how the child looks and moves now; "
+                                                         "only what is new, not the earlier description")),
+        currently=(str, Field(max_length=200, description="one sentence: what the small child is, and does, these days")),
+        lifestyle=(str, Field(max_length=250, description="one sentence on a small child's day in its parents' care")),
+    )
+
+
 class LifeFacts(BaseModel):
     facts: list[Annotated[str, Field(max_length=200)]] = Field(max_length=8, description=(
         "the lasting facts of this life as they stand: each held fact repeated in exactly the same words, plus at "

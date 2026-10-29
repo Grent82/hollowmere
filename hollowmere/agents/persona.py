@@ -47,6 +47,8 @@ def affinity_label(affinity: float) -> Stance:
 
 
 Sex = Literal["male", "female"]
+CHILD_AGE = 3  # what a newborn becomes when it grows into a child
+MINOR_AGE = 14  # below this: dependent on a parent, no love, no leaving alone
 
 
 class Persona(BaseModel):
@@ -82,9 +84,19 @@ class Persona(BaseModel):
         return self.age < 1
 
     @property
+    def child(self) -> bool:
+        """A small child: past the newborn, still kept close to whoever looks after it."""
+        return 1 <= self.age < MINOR_AGE
+
+    @property
+    def dependent(self) -> bool:
+        """A newborn or a child: carried or led along, never on its own, no part in love or leaving."""
+        return self.age < MINOR_AGE
+
+    @property
     def is_goblin(self) -> bool:
-        """Goblin stealth (hiding, being spotted) applies to grown goblins; a baby in its mother's room is no secret."""
-        return self.species == "goblin" and not self.infant
+        """Goblin stealth (hiding, being spotted) applies to grown goblins; a baby or child in its parent's care is no secret."""
+        return self.species == "goblin" and not self.dependent
 
     @property
     def is_human(self) -> bool:

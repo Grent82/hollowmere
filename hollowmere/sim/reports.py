@@ -81,7 +81,7 @@ async def world_ideas(engine, now: datetime) -> None:
     start = datetime.combine(day_key(now), DAY_START)
     bullets: list[str] = []
     for agent in engine.agents.values():
-        if agent.persona.infant or agent.is_away:
+        if agent.persona.dependent or agent.is_away:
             continue
         mems = [m for m in agent.memory.items if m.created >= start and m.kind != "plan" and m.importance >= 3][-40:]
         if not mems:

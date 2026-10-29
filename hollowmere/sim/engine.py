@@ -34,8 +34,8 @@ from hollowmere.agents import prompts, romance
 from hollowmere.agents.agent import Agent, Ctx, Digest, Task, agreed_departure, agreed_meetings, agreed_move, day_key, due_at
 from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.kinship import Kinship
-from hollowmere.agents.persona import RANK, starting_affinity
-from hollowmere.agents.schemas import TownState
+from hollowmere.agents.persona import CHILD_AGE, RANK, starting_affinity
+from hollowmere.agents.schemas import TownState, child_growth_schema
 from hollowmere.config import SimConfig
 from hollowmere.llm.client import LLMError
 from hollowmere.memory.embed import Embedder
@@ -71,6 +71,11 @@ HIDING_PLACES = ["goblin_den/nib_nest", "witchwood/bramble_thicket", "riverbank/
 TOWN_EVENT_KINDS = {"showing", "birth", "reflection", "agreement", "ally", "spurn", "warm", "sighting", "intent", "chat_end"}
 
 Listener = Callable[[dict], Awaitable[None]]
+
+
+def _latin(text: str) -> str:
+    """The model now and then lets a word of another script slip into an English text: drop those characters."""
+    return re.sub(r"[\u2e80-\u9fff\uac00-\ud7af]", "", text).strip()
 
 
 def _add_counts(a: dict[str, int], b: dict[str, int]) -> dict[str, int]:
@@ -125,6 +130,7 @@ class Engine(Absences):
         self._agreements: dict[str, dict[str, Digest]] = {}  # convo id -> agent id -> their digest of it
         self._town_reviewed: date | None = None  # day_key() of the last town-wide review, if any
         self._town_task: asyncio.Task | None = None
+        self._grow_tried: dict[str, date] = {}  # child -> the day growing up was last tried
         self._reported: date | None = None  # the day the evening reports last started
         self._report_task: asyncio.Task | None = None
         self._queue: list[dict] = []  # departures and the news of them still to come, each with an "at" time
@@ -204,8 +210,8 @@ class Engine(Absences):
     def _move(self, now: datetime) -> None:
         for a in self.agents.values():
             a.steps = []
-            if a.persona.infant:
-                a.path = []  # carried, never walking
+            if a.persona.dependent:
+                a.path = []  # carried or led along, never walking by itself
             if a.convo_id is not None or not a.path:
                 continue
             fleeing = a.hiding_until is not None and now < a.hiding_until
@@ -221,11 +227,66 @@ class Engine(Absences):
                     a.arrive()
         self._update_objects()
 
+    def _grow_children(self, now: datetime) -> None:
+        """A newborn that is old enough (4 days, a goblin 3) is written on as a child, once a day until it works."""
+        for baby in list(self.agents.values()):
+            born = romance.born_on(baby.persona)
+            if not baby.persona.infant or born is None or len(baby.persona.parents) != 2:
+                continue
+            if (day_key(now) - born).days < (3 if baby.persona.species == "goblin" else 4):
+                continue
+            if self._grow_tried.get(baby.id) == day_key(now):
+                continue
+            self._grow_tried[baby.id] = day_key(now)
+            self._spawn(baby, self._grow_up(baby, now), f"grow:{baby.id}")
+
+    async def _grow_up(self, child: Agent, now: datetime) -> None:
+        mother, father = (self.agents.get(i) for i in child.persona.parents)
+        if mother is None or father is None:
+            return
+        p = child.persona
+        goblin = p.species == "goblin"
+        pool = romance.growth_pool(mother.persona, father.persona)
+        if len(pool) < 2:
+            return
+        low, high = (2, 3) if goblin else (3, 4)
+        schema = child_growth_schema(pool, min(low, len(pool)), min(high, len(pool)))
+        try:
+            out = await self.ctx.llm.structured(
+                prompts.child_draft_system_prompt(), prompts.child_growth(child, mother.persona, father.persona, p.species,
+                                     self.world.place_name(p.home)),
+                schema, label="child_growth", temperature=0.7)
+        except LLMError as e:
+            log.warning("%s: growing up failed (%s)", child.id, e)
+            return
+        traits = [*out.traits, *(t for t in romance.GOBLIN_TRAITS if goblin)]
+        look = _latin(out.look_now)
+        # the new look goes after the old one, unless the model already carried the old one over
+        appearance = look if p.appearance[:40].lower() in look.lower() else f"{p.appearance} {look}".strip()
+        grown = p.model_copy(update={
+            "age": CHILD_AGE, "traits": ", ".join(dict.fromkeys(traits)), "appearance": appearance,
+            "currently": _latin(out.currently), "lifestyle": _latin(out.lifestyle)})
+        child.persona = grown
+        child.plan, child.plan_date, child.tasks, child.tasks_block, child.task = [], None, [], -1, None
+        day = day_key(now).isoformat()
+        child.history = [*child.history, {"text": f"Grew from a newborn into a child on {day}.", "since": day}]
+        generated = [d for d in self.store.get("generated_personas", []) if d["id"] != child.id]
+        self.store.put("generated_personas", [*generated, grown.model_dump(mode="json")])
+        word = "son" if grown.sex == "male" else "daughter"
+        for r in self.agents.values():
+            bond = r.bonds.get(child.id)
+            if bond and str(bond.get("kin", "")).startswith("your newborn"):
+                bond["kin"] = f"your young {word}"
+        for parent in (mother, father):
+            await parent._remember("observation", f"{child.name} has grown from a newborn into a small child, who now "
+                                                  f"follows me about and says a few words.", now, 7)
+        self._event("grew", [child.id, mother.id, father.id], f"{child.first} has grown into a small child.")
+
     def _carry_babies(self) -> None:
         """A baby is wherever the parent who shares its home is. A goblin child is carried only by a goblin: a
         human leaves it hidden in its bed rather than show it to the town."""
         for baby in self.agents.values():
-            if not baby.persona.infant or baby.absence:
+            if not baby.persona.dependent or baby.absence:
                 continue
             for pid in baby.persona.parents:
                 carer = self.agents.get(pid)
@@ -632,6 +693,7 @@ class Engine(Absences):
                     and a.wake is not None and now > a.wake:
                 self._spawn(a, a.review_day(self.ctx, now), "review")
         self._pregnancy_phases(now)
+        self._grow_children(now)
         for preg in self.pregnancies:
             mother = self.agents.get(preg["mother_id"])
             if not preg["resolved"] and date.fromisoformat(preg["due_day"]) <= day_key(now) \
@@ -743,8 +805,8 @@ class Engine(Absences):
         """Both sides' own digest agreed this conversation included making love: close the gap in
         affinity, mark the pair as having already happened (so future occasions skip the affinity
         gate entirely), and - for a male+female pair with no pregnancy already in flight - conceive."""
-        if self.ctx.kin.related(a.id, b.id):
-            return  # family: whatever the two digests said, this was not that
+        if self.ctx.kin.related(a.id, b.id) or a.persona.dependent or b.persona.dependent:
+            return  # family, or a child: whatever the two digests said, this was not that
         for x, y in ((a, b), (b, a)):
             bond = x.bonds[y.id]
             if RANK[bond["stance"]] < RANK["close"]:
@@ -767,7 +829,7 @@ class Engine(Absences):
         what it is to them. Not her own parents, who hear of it by eye like the town does (a secret lover stays
         secret), and not the father's side: who the father is stays hers to say."""
         for r in self.agents.values():
-            if r.id in (child.id, mother.id) or r.persona.infant or not self.ctx.kin.related(r.id, mother.id) \
+            if r.id in (child.id, mother.id) or r.persona.dependent or not self.ctx.kin.related(r.id, mother.id) \
                     or r.id in self.ctx.kin.parents.get(mother.id, set()):
                 continue
             word = self.ctx.kin.what_is(child.id, r.id)
@@ -790,7 +852,7 @@ class Engine(Absences):
         belly = self._belly_text(mother)
         text = f"Word is that {mother.name} has given birth to {child.name}."
         for r in self.agents.values():
-            if r.id == child.id or r.id in child.persona.parents or r.persona.infant or any(child.name in m.text for m in r.memory.items):
+            if r.id == child.id or r.id in child.persona.parents or r.persona.dependent or any(child.name in m.text for m in r.memory.items):
                 continue
             if any(m.text == belly for m in r.memory.items):
                 await r._remember("observation", text, when, 6)

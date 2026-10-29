@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import random
+import re
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -62,6 +63,23 @@ def generate_child_persona(mother: Persona, father: Persona, born_on: date, rng:
         stances={mother.id: "fond", father.id: "fond"},
         species=species,
     )
+
+
+def growth_pool(mother: Persona, father: Persona) -> tuple[str, ...]:
+    """The temperament words a child can inherit: those of both parents, without the three every goblin has."""
+    words: list[str] = []
+    for p in (mother, father):
+        for w in p.traits.split(","):
+            w = w.strip()
+            if w and w not in words and w not in GOBLIN_TRAITS:
+                words.append(w)
+    return tuple(words)
+
+
+def born_on(persona: Persona) -> date | None:
+    """The day a generated child was born, as its background says."""
+    m = re.search(r"born on (\d{4}-\d{2}-\d{2})", persona.background)
+    return date.fromisoformat(m.group(1)) if m else None
 
 
 async def write_child_persona(ctx, base: Persona, mother: Persona, father: Persona, born_on: date,

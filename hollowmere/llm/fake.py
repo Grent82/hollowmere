@@ -167,6 +167,13 @@ class FakeLLM:
     def _townstate(self, js: dict, user: str) -> dict:
         return {"text": "The plague lingers and the harvest is still thin, but the Watch keeps the peace."}
 
+    def _childgrowth(self, js: dict, user: str) -> dict:
+        items = js["properties"]["traits"]["items"]
+        allowed = items.get("enum") or [items["const"]]
+        return {"traits": allowed[:js["properties"]["traits"]["minItems"]],
+                "look_now": "Toddles on unsteady legs.", "currently": "a small child who follows a parent about.",
+                "lifestyle": "plays near a parent, naps at noon."}
+
     def _childdraft(self, js: dict, user: str) -> dict:
         return {"name": "Pip", "appearance": "A tiny, wrinkled baby.", "background": "A child of the town."}
 

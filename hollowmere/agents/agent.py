@@ -280,7 +280,7 @@ class Agent:
         # The goblin cannot walk into the tavern or the bakery; plans that send him indoors only end in a bolt.
         # A baby stays where it is carried: its mother's home, never the streets.
         self.known_areas = [a.id for a in world.areas.values()
-                            if a.id in own or (a.public and not persona.infant and not (persona.is_goblin and a.indoor))]
+                            if a.id in own or (a.public and not persona.dependent and not (persona.is_goblin and a.indoor))]
         self.place_ids = self._places_in(world)
         self.x, self.y = world.target_tile(persona.start) or (0, 0)
         self.path: list[tuple[int, int]] = []
@@ -650,8 +650,9 @@ class Agent:
         place = ctx.world.place_name(self.task.place) if self.task else "the street"
         other_doing = other.task.activity if other.task else "standing about"
         aside = prompts.goblin_aside(self, other, now) if other.persona.is_goblin and self.persona.is_human else ""
-        romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id),
-                                                  kin=ctx.kin is not None and ctx.kin.related(self.id, other.id))
+        romance_eligible = not (self.persona.dependent or other.persona.dependent) and romance.eligible_for_love(
+            self.persona.sex, other.persona.sex, self.bonds.get(other.id),
+            kin=ctx.kin is not None and ctx.kin.related(self.id, other.id))
         return await ctx.llm.structured(
             prompts.system_prompt(self),
             prompts.converse(self, ctx.names, now, place, other.name, other_doing, purpose, transcript, mems, aside,
@@ -667,8 +668,9 @@ class Agent:
         judging_goblin = other.persona.is_goblin and self.persona.is_human and self.id not in other.allies
         aside = prompts.goblin_aside(self, other, now) if judging_goblin else ""
         owed = [f"{c['time']} — {c['activity']} at {c['place']}" for c in self.commitments]
-        romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id),
-                                                  kin=ctx.kin is not None and ctx.kin.related(self.id, other.id))
+        romance_eligible = not (self.persona.dependent or other.persona.dependent) and romance.eligible_for_love(
+            self.persona.sex, other.persona.sex, self.bonds.get(other.id),
+            kin=ctx.kin is not None and ctx.kin.related(self.id, other.id))
         # a meeting is two people's: only offer places the other one will go to as well
         places = tuple(p for p in self.place_ids if other.can_go(p, ctx.world))
         try:

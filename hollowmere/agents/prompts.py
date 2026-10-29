@@ -318,7 +318,7 @@ These are {p.first_name}'s own private thoughts, whatever they hold - a scheme, 
 hope. They shape what {p.first_name} wants from this talk, but {p.first_name} does not speak them aloud
 uninvited: no confessing a plan, a secret or a feeling kept close, unless {p.first_name} truly trusts
 {other_name} with it, and even then guardedly.
-{warmth}{infant_line(agent)}{romance_line}{aside}
+{warmth}{infant_line(agent)}{child_line(agent)}{romance_line}{aside}
 {recent_topics(list(topics), p.first_name) if not transcript else ""}
 CONVERSATION SO FAR
 {lines}
@@ -422,9 +422,53 @@ other agreed. Not a visit, a night's shelter, a meeting at someone's home, a wis
 staying a little longer. Most talks settle nothing: then leave the list empty."""
 
 
+def child_line(agent: Agent) -> str:
+    """A small child speaks in a few plain words, knows its parents' world only as a child does."""
+    p = agent.persona
+    if not p.child:
+        return ""
+    return (f"{p.first_name} is a small child, about {p.age} years old. {p.first_name} speaks in short, simple "
+            f"sentences of a few words, is curious, asks why, and repeats what grown people say. {p.first_name} "
+            f"knows nothing of coins, keys, the Watch, plots, the plague or what grown people mean, and does not "
+            f"guess at them; the child stays close to whoever looks after it.\n")
+
+
+def child_growth(child: Agent, mother: Persona, father: Persona, species: str, home_name: str = "") -> str:
+    p = child.persona
+
+    def who(q: Persona) -> str:
+        return f"{q.name} ({q.species}). Temperament: {q.traits}." + (f" Looks: {q.appearance}" if q.appearance else "")
+    facts = "; ".join(f["text"] for f in child.history) or "(none)"
+    return f"""{p.name} was born as {'a goblin' if species == 'goblin' else 'a human'} a few days ago and is now growing
+into a small child.
+
+MOTHER
+{who(mother)}
+
+FATHER
+{who(father)}
+
+THE NEWBORN SO FAR
+Looks: {p.appearance or "not yet described"}
+{p.background}
+What has happened to it: {facts}
+{f"It lives at {home_name}." if home_name else ""}
+
+The child is now about 3 years old: no longer an infant, it walks unsteadily and says a few words.
+Say which of its parents' own traits the child shows (only from the choices given), how it looks and moves now
+(write only what is new, such as size, hair and how it moves; do not repeat the earlier description), what it is and
+does these days, and what a small child's day is like in its parents' care. Invent nothing new about who it is: it is
+a child of these two, and only that. Set its day at its home and name no other place and no one but its parents."""
+
+
 def infant_mind(agent: Agent) -> str:
     """What a baby can wonder and conclude: the body and the few people it knows, never the grown world's affairs."""
     p = agent.persona
+    if p.child:
+        return (f"\n{p.first_name} is a small child. All {p.first_name} can wonder or conclude is what a child feels "
+                f"and notices: who is near, what is warm or hungry or frightening, what is played with. Say it in a "
+                f"few plain words. {p.first_name} knows nothing of coins, keys, the Watch, plots, the plague or what "
+                f"grown people mean, and does not guess at them.")
     if not p.infant:
         return ""
     return (f"\n{p.first_name} is only days old. All {p.first_name} can wonder or conclude is what a baby can feel: "
