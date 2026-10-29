@@ -13,7 +13,7 @@ exist (the original needed three sequential LLM calls and fuzzy matching for thi
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, create_model
 
@@ -84,6 +84,10 @@ class DayReview(BaseModel):
     situation: str = Field(default="", description="where your life stands now, third person by name, one to "
                                                    "three sentences: the previous situation carried forward, "
                                                    "changed only where today changed it")
+    states: list[Annotated[str, Field(max_length=60)]] = Field(max_length=6, description=(
+        "the complete list of passing states of body or mind as the day ends, each a short phrase, lower case, "
+        "without the name, e.g. \"grieving for her child\": repeat a state still true in exactly the same words, "
+        "leave out one that has passed, add one today brought; at most three; may be empty"))
 
 
 class BabyHome(BaseModel):

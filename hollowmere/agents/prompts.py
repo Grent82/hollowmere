@@ -103,6 +103,8 @@ def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = 
         + f"{p.background}\n"
         f"Lately: {agent.situation or p.currently}\nHabits: {p.lifestyle}\n"
     )
+    if agent.states:
+        text += f"Right now: {', '.join(s['text'] for s in agent.states)}.\n"
     if agent.condition:
         text += f"{agent.condition}\n"
     if p.abilities:
@@ -491,6 +493,17 @@ def family_line(agent: Agent, names: dict[str, str]) -> str:
             f"them: say in the situation and in tomorrow's plans how {p.first_name} means to carry that.\n")
 
 
+def states_block(agent: Agent, now: datetime) -> str:
+    """The passing states held now, with their age, and what the review may do with them."""
+    p = agent.persona
+    held = "\n".join(f"- {s['text']} ({days} day{'s' * (days != 1)})" for s, days in agent.state_ages(now)) \
+        or "(none)"
+    return f"""
+HOW {p.first_name.upper()} FEELS, PASSING STATES (not temperament)
+{held}
+"""
+
+
 def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:
     p = agent.persona
     return f"""{clock_line(now)} {p.first_name} is lying down to sleep.
@@ -498,7 +511,7 @@ def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Me
 {identity(agent, names)}
 
 {memories(mems, now, title="TODAY")}
-{family_line(agent, names)}
+{family_line(agent, names)}{states_block(agent, now)}
 Look back on {p.first_name}'s day, in {p.first_name}'s own voice, not a shared narrator's: what happened, what
 changed, and what {p.first_name} means to do tomorrow. Then say what {p.first_name} wants for themself now,
 beyond tomorrow's tasks: hold to the wish named above (if any), let it deepen, or let it become something
@@ -508,7 +521,12 @@ Start from that line and keep what is still true, including anything {p.first_na
 what TODAY changed: a decision made, a bond that shifted, something learned or lost - and drop what today
 settled. Take only what is in TODAY's memories; invent nothing, and do not guess what a thing means that
 {p.first_name} could not know. Third person, in your own words, at most three sentences (about 400
-characters); never copy the rest of the description or its labels."""
+characters); never copy the rest of the description or its labels.
+And name how {p.first_name} is as the day ends, in the passing states list: repeat in the same words a state that
+is still as true as it was, leave out one that has eased or ended - grief, fear and weariness do soften with
+time unless something fresh keeps them alive - and add one that today brought. A state can be light as well as
+dark: relieved, hopeful, content, rested, proud, in love, amused, at peace. A good day deserves a good state.
+At most three; the list may be empty."""
 
 
 
@@ -536,7 +554,7 @@ def divine_prayer(agent: Agent, god: God, now: datetime, offering: str, mems: li
 
 HOW THINGS STAND FOR {p.first_name.upper()}
 Temperament: {p.traits}.
-Lately: {agent.situation or p.currently}
+{f"Right now: {', '.join(s['text'] for s in agent.states)}." + chr(10) if agent.states else ""}Lately: {agent.situation or p.currently}
 {p.first_name} wants, for themself: {agent.drive or "nothing they could name"}
 The town: {agent.town_state or DEFAULT_TOWN_STATE}
 

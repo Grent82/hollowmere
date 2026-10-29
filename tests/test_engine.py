@@ -459,7 +459,7 @@ async def test_day_review_sets_the_agents_own_drive_and_it_survives_a_restore(tm
             return schema.model_validate({
                 "summary": "A quiet day, but Roderic's name came up again.", "importance": 5,
                 "intentions": ["speak with Roderic"],
-                "drive": "to finally demand the truth from Roderic",
+                "drive": "to finally demand the truth from Roderic", "states": [],
             })
 
     ctx = Ctx(Reply(), engine.world, engine.ctx.names, {})
@@ -486,6 +486,7 @@ async def test_day_review_carries_the_situation_forward_and_it_survives_a_restor
             return schema.model_validate({
                 "summary": "A quiet day.", "importance": 5, "intentions": ["speak with Roderic"],
                 "drive": "to see the truth out", "situation": "Mara has decided to ask the watch about the shroud.",
+                "states": [],
             })
 
     ctx = Ctx(Reply(), engine.world, engine.ctx.names, {})

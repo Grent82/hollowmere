@@ -57,6 +57,7 @@ class Persona(BaseModel):
     sex: Sex
     color: str
     traits: str                  # temperament only; it is read as character, never as looks
+    states: list[str] = Field(default_factory=list)  # passing states ("grieving") they start with; the day review keeps them up
     appearance: str = ""         # what others see (and smell) of them
     background: str
     currently: str

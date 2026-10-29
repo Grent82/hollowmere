@@ -252,6 +252,8 @@ async def agreed_move(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
     return None
 
 
+MAX_STATES = 3
+
 CELL = "guard_cell/cell_pallet"  # where anyone locked up sits
 
 
@@ -295,6 +297,9 @@ class Agent:
         # In the agent's own words, what it wants for itself beyond today's tasks; written and
         # rewritten freely by review_day(), never interpreted by any code.
         self.drive: str = ""
+        # Passing states of mind: {"text", "since": iso date or None until the first review dates it}.
+        # Only the day review ends or adds one; there is no fixed span.
+        self.states: list[dict] = [{"text": s, "since": None} for s in persona.states]
         self.condition: str = ""  # what the engine says is true of them now (with child, due in N days); not persisted
         self.situation: str = ""  # carried forward by day reviews; empty until then (the persona's `currently` stands)
         # The town's current situation (plague, harvest, the Lord...), rewritten periodically by a
@@ -772,6 +777,31 @@ class Agent:
             self.drive = out.drive.strip()
         if out.situation.strip():
             self.situation = out.situation.strip()
+        self.set_states(out.states, now)
+
+    def state_ages(self, now: datetime) -> list[tuple[dict, int]]:
+        """Each state with its age in days; one that has no date yet starts counting today."""
+        today = day_key(now)
+        for s in self.states:
+            if not s.get("since"):
+                s["since"] = today.isoformat()
+        return [(s, (today - date.fromisoformat(s["since"])).days) for s in self.states]
+
+    def set_states(self, wanted: list[str], now: datetime) -> None:
+        """The day's verdict on how they are now. A state still named keeps its age. At most MAX_STATES: the ones
+        already held come first, newcomers only while there is room."""
+        old = {s["text"].strip().lower(): s for s in self.states}
+        texts = [t.strip() for t in wanted if t.strip()]
+        ordered = [t for t in texts if t.lower() in old] + [t for t in texts if t.lower() not in old]
+        result: list[dict] = []
+        for text in ordered:
+            if len(result) >= MAX_STATES:
+                break
+            if any(r["text"].lower() == text.lower() for r in result):
+                continue
+            previous = old.get(text.lower())
+            result.append({"text": text, "since": previous["since"] if previous else day_key(now).isoformat()})
+        self.states = result
 
     async def decide_baby_home(self, ctx: Ctx, child: "Agent", father: "Agent", now: datetime) -> bool:
         """Where the mother puts her goblin child: True to give it to its father's home, False to keep it. Her
@@ -855,7 +885,7 @@ class Agent:
             "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
             "seek": self.seek, "seek_block": self.seek_block,
             "drive": self.drive, "situation": self.situation, "town_state": self.town_state,
-            "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
+            "states": self.states, "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
             "absence": self.absence, "home": self.persona.home, "home_object": self.persona.home_object,
         }
 
@@ -890,6 +920,7 @@ class Agent:
         self.drive = d.get("drive", "")  # older saves lack this
         self.situation = d.get("situation", "")  # older saves lack this
         self.town_state = d.get("town_state", "")  # older saves lack this
+        self.states = d.get("states", self.states)  # older saves lack this: the persona's own stand
         self.favor = d.get("favor")  # older saves lack this
         self.pending_dream = d.get("pending_dream")  # older saves lack this
         self.prayed_block = d.get("prayed_block", -1)  # older saves lack this
