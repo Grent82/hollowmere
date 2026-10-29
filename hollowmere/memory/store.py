@@ -122,6 +122,12 @@ class Store:
             (after.isoformat(), *kinds)).fetchall()
         return [r["text"] for r in rows]
 
+    def events_of(self, kind: str, after: datetime) -> list[dict]:
+        """Events of one kind strictly after `after`, oldest first, with their extra fields."""
+        rows = self.db.execute("SELECT time, text, extra FROM events WHERE kind = ? AND time > ? ORDER BY id",
+                               (kind, after.isoformat())).fetchall()
+        return [{"time": r["time"], "text": r["text"], **json.loads(r["extra"])} for r in rows]
+
     def chat_log_for(self, agent_id: str, limit: int = 200) -> list[dict]:
         """This agent's chat lines and conversation endings, oldest first, each carrying `convo` so
         the caller can group consecutive lines into one conversation and mark where it ended."""

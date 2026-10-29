@@ -65,6 +65,7 @@ h1 { font: 30px/1 var(--display); margin: 0 0 6px; color: var(--gold); letter-sp
 .ev.intent { color: #b9a37a; font-style: italic; }
 .ev.refl { background: #17141d; color: #c9bfe8; }
 .ev.plan { color: var(--muted); font-size: 13px; }
+.ev.daily { color: #9fb7c9; font-style: italic; }
 .ev.stealth { color: #8fa878; font-size: 13px; font-style: italic; }
 .ev.sight { color: #e0a060; }
 .ev.ally { color: #a8d080; background: #141a12; }

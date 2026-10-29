@@ -57,7 +57,7 @@ export interface AgentView {
 }
 
 export interface SimEvent {
-  kind: "plan" | "chat" | "chat_start" | "chat_end" | "intent" | "reflection" | "hide" | "flee" | "sighting" | "ally" | "warm" | "spurn"
+  kind: "plan" | "daily" | "chat" | "chat_start" | "chat_end" | "intent" | "reflection" | "hide" | "flee" | "sighting" | "ally" | "warm" | "spurn"
     | "watch" | "seek" | "agreement" | "prayer" | "error";
   agents: string[];
   god?: string;

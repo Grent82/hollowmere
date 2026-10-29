@@ -136,6 +136,8 @@ export class UI {
           + `🕯 ${tag(e.agents[0])} prays to <b class="god">${esc(godName(god))}</b> <span class="form">${esc(e.form ?? "")}${clarityTag(e.clarity)}</span>`
           + `<div class="answer">${esc(body)}</div></div>`;
       }
+      case "daily":
+        return `<div class="ev daily"><time>${hhmm(e.time)}</time>🌦 ${esc(e.text)}</div>`;
       case "plan":
         return `<div class="ev plan"><time>${hhmm(e.time)}</time>${esc(e.text)}</div>`;
       case "hide":

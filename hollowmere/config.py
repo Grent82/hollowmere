@@ -60,6 +60,7 @@ class SimConfig(BaseModel):
     detention_min_days: int = 1
     detention_max_days: int = 3
     max_jailed: int = 2  # the cell holds only this many at once
+    daily_event_quiet_chance: float = 0.25  # a morning on which nothing special is made of the day
 
 
 class ServerConfig(BaseModel):

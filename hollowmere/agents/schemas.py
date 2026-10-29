@@ -141,6 +141,29 @@ def child_growth_schema(pool: tuple[str, ...], low: int, high: int) -> type[Base
     )
 
 
+@lru_cache(maxsize=16)
+def daily_event_schema(areas: tuple[str, ...], gods: tuple[str, ...]) -> type[BaseModel]:
+    """One small event for the day, at a place of the town (or for all of it), maybe a sign of a god."""
+    return create_model(
+        "DailyEvent",
+        quiet=(bool, Field(description="true if nothing worth noting happens today")),
+        kind=(Literal[(*(("weather", "market", "animal", "accident", "news") + (("omen",) if gods else ())),)],
+              Field(description=(  # type: ignore[valid-type]
+                  "weather; a market or traders' day; a beast or bird; a small mishap nobody is hurt by; a piece of "
+                  "news from beyond the town" + ("; an omen, only as a sign of a god" if gods else "")))),
+        text=(str, Field(max_length=300, description=(
+            "what anyone there can see or hear, one or two plain sentences, no one named, never naming a god"))),
+        where=(Literal[(*areas, "town")], Field(description=(  # type: ignore[valid-type]
+            "the place of the town where it happens, or \"town\" if it is for all of it"))),
+        hour=(int, Field(ge=5, le=21, description="the hour of the day it happens, 5 to 21")),
+        god=(Literal[(*gods, "none")], Field(description=(  # type: ignore[valid-type]
+            "a god whose doing this is, only from the choices; none for an ordinary event"))),
+        clarity=(Literal["none", "doubt", "suspected"], Field(description=(
+            "how plainly it reads as that god's doing: none (chance), doubt, suspected; none when there is no god"))),
+        importance=(int, Field(ge=2, le=5, description="how much it weighs on those who see it, 2 faint to 5 striking")),
+    )
+
+
 class LifeFacts(BaseModel):
     facts: list[Annotated[str, Field(max_length=200)]] = Field(max_length=8, description=(
         "the lasting facts of this life as they stand: each held fact repeated in exactly the same words, plus at "

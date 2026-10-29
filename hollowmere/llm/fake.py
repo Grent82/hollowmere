@@ -167,6 +167,10 @@ class FakeLLM:
     def _townstate(self, js: dict, user: str) -> dict:
         return {"text": "The plague lingers and the harvest is still thin, but the Watch keeps the peace."}
 
+    def _dailyevent(self, js: dict, user: str) -> dict:
+        return {"quiet": True, "kind": "weather", "text": "", "where": "town", "hour": 9, "god": "none",
+                "clarity": "none", "importance": 3}
+
     def _childgrowth(self, js: dict, user: str) -> dict:
         items = js["properties"]["traits"]["items"]
         allowed = items.get("enum") or [items["const"]]

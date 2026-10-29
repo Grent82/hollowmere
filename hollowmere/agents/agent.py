@@ -146,6 +146,15 @@ def recognised(text: str, god_name: str, clarity: str) -> str:
     return text
 
 
+def sign_seen(text: str, god_name: str, clarity: str) -> str:
+    """An omen as a bystander remembers it: only as sure of the god behind it as the sign allowed."""
+    if clarity == "doubt":
+        return f"{text} Could that be {god_name}'s doing, or only chance?"
+    if clarity == "suspected":
+        return f"{text} I suspect it was {god_name}'s doing."
+    return text
+
+
 def parse_hhmm(day: date, hhmm: str) -> datetime:
     h, m = (int(x) for x in hhmm.split(":"))
     t = datetime.combine(day, time(h, m))

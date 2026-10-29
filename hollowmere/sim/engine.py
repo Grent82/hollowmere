@@ -43,6 +43,7 @@ from hollowmere.memory.store import Store
 from hollowmere.memory.stream import MemoryStream, repeats
 from hollowmere.sim import reports
 from hollowmere.sim.absence import Absences
+from hollowmere.sim.daily import DailyEvents
 from hollowmere.world.world import World
 
 log = logging.getLogger(__name__)
@@ -68,7 +69,8 @@ HIDING_PLACES = ["goblin_den/nib_nest", "witchwood/bramble_thicket", "riverbank/
 # that logic, but deliberately stays out: a god's answer is private to the one who prayed, and feeding
 # it to the shared narrator would leak it into every agent's town_state - the same boundary enforced by
 # never writing a prayer's effect into anyone's bonds (see Agent.pray()).
-TOWN_EVENT_KINDS = {"showing", "birth", "reflection", "agreement", "ally", "spurn", "warm", "sighting", "intent", "chat_end"}
+TOWN_EVENT_KINDS = {"showing", "birth", "reflection", "agreement", "ally", "spurn", "warm", "sighting", "intent", "chat_end",
+                    "daily"}
 
 Listener = Callable[[dict], Awaitable[None]]
 
@@ -98,7 +100,7 @@ class Conversation:
     love_done: bool = False  # making love is confirmed once per talk, by whichever path gets there first
 
 
-class Engine(Absences):
+class Engine(Absences, DailyEvents):
     def __init__(self, cfg: SimConfig, world: World, agents: list[Agent], ctx: Ctx, store: Store,
                 embedder: Embedder):
         self.cfg = cfg
@@ -133,6 +135,9 @@ class Engine(Absences):
         self._grow_tried: dict[str, date] = {}  # child -> the day growing up was last tried
         self._reported: date | None = None  # the day the evening reports last started
         self._report_task: asyncio.Task | None = None
+        self._daily_for: date | None = None  # the day the morning's event was last made
+        self._daily_task: asyncio.Task | None = None
+        self._pending_events: list[dict] = []  # made this morning, still to happen at their hour
         self._queue: list[dict] = []  # departures and the news of them still to come, each with an "at" time
 
     # ---------------------------------------------------------------- running
@@ -170,6 +175,9 @@ class Engine(Absences):
         await self._converse(now)
         await self._perceive(now)
         self._background(now)
+        if self._daily_due(now) and (self._daily_task is None or self._daily_task.done()):
+            self._daily_task = asyncio.create_task(self._run_daily_event_task(now))
+        await self._deliver_events(now)
         if self.tick_count % SAMPLE_EVERY_TICKS == 0:
             self._sample(now)
         self.tick_count += 1
@@ -1084,6 +1092,8 @@ class Engine(Absences):
         self.store.put("agents", {a.id: a.snapshot() for a in self.agents.values()})
         self.store.put("town_reviewed", self._town_reviewed.isoformat() if self._town_reviewed else None)
         self.store.put("reported", self._reported.isoformat() if self._reported else None)
+        self.store.put("daily_for", self._daily_for.isoformat() if self._daily_for else None)
+        self.store.put("daily_pending", self._pending_events)
         self.store.put("pregnancies", self.pregnancies)
         self.store.put("absence_queue", self._queue)
         s = self.ctx.llm.stats
@@ -1103,6 +1113,9 @@ class Engine(Absences):
         self._town_reviewed = date.fromisoformat(reviewed) if reviewed else None
         reported = self.store.get("reported")
         self._reported = date.fromisoformat(reported) if reported else None
+        daily = self.store.get("daily_for")
+        self._daily_for = date.fromisoformat(daily) if daily else None
+        self._pending_events = self.store.get("daily_pending", [])
         self.pregnancies = self.store.get("pregnancies", [])
         self._queue = self.store.get("absence_queue", [])
         self.store.trim_record(self.now)

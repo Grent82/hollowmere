@@ -572,6 +572,38 @@ else. Invent no events, no place, no midwife or other people present, no weather
 only days old."""
 
 
+def daily_event_system_prompt() -> str:
+    return (f"You are the shared narrator of Hollowmere. {WORLD_FACTS} You decide what small thing the day brings to "
+            "the town, in a dry, grounded voice: no modern words or ideas, no new gods or magic beyond what is already "
+            "known. Small only: nobody dies, is hurt, arrested or falls in love because of it.")
+
+
+def daily_event(now: datetime, town_state: str, recent: list[str], town_events: list[str], gods: list[str]) -> str:
+    earlier = "\n".join(f"- {e}" for e in recent) or "- nothing yet"
+    lately = "\n".join(f"- {e}" for e in town_events[-12:]) or "- nothing of note"
+    gods_text = "\n".join(gods) or "(no god may stir today)"
+    return f"""{clock_line(now)} A new day begins in Hollowmere.
+
+THE TOWN'S SITUATION
+{town_state}
+
+WHAT HAS HAPPENED IN TOWN LATELY
+{lately}
+
+SMALL EVENTS OF THE LAST DAYS (do not repeat any)
+{earlier}
+
+GODS WHO MAY STIR (only these; a god acts only through what anyone there can see or hear, never on one person)
+{gods_text}
+
+Decide the day's small event, or that nothing special happens. Make it everyday and believable: the weather, a
+market or traders' day, a beast or bird, a small mishap, news from beyond the town. Nothing eerie or uncanny
+unless a god below is behind it. It fits the town's situation, the season and what has happened lately, and differs
+from the events of the last days. Say where it happens (a place of the town, or the whole town) and at what hour.
+An omen is only the sign of a god listed below, suits that god's nature and is easy to take for chance; it never
+names the god. Nobody is named in it."""
+
+
 def life_facts_system_prompt() -> str:
     return ("You keep the lasting facts of one life in the town of Hollowmere, as a neutral recorder. You invent "
             "nothing: a fact rests on what the person's own memories show.")
