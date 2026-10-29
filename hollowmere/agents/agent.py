@@ -606,7 +606,7 @@ class Agent:
                 [other.name, f"{other.first} {other.task.activity if other.task else ''}",
                  f"warmth, friendship or love between {self.first} and {other.first}"], now, k=8)
             place = ctx.world.place_name(self.task.place) if self.task else "the street"
-            goblin = other.persona.is_goblin and not self.persona.is_goblin
+            goblin = other.persona.is_goblin and self.persona.is_human
             aside = prompts.goblin_aside(self, other, now) if goblin else ""
             other_name = other.name if not goblin or self.knows(other) else "a goblin"  # looks follow from the persona
             out = await ctx.llm.structured(
@@ -649,7 +649,7 @@ class Agent:
         mems = await self.memory.retrieve([other.name, last or other.name], now, k=8)
         place = ctx.world.place_name(self.task.place) if self.task else "the street"
         other_doing = other.task.activity if other.task else "standing about"
-        aside = prompts.goblin_aside(self, other, now) if other.persona.is_goblin and not self.persona.is_goblin else ""
+        aside = prompts.goblin_aside(self, other, now) if other.persona.is_goblin and self.persona.is_human else ""
         romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id),
                                                   kin=ctx.kin is not None and ctx.kin.related(self.id, other.id))
         return await ctx.llm.structured(
@@ -664,7 +664,7 @@ class Agent:
     async def digest_chat(self, ctx: Ctx, now: datetime, other: Agent,
                           transcript: list[tuple[str, str]]) -> Digest:
         """Remember a conversation and any agreement made in it."""
-        judging_goblin = other.persona.is_goblin and not self.persona.is_goblin and self.id not in other.allies
+        judging_goblin = other.persona.is_goblin and self.persona.is_human and self.id not in other.allies
         aside = prompts.goblin_aside(self, other, now) if judging_goblin else ""
         owed = [f"{c['time']} — {c['activity']} at {c['place']}" for c in self.commitments]
         romance_eligible = romance.eligible_for_love(self.persona.sex, other.persona.sex, self.bonds.get(other.id),

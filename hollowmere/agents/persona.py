@@ -87,6 +87,12 @@ class Persona(BaseModel):
         return self.species == "goblin" and not self.infant
 
     @property
+    def is_human(self) -> bool:
+        """Anyone who is not of the goblin kind. A goblin baby is no secret (see is_goblin), yet it is kin to
+        goblins, never a stranger who could give one away."""
+        return self.species != "goblin"
+
+    @property
     def first_name(self) -> str:
         parts = self.name.split()
         return parts[1] if parts[0] in {"Father", "Captain", "Mother", "Ser", "Sister"} and len(parts) > 1 else parts[0]

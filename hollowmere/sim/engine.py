@@ -239,7 +239,7 @@ class Engine(Absences):
     # ---------------------------------------------------------------- stealth
 
     def _humans(self) -> list[Agent]:
-        return [a for a in self.agents.values() if not a.persona.is_goblin]
+        return [a for a in self.agents.values() if a.persona.is_human]
 
     def _in_sight(self, g: Agent, ignore: Agent | None = None) -> list[Agent]:
         return [h for h in self._humans() if h is not ignore and h.awake and self._visible(g, h)]
@@ -489,7 +489,7 @@ class Engine(Absences):
             x.mode = "acting"
             if c.transcript:
                 x.note_topic(y.first, c.purpose or c.transcript[0][1])
-                if y.persona.is_goblin and not x.persona.is_goblin:
+                if y.persona.is_goblin and x.persona.is_human:
                     self._judging.add((y.id, x.id))
                 self._spawn(x, x.digest_chat(self.ctx, self.now, y, list(c.transcript)), f"digest:{c.id}",
                             on_done=self._digested(c, x, y))
@@ -537,7 +537,7 @@ class Engine(Absences):
             stored = 0
             candidate = None
             for b in seen:
-                if b.persona.is_goblin and not a.persona.is_goblin and a.id not in b.allies:
+                if b.persona.is_goblin and a.persona.is_human and a.id not in b.allies:
                     if a.knows(b) and b.mode != "hiding":
                         self._noticed[(b.id, a.id)] = now  # someone who has met him sees him plainly
                         if candidate is None and self._may_react(a, b, now):
@@ -885,7 +885,7 @@ class Engine(Absences):
                     date=m["date"], at=m["time"], place=m["place"])
 
     def _judged(self, human: Agent, goblin: Agent):
-        if not goblin.persona.is_goblin or human.persona.is_goblin:
+        if not goblin.persona.is_goblin or not human.persona.is_human:
             return None
 
         def done(regard: str | None) -> None:
