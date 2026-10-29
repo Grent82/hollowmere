@@ -257,6 +257,16 @@ MAX_STATES = 3
 MAX_HISTORY = 6  # lasting life facts per person
 LIFE_FACT_IMPORTANCE = 8  # a day holds a memory at least this weighty before lasting facts are even asked for
 
+def restates_background(fact: str, persona: Persona) -> bool:
+    """Whether a fact only says again what the persona's own description does (a trade, a rank, a family tie)."""
+    own = set(WORD_RE.findall(persona.name.lower()))
+    words = {w for w in WORD_RE.findall(fact.lower()) if len(w) > 3} - own
+    if len(words) < 2:
+        return False
+    said = set(WORD_RE.findall(persona.background.lower()))
+    return len(words & said) / len(words) >= 0.8
+
+
 CELL = "guard_cell/cell_pallet"  # where anyone locked up sits
 
 
@@ -798,17 +808,15 @@ class Agent:
             log.warning("%s: life facts failed (%s)", self.id, e)
             return
         held = {f["text"].strip().lower() for f in self.history}
-        new = [t.strip() for t in out.facts if t.strip() and t.strip().lower() not in held]
+        new = [t.strip() for t in out.facts if t.strip() and t.strip().lower() not in held
+               and not restates_background(t, self.persona)]
         proof = " ".join(WORD_RE.findall(out.evidence.lower()))
         if not new or not proof or proof not in " ".join(WORD_RE.findall(" ".join(m.text for m in shown).lower())):
             return  # nothing new, or nothing in the day that shows it
         kept = {t.strip().lower() for t in out.facts}
-        history = [*self.history, {"text": new[0], "since": day_key(now).isoformat()}]
-        for f in list(self.history):  # over the limit: what the model left out makes room first, then the oldest
-            if len(history) <= MAX_HISTORY:
-                break
-            if f["text"].strip().lower() not in kept:
-                history.remove(f)
+        left_out = [f for f in self.history if f["text"].strip().lower() not in kept]
+        history = [f for f in self.history if len(left_out) != 1 or f is not left_out[0]]  # one obsolete fact may go
+        history.append({"text": new[0], "since": day_key(now).isoformat()})
         self.history = history[-MAX_HISTORY:]
 
     def state_ages(self, now: datetime) -> list[tuple[dict, int]]:

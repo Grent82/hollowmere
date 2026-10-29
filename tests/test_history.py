@@ -162,3 +162,49 @@ async def test_given_the_life_facts_prompt_when_written_then_it_shows_the_old_fa
     text = prompts.life_facts(isolde, engine.ctx.names, NOW, mems)
     # Then the old fact is named, and a mood is ruled out
     assert "Fled once." in text and "mood" in text and "gone in a week" in text
+
+
+async def test_given_a_fact_that_only_restates_the_background_when_reviewed_then_it_is_dropped(tmp_path):
+    # Given Roderic, whose background already says he commands the town watch, and a model that offers it as news
+    engine = await _engine(tmp_path)
+    roderic = engine.agents["roderic"]
+    reply = Reply(["Roderic Graves is the captain of the town watch."], evidence="captain of the town watch")
+    # When the day is reviewed, with that very line among the day's memories
+    await _review(engine, roderic, reply, text="The captain of the town watch rang the curfew bell.")
+    # Then nothing is kept: it is not new
+    assert roderic.history == []
+
+
+async def test_given_a_new_fact_that_makes_a_held_one_obsolete_when_the_model_leaves_it_out_then_it_is_replaced(tmp_path):
+    # Given Agnes, held as pregnant, and a model that adds the birth and leaves the pregnancy out
+    engine = await _engine(tmp_path)
+    agnes = engine.agents["agnes"]
+    agnes.history = [{"text": "Expects a child by Brannoc.", "since": "1347-11-05"}]
+    reply = Reply(["Has a newborn son by Brannoc."], evidence="gave birth to a newborn son")
+    # When the day is reviewed
+    await _review(engine, agnes, reply, text="Agnes gave birth to a newborn son by Brannoc.")
+    # Then the birth replaces the pregnancy
+    assert _facts(agnes) == ["Has a newborn son by Brannoc."]
+
+
+async def test_given_a_careless_answer_that_leaves_out_most_facts_when_a_new_one_is_added_then_the_others_stay(tmp_path):
+    # Given three held facts, and a model that returns only the new one
+    engine = await _engine(tmp_path)
+    isolde = engine.agents["isolde"]
+    isolde.history = [{"text": t, "since": "1347-11-05"} for t in ("A", "B", "C")]
+    reply = Reply(["Bore Nib's child."], evidence="bore Nib's child")
+    # When the day is reviewed
+    await _review(engine, isolde, reply)
+    # Then only a single omission would be honoured, so none is, and all three stay
+    assert _facts(isolde) == ["A", "B", "C", "Bore Nib's child."]
+
+
+async def test_given_the_life_facts_prompt_when_written_then_it_asks_for_certain_and_lasting_things_only(tmp_path):
+    # Given any person with an important memory
+    engine = await _engine(tmp_path)
+    isolde = engine.agents["isolde"]
+    await isolde.observe(BIRTH, NOW, 9)
+    # When the prompt is written
+    text = prompts.life_facts(isolde, engine.ctx.names, NOW, [m for m in isolde.memory.items if m.importance >= 8])
+    # Then rumour, jokes and conditions that will end are ruled out, and a held fact the day outdates may be left out
+    assert "suspects" in text and "pregnant" in text and "leave out a held fact" in text

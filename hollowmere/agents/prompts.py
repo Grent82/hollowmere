@@ -516,12 +516,16 @@ LASTING FACTS HELD SO FAR
 {memories(mems, now, title="TODAY'S IMPORTANT MEMORIES")}
 
 Say whether today made something true of {p.first_name} that will still be true long from now: a birth, a break
-with someone, a jailing, a flight, a lover, a secret out, a death, a new home or work. Not a mood, a worry or any
-passing state (anything gone in a week), and not what the description or the held facts already say. Answer with
-the list as it stands: repeat each held fact in the same words, and add at most one new fact (third person, one
-plain sentence), only if the memories above show it, with a few words copied from them as evidence. Six facts at
-most: to make room merge two or leave one out. Most days nothing qualifies: then repeat the list unchanged and
-leave the evidence empty."""
+with someone, a jailing, a flight, a lover, a secret out, a death, a new home or work. Only what is settled and
+certain to {p.first_name}, never what someone suspects, fears, jokes about or has only heard. Not a mood, a worry or
+any passing state (anything gone in a week), and not a condition that will end (pregnant, injured, hiding): wait
+for how it ends (the birth, the healing). Not a plan or an intention (leaving, going to): only what has already
+happened and stays so. Not what the description or the held facts already say, such as a trade, a rank, an age or
+a family tie.
+Answer with the list as it stands: repeat each held fact in the same words, and add at most one new fact (third
+person, one plain sentence), only if the memories above show it, with a few words copied from them as evidence.
+If the day makes a held fact obsolete, leave out a held fact (just that one) when you add the new one. Six facts at
+most. Most days nothing qualifies: then repeat the list unchanged and leave the evidence empty."""
 
 
 def states_block(agent: Agent, now: datetime) -> str:
