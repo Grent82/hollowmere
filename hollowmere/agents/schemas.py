@@ -86,6 +86,15 @@ class DayReview(BaseModel):
                                                    "changed only where today changed it")
 
 
+class BabyHome(BaseModel):
+    """Where a mother puts the goblin child she has just borne."""
+    reason: str = Field(description="one or two sentences, in the mother's own voice, on what she fears and wants "
+                                    "for the child")
+    where: Literal["keep", "father"] = Field(description=(
+        "keep = the child lives in the mother's own home; father = she gives the child to its father, to grow up "
+        "in his home"))
+
+
 class DivineAnswer(BaseModel):
     form: DivineForm = Field(description="how you answer: a dream, a waking sign, an omen, a mere "
                                          "coincidence, a tangible favor (buff) - choose freely; you "

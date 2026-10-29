@@ -550,6 +550,26 @@ you grant a favor, describe it only as a mood or aura that colours {p.first_name
 power, and say for how many hours it lingers."""
 
 
+def baby_home(agent: Agent, names: dict[str, str], now: datetime, child: Agent, father: Agent,
+              mems: list[Memory], home_name: str, den_name: str) -> str:
+    p, f = agent.persona, father.persona
+    return f"""{clock_line(now)} {p.first_name} has just borne a child, {child.persona.first_name}, {f.name}'s: a goblin,
+like its father. It lies in {p.first_name}'s arms, newborn.
+
+{identity(agent, names)}
+
+{memories(mems, now)}
+
+WHERE THE CHILD COULD LIVE
+- Keep it: the child lives in {p.first_name}'s own home, {home_name}, wherever {p.first_name} may be staying now.
+  Anyone who comes there might see it, and {p.first_name} could not take it out into the town without everyone
+  seeing what it is.
+- With its father: {f.name} lives at {den_name}, a den in the wild, where goblins are at home and {p.first_name}
+  may visit; the child would grow up among its own kind.
+
+Decide where the child will live, as {p.first_name} would."""
+
+
 def goblin_choice(agent: Agent, world: World, names: dict[str, str], now: datetime, place: str,
                   seen: list, talking_with: Agent | None, hidden: bool, mems: list[Memory], cover: str | None = None) -> str:
     """seen: (person, distance in tiles, whether they have seen him). cover: where he is already heading for or lying in."""

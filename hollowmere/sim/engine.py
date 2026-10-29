@@ -156,6 +156,7 @@ class Engine(Absences):
         await self._schedule(now)
         self._seek(now)
         self._move(now)
+        self._carry_babies()
         await self._stealth(now)
         await self._converse(now)
         await self._perceive(now)
@@ -216,6 +217,21 @@ class Engine(Absences):
                 else:
                     a.arrive()
         self._update_objects()
+
+    def _carry_babies(self) -> None:
+        """A baby is wherever the parent who shares its home is. A goblin child is carried only by a goblin: a
+        human leaves it hidden in its bed rather than show it to the town."""
+        for baby in self.agents.values():
+            if not baby.persona.infant or baby.absence:
+                continue
+            for pid in baby.persona.parents:
+                carer = self.agents.get(pid)
+                if carer is None or carer.persona.home != baby.persona.home or carer.absence:
+                    continue
+                if baby.persona.species == "goblin" and carer.persona.species != "goblin":
+                    continue
+                baby.x, baby.y = carer.x, carer.y
+                break
 
     # ---------------------------------------------------------------- stealth
 
@@ -829,8 +845,23 @@ class Engine(Absences):
         self.store.put("generated_personas", generated)
         from hollowmere.sim.setup import seed_memories  # deferred: setup.py imports this module
         await seed_memories(child, child_persona, self.ctx.names, now)
+        if child_persona.species == "goblin" and not mother.persona.is_goblin:
+            await self._place_goblin_child(child, mother, father, now)
         self._event("birth", [mother.id, father.id, child.id],
                    f"{mother.first} and {father.first} welcome a child, {child.first}.")
+
+    async def _place_goblin_child(self, child: Agent, mother: Agent, father: Agent, now: datetime) -> None:
+        """A human mother chooses whether her goblin child grows up in her home or in its father's den."""
+        if not await mother.decide_baby_home(self.ctx, child, father, now):
+            return
+        child.set_home(father.persona.home, father.persona.home_object, self.world)
+        child.x, child.y = self.world.target_tile(child.persona.bed) or (child.x, child.y)
+        place = self.world.place_name(father.persona.home)
+        await mother._remember("observation", f"I gave {child.name} to {father.name}, to grow up in the den "
+                                              f"at {place}.", now, 8)
+        await father._remember("observation", f"{mother.name} gave {child.name} into my keeping, in the den at "
+                                              f"{place}.", now, 8)
+        self._event("move", [mother.id, father.id, child.id], f"{child.first} goes to live in {father.first}'s den.")
 
     def _agreement_event(self, a: Agent, b: Agent, m: dict) -> None:
         self._event("agreement", [a.id, b.id],

@@ -19,6 +19,7 @@ from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
+    BabyHome,
     TIME_OF_DAY, DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
     agreement_schema, chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
     leaving_schema, moving_schema,
@@ -771,6 +772,27 @@ class Agent:
             self.drive = out.drive.strip()
         if out.situation.strip():
             self.situation = out.situation.strip()
+
+    async def decide_baby_home(self, ctx: Ctx, child: "Agent", father: "Agent", now: datetime) -> bool:
+        """Where the mother puts her goblin child: True to give it to its father's home, False to keep it. Her
+        reason becomes a memory of hers; the engine moves the child. A failed call keeps it with her."""
+        self.thinking = f"deciding where {child.first} will live"
+        try:
+            mems = await self.memory.retrieve(
+                [f"my child {child.first}", f"{father.first} and the child we made", "who must never learn of it"],
+                now, k=8)
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self), prompts.baby_home(self, ctx.names, now, child, father, mems,
+                                                          ctx.world.place_name(self.persona.home),
+                                                          ctx.world.place_name(father.persona.home)),
+                BabyHome, label="baby_home", temperature=0.7)
+        except LLMError as e:
+            log.warning("%s: choosing a home for %s failed (%s)", self.id, child.id, e)
+            return False
+        finally:
+            self.thinking = None
+        await self._remember("thought", out.reason, now, 7)
+        return out.where == "father"
 
     async def pray(self, ctx: Ctx, now: datetime, god_id: str) -> None:
         """Pray to one god. The god may only touch this agent: its own memory, its own favor, its own

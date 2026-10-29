@@ -167,6 +167,9 @@ class FakeLLM:
     def _townstate(self, js: dict, user: str) -> dict:
         return {"text": "The plague lingers and the harvest is still thin, but the Watch keeps the peace."}
 
+    def _babyhome(self, js: dict, user: str) -> dict:
+        return {"reason": "It is my child, and I will keep it near.", "where": "keep"}
+
     def _divineanswer(self, js: dict, user: str) -> dict:
         form = self.rng.choice(["dream", "sign", "omen", "coincidence", "buff"])
         out = {"form": form, "text": "A warmth you cannot name settles over you a moment, then is gone.",
