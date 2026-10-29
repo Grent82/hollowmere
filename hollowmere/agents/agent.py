@@ -253,7 +253,9 @@ async def agreed_departure(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
         log.warning("%s and %s: leaving failed (%s)", a.id, b.id, e)
         return []
     for d in out.departures:
-        if d.settled and spoken(d.words, transcript):  # the words are really in the talk
+        said = [text for who, text in transcript if d.who == "both" or who.split()[0] == d.who]
+        # the words are really in the talk, said by whoever goes, and the way out was really named
+        if d.settled and spoken(d.words, [("", t) for t in said]) and d.way_out.strip() and spoken(d.way_out, transcript):
             return [a, b] if d.who == "both" else [a if d.who == a.first else b]
     return []
 

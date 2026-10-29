@@ -16,12 +16,14 @@ from hollowmere.memory.embed import HashingEmbedder
 from hollowmere.sim.engine import Conversation
 from hollowmere.sim.setup import build_engine
 
-TALK = [("Silas Mourne", "We leave as the light fails, and do not look back."),
+TALK = [("Silas Mourne", "We leave by the north gate as the light fails, and do not look back."),
         ("Isolde Wren", "Then lead the way, Silas. I am ready to go.")]
+DEFIANCE = [("Agnes Vell", "Pull back from that window, girl, before you give the watch a reason."),
+            ("Isolde Wren", "I will not hide in this garret, Mother, for I am already gone before the sun sets.")]
 
 
-def decision(who="both", settled=True, words="We leave as the light fails"):
-    return {"words": words, "who": who, "settled": settled}
+def decision(who="both", settled=True, words="We leave as the light fails", way_out="the north gate"):
+    return {"words": words, "who": who, "settled": settled, "way_out": way_out}
 
 
 class Brain(FakeLLM):
@@ -76,7 +78,7 @@ def test_given_a_talk_when_the_prompt_is_built_then_it_carries_the_names_the_wor
     # When the leaving prompt is built
     text = prompts.leaving("Silas", "Isolde", datetime(1347, 11, 12, 15, 0), TALK)
     # Then both names and the spoken words are in it, and going home or elsewhere in town is ruled out
-    assert "Silas" in text and "Isolde" in text and "We leave as the light fails" in text
+    assert "Silas" in text and "Isolde" in text and "We leave by the north gate as the light fails" in text
     assert "Hollowmere" in text and "home" in text
 
 
@@ -113,6 +115,44 @@ async def test_given_nothing_settled_when_asked_then_nobody_goes(tmp_path):
 async def test_given_words_nobody_said_when_asked_then_nobody_goes(tmp_path):
     engine = await town(tmp_path, Brain())
     assert await asked(engine, [decision(words="We take the north road at midnight")]) == []
+
+
+async def test_given_defiance_without_a_way_out_when_asked_then_nobody_goes(tmp_path):
+    # Given Isolde, answering her mother, says she is "already gone" and names no gate, road or place beyond the town
+    engine = await town(tmp_path, Brain())
+    said = decision("Isolde", words="I am already gone before the sun sets", way_out="")
+    # When the reading still marks it settled
+    group = await asked(engine, [said], transcript=DEFIANCE, a="agnes", b="isolde")
+    # Then nobody goes: a way out has to be named
+    assert group == []
+
+
+async def test_given_a_way_out_nobody_named_when_asked_then_nobody_goes(tmp_path):
+    # Given a reading that makes up a road the talk never mentioned
+    engine = await town(tmp_path, Brain())
+    said = decision("Isolde", words="I am already gone before the sun sets", way_out="the king's road")
+    # When asked
+    group = await asked(engine, [said], transcript=DEFIANCE, a="agnes", b="isolde")
+    # Then nobody goes
+    assert group == []
+
+
+async def test_given_words_the_other_one_said_when_asked_then_nobody_goes(tmp_path):
+    # Given the reading says Isolde decided it, but the words are Silas's
+    engine = await town(tmp_path, Brain())
+    said = decision("Isolde", words="We leave by the north gate")
+    # When asked
+    group = await asked(engine, [said])
+    # Then nobody goes: whoever leaves has to have said it
+    assert group == []
+
+
+def test_given_a_talk_when_the_prompt_is_built_then_defiance_without_a_way_out_is_ruled_out():
+    # Given a finished talk
+    # When the leaving prompt is built
+    text = prompts.leaving("Silas", "Isolde", datetime(1347, 11, 12, 15, 0), TALK)
+    # Then a bare "I am gone" and flight to someone are not leaving, and a named way out is asked for
+    assert "already gone" in text and "way out" in text and "deep wood" in text
 
 
 async def test_given_the_model_fails_when_asked_then_nobody_goes_and_nothing_raises(tmp_path):

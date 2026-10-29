@@ -289,6 +289,8 @@ def leaving_schema(first_a: str, first_b: str) -> type[BaseModel]:
         words=(str, Field(description="the words from the talk that settle it, copied exactly")),
         who=(Literal[first_a, first_b, "both"], Field(  # type: ignore[valid-type]
             description="who sets out from Hollowmere: one of them, or both together")),
+        way_out=(str, Field(description="the gate, road or other way out of the town that was named in the talk, "
+                                        "copied exactly; empty if none was named")),
         settled=(bool, Field(description="true only if whoever goes has firmly decided it in this talk and, if the "
                                          "other is to come along, the other said yes")),
     )

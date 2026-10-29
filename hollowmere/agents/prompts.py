@@ -435,6 +435,9 @@ along, the other agrees. Not a walk to meet or find someone, or to a place in or
 reeds, the mill, the Hollow Keep, the burrow, the herb-wife's hut, the old stones), nor slipping past the Watch to
 get there, hiding for a night, a wish, a complaint, a warning to flee, an offer someone refused, a plan only
 talked over, a visit or going home.
+A way out has to be named in the talk (a gate, the road, a place beyond the town). "I am already gone", "I'm done
+here", "nothing keeps me" or a wish to run, said in anger or defiance, are not leaving; nor is a flight to a
+person or into the deep wood to find them, since that is a walk to someone, not a leaving of the town.
 Most talks settle nothing: then leave the list empty."""
 
 
