@@ -97,6 +97,15 @@ def test_given_a_talk_when_the_prompt_is_built_then_it_carries_names_words_and_p
     assert "14:00" in text
 
 
+def test_given_one_phrase_for_two_readers_when_the_prompt_is_built_then_it_forbids_home_and_possessives():
+    # Given a finished talk
+    now = datetime(1347, 11, 5, 14, 0)
+    # When the agreement prompt is built
+    text = prompts.agreement("Roderic", "Agnes", now, TALK, {"tavern_back_room": "the back room"})
+    # Then it says both read the activity, so "home", "my" and "your" must not appear in it
+    assert "both of them read" in text and '"home"' in text
+
+
 # ------------------------------------------------------------------ the shared call
 
 

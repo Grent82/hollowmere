@@ -47,7 +47,7 @@ from hollowmere.world.world import World
 log = logging.getLogger(__name__)
 
 WALK_TILES = 4
-MAX_TURNS = 6  # lines; past this a small model mostly restates itself
+MAX_TURNS = 12  # lines; past this a small model mostly restates itself
 CHAT_COOLDOWN = timedelta(hours=3)
 REACT_COOLDOWN = timedelta(minutes=50)
 ARRANGED_WINDOW = timedelta(minutes=30)  # a meeting two people arranged is "on" this long either side of its hour
@@ -449,7 +449,8 @@ class Engine(Absences):
                 if len(c.intimate) == 2:  # both said yes themselves: they go off alone; _settle confirms it
                     self._end_conversation(c, "goodbye")
                     return
-            if out.end or len(c.transcript) >= MAX_TURNS:
+            proposed = getattr(out, "intimate", False) and listener.id not in c.intimate  # this very line asks, unanswered
+            if out.end or len(c.transcript) >= MAX_TURNS + (1 if proposed and len(c.transcript) == MAX_TURNS else 0):
                 self._end_conversation(c, "goodbye" if out.end else "limit")
         except LLMError as e:
             log.warning("conversation %s failed: %s", c.id, e)

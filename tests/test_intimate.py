@@ -130,6 +130,53 @@ async def test_the_speech_path_and_the_digest_path_confirm_it_only_once(tmp_path
     assert sum(1 for m in a.memory.items if "made love" in m.text) == 1
 
 
+async def test_given_no_proposal_when_the_talk_runs_on_then_it_ends_after_eight_lines(tmp_path):
+    # Given a pair that may, and nobody proposing anything
+    engine = await _engine(tmp_path)
+    a, b = engine.agents["isolde"], engine.agents["nib"]
+    # When they keep talking
+    c = await _talk(engine, a, b, Scripted({a.name: [], b.name: []}))
+    # Then the talk is cut at eight lines
+    assert len(c.transcript) == 8
+
+
+async def test_given_a_proposal_in_the_last_line_when_the_limit_is_reached_then_the_other_may_still_answer(tmp_path):
+    # Given the eighth line is a proposal and the answer to it is yes
+    engine = await _engine(tmp_path)
+    a, b = engine.agents["isolde"], engine.agents["nib"]
+    llm = Scripted({a.name: [False, False, False, False, True], b.name: [False, False, False, True]})
+    # When the talk reaches the limit
+    c = await _talk(engine, a, b, llm)
+    await _settle(engine)
+    # Then the ninth line is spoken, and both said yes
+    assert len(c.transcript) == 9
+    assert a.bonds[b.id]["intimate"] and b.bonds[a.id]["intimate"]
+
+
+async def test_given_a_proposal_in_the_last_line_when_the_answer_is_no_then_the_talk_ends_after_that_one_line(tmp_path):
+    # Given the eighth line is a proposal that is turned aside
+    engine = await _engine(tmp_path)
+    a, b = engine.agents["isolde"], engine.agents["nib"]
+    llm = Scripted({a.name: [False] * 6, b.name: [False, False, False, True]})
+    # When the talk reaches the limit
+    c = await _talk(engine, a, b, llm)
+    await _settle(engine)
+    # Then exactly one more line is allowed, and nothing is confirmed
+    assert len(c.transcript) == 9
+    assert not a.bonds[b.id].get("intimate")
+
+
+async def test_given_a_proposal_earlier_when_the_limit_is_reached_then_it_is_not_stretched(tmp_path):
+    # Given a proposal in line six that was answered with no, and nothing pending at line eight
+    engine = await _engine(tmp_path)
+    a, b = engine.agents["isolde"], engine.agents["nib"]
+    llm = Scripted({a.name: [False] * 6, b.name: [False, False, True]})
+    # When the talk reaches the limit
+    c = await _talk(engine, a, b, llm)
+    # Then it ends at eight lines
+    assert len(c.transcript) == 8
+
+
 async def _settle(engine):
     import asyncio
     await asyncio.gather(*[t for t in engine._bg.values() if not t.done()])

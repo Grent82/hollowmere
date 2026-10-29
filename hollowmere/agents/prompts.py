@@ -378,7 +378,10 @@ Decide whether {first_a} and {first_b} agreed in this talk to meet or spend time
 time later today or tomorrow. Both must have said yes, or offered it themselves. Not their usual work, not
 anything already done, not what they would do anyway, not a threat, an order nobody accepted, a vague "maybe",
 or a time that has already passed. If no time was spoken, there is no meeting. Most talks agree on nothing: then
-leave the list empty."""
+leave the list empty.
+
+The activity is one phrase that both of them read as their own plan. Name the place for what it is ("visit the
+nest together"), never as "home", "my" or "your" place: it is home to only one of them."""
 
 
 def leaving_system_prompt() -> str:

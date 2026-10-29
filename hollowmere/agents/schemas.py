@@ -171,7 +171,7 @@ def agreement_schema(places: tuple[str, ...]) -> type[BaseModel]:
             description="the part of the day when_said names: straightaway (going now), dawn, morning, midday, "
                         "afternoon, dusk, evening, night, deep night (after midnight). Bells and sunrise or "
                         "sunset words map to the nearest one")),
-        activity=(str, Field(description="what the two will do together, a short phrase without either name")),
+        activity=(str, Field(description="what the two will do together, a short phrase without either name, neutral for both readers: no \"home\", \"my\" or \"your\"")),
         place=(place_t, Field(description="where they will meet, one id from the PLACES list")),
     )
     return create_model(
