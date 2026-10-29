@@ -22,6 +22,7 @@ class LLMConfig(BaseModel):
     timeout_s: float = 240
     structured_output: Literal["json_schema", "json_object", "prompt"] = "json_schema"
     disable_thinking: bool = True
+    extra_body: dict = Field(default_factory=dict)  # merged into every request, e.g. {reasoning = {enabled = false}} on OpenRouter
     log_path: str = "saves/llm_log.jsonl"
 
     @property

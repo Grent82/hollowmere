@@ -13,7 +13,8 @@ temperature = 0.7
 max_tokens = 1500
 timeout_s = 120
 structured_output = "json_schema"         # vLLM enforces the schema
-disable_thinking = true                   # Qwen 3.6 thinks unless told not to
+disable_thinking = false                  # the hub ignores chat_template_kwargs
+extra_body = { reasoning_effort = "none" } # this is what switches Qwen thinking off there; otherwise it eats max_tokens and replies come back empty
 log_path = "saves/llm_log-litellm.jsonl"   # failed LLM calls only
 
 [embeddings]

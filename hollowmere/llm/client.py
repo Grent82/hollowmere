@@ -169,6 +169,7 @@ class OpenAICompatLLM:
             payload["response_format"] = {"type": "json_object"}
         if self._send_thinking_flag:
             payload["chat_template_kwargs"] = {"enable_thinking": False}
+        payload.update(self.cfg.extra_body)
         return payload
 
     def _downgrade(self, error_text: str) -> bool:

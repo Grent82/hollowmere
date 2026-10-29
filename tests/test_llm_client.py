@@ -170,3 +170,21 @@ async def test_only_failed_calls_are_logged(tmp_path):
     assert records[0]["reply"] == "not json" and "invalid reply" in records[0]["error"]
     assert records[0]["prompt"] == "user"
     await llm.aclose()
+
+
+async def test_given_extra_body_when_calling_then_it_is_sent_with_every_request():
+    # Given a provider (OpenRouter) that switches thinking off with its own field
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"role": "assistant", "content": '{"mood": 1}'}}]})
+
+    cfg = LLMConfig(log_path="", disable_thinking=False, extra_body={"reasoning": {"enabled": False}})
+    llm = OpenAICompatLLM(cfg, transport=httpx.MockTransport(handler))
+    # When a structured call is made
+    await llm.structured("sys", "user", Mood, label="t")
+    # Then the extra field is in the payload and the vLLM-only flag is not
+    assert seen[0]["reasoning"] == {"enabled": False}
+    assert "chat_template_kwargs" not in seen[0]
+    await llm.aclose()

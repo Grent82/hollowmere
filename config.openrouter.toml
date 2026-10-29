@@ -1,0 +1,25 @@
+# Hollowmere against OpenRouter.
+#   $env:LITELLM_API_KEY = "sk-..."          # once per PowerShell window (or setx for good)
+#   uv run hollowmere --config config.openrouter.toml check
+#   uv run hollowmere --config config.openrouter.toml serve
+# Anything left out here takes the default from hollowmere/config.py, not from config.toml.
+
+[llm]
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "LITELLM_API_KEY"           # the key stays out of this file
+model = "qwen/qwen3.8-flash"
+max_concurrency = 4                       # 8 produced 429s; OpenRouter rate-limits per key/provider
+temperature = 0.7
+max_tokens = 1500
+timeout_s = 120
+structured_output = "json_schema"         # vLLM enforces the schema
+disable_thinking = false                  # chat_template_kwargs is vLLM-only; OpenRouter ignores it
+extra_body = { reasoning = { enabled = false } }  # otherwise thinking eats max_tokens and the reply comes back empty
+log_path = "saves/llm_log-litellm.jsonl"   # failed LLM calls only
+
+[embeddings]
+provider = "server"                     # fail loudly rather than silently fall back to hashing
+model = "qwen/qwen3-embedding-8b"
+
+[sim]
+save_path = "saves/hollowmere-openrouter.db" # its own save: real embeddings and a bigger model are a different run
