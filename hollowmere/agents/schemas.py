@@ -332,7 +332,7 @@ def goblin_choice_schema(people: tuple[str, ...]) -> type[BaseModel]:
 
 @lru_cache(maxsize=256)
 def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
-                       romance_eligible: bool = False) -> type[BaseModel]:
+                       romance_eligible: bool = False, people: tuple[str, ...] = ()) -> type[BaseModel]:
     place_t = Literal[places]  # type: ignore[valid-type]
     # The evidence comes first, so the model commits to it before inventing a time: the code then
     # checks `when_said` against the transcript and drops the other person's tasks and unanswered demands.
@@ -373,6 +373,20 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
                         "than two things were truly agreed, keep only the two that matter most. A tentative "
                         "'maybe' that nobody confirmed can be left out entirely")),
     )
+    if people:
+        heard = create_model(
+            "Heard",
+            about=(Literal[people], Field(description="the third person the claim is about, by first name")),  # type: ignore[valid-type]
+            claim=(str, Field(max_length=200, description="what THEY said about that person, a statement that names "
+                                                          "that person, in a few words and in their own words where "
+                                                          "you can; never what was said about you or about the talk")),
+            trust=(Literal["believed", "unsure", "doubted"], Field(description=(
+                "whether you take it for true: believed, unsure, or doubted"))),
+        )
+        fields["heard"] = (list[heard], Field(  # type: ignore[valid-type]
+            default_factory=list, max_length=3, description=(
+                "claims THEY made about other people that you did not know before; usually empty. Only what they "
+                "actually said, never your own guess")))
     fields["arrested"] = (Literal["no", "i_locked_them_up", "they_locked_me_up"], Field(
         default="no", description="only if, in this very conversation, someone was actually seized and locked up, "
                     "as an act the transcript shows: i_locked_them_up if you had them seized, they_locked_me_up if "

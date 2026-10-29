@@ -41,7 +41,7 @@ from hollowmere.llm.client import LLMError
 from hollowmere.memory.embed import Embedder
 from hollowmere.memory.store import Store
 from hollowmere.memory.stream import MemoryStream, repeats
-from hollowmere.sim import reports
+from hollowmere.sim import knowledge, reports
 from hollowmere.sim.absence import Absences
 from hollowmere.sim.daily import DailyEvents
 from hollowmere.world.world import World
@@ -136,6 +136,8 @@ class Engine(Absences, DailyEvents):
         self._reported: date | None = None  # the day the evening reports last started
         self._report_task: asyncio.Task | None = None
         self._daily_for: date | None = None  # the day the morning's event was last made
+        self._known_base = dict(ctx.known_as)  # what the town knew of each person from the start
+        self._whispers_for: date | None = None  # the day what the town whispers was last worked out
         self._daily_task: asyncio.Task | None = None
         self._pending_events: list[dict] = []  # made this morning, still to happen at their hour
         self._queue: list[dict] = []  # departures and the news of them still to come, each with an "at" time
@@ -178,6 +180,9 @@ class Engine(Absences, DailyEvents):
         if self._daily_due(now) and (self._daily_task is None or self._daily_task.done()):
             self._daily_task = asyncio.create_task(self._run_daily_event_task(now))
         await self._deliver_events(now)
+        if self._whispers_for != day_key(now) and self.tick_count > 0:
+            self._whispers_for = day_key(now)
+            asyncio.create_task(self._refresh_whispers_task(now))
         if self.tick_count % SAMPLE_EVERY_TICKS == 0:
             self._sample(now)
         self.tick_count += 1
@@ -289,6 +294,38 @@ class Engine(Absences, DailyEvents):
             await parent._remember("observation", f"{child.name} has grown from a newborn into a small child, who now "
                                                   f"follows me about and says a few words.", now, 7)
         self._event("grew", [child.id, mother.id, father.id], f"{child.first} has grown into a small child.")
+
+    WHISPER_MIN = 3  # unconcerned people who heard of it, before the town can be said to whisper it
+    WHISPERS_PER_PERSON = 2
+
+    def _whispered(self, facts: list) -> dict[str, str]:
+        """What the town knows of each person: what it knew from the start, then what is whispered of them."""
+        lines: dict[str, list[str]] = {}
+        for f in sorted(knowledge.scan(self, facts), key=lambda f: f["since"], reverse=True):
+            spread = [k for k in f["knowers"] if not k["involved"] and k["how"].split()[0] in ("told", "heard")]
+            if f["kind"] != "goblin" and len(spread) >= self.WHISPER_MIN:
+                for pid in f["about"]:
+                    lines.setdefault(pid, []).append(f"It is whispered that {f['text']}.")
+        known = dict(self._known_base)
+        for pid, ls in lines.items():
+            known[pid] = f"{self._known_base.get(pid, '')} {' '.join(ls[:self.WHISPERS_PER_PERSON])}".strip()
+        return known
+
+    def _apply_known(self, known: dict[str, str]) -> None:
+        self.ctx.known_as.clear()
+        self.ctx.known_as.update(known)
+
+    def _refresh_whispers(self) -> None:
+        self._apply_known(self._whispered(knowledge.facts_of(self)))
+
+    async def _refresh_whispers_task(self, now: datetime) -> None:
+        """Once a day, off the main thread (reading every memory takes seconds); the swap itself is not."""
+        self._whispers_for = day_key(now)
+        try:
+            facts = knowledge.facts_of(self)  # touches the save, so it is made here
+            self._apply_known(await asyncio.to_thread(self._whispered, facts))
+        except Exception:  # noqa: BLE001 - a nicety must never hurt the town
+            log.exception("whispers failed")
 
     def _carry_babies(self) -> None:
         """A baby is wherever the parent who shares its home is. A goblin child is carried only by a goblin: a

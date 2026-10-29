@@ -17,7 +17,7 @@ from typing import Literal
 from hollowmere.agents import prompts, romance
 from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.kinship import Kinship
-from hollowmere.agents.persona import Persona, affinity_label, starting_affinity, update_affinity
+from hollowmere.agents.persona import Persona, affinity_label, first_name_of, starting_affinity, update_affinity
 from hollowmere.agents.schemas import (
     BabyHome,
     LifeFacts,
@@ -689,6 +689,7 @@ class Agent:
         judging_goblin = other.persona.is_goblin and self.persona.is_human and self.id not in other.allies
         aside = prompts.goblin_aside(self, other, now) if judging_goblin else ""
         owed = [f"{c['time']} — {c['activity']} at {c['place']}" for c in self.commitments]
+        firsts = {first_name_of(n): i for i, n in ctx.names.items() if i not in (self.id, other.id)}  # whom a claim may be about: a third person
         romance_eligible = not (self.persona.dependent or other.persona.dependent) and romance.eligible_for_love(
             self.persona.sex, other.persona.sex, self.bonds.get(other.id),
             kin=ctx.kin is not None and ctx.kin.related(self.id, other.id))
@@ -698,13 +699,14 @@ class Agent:
             out = await ctx.llm.structured(
                 prompts.system_prompt(self),
                 prompts.chat_digest(self, ctx.names, now, other.name, transcript, aside, existing=owed),
-                chat_digest_schema(places, judging_goblin, romance_eligible), label="digest")
+                chat_digest_schema(places, judging_goblin, romance_eligible, tuple(firsts)), label="digest")
         except LLMError as e:
             log.warning("%s: digest failed (%s)", self.id, e)
             await self._remember("chat", f"I spoke with {other.name}.", now, 3)
             return Digest()
         await self._remember("chat", out.summary, now, out.importance, f"told:{other.id}",
                              mentions(out.summary, ctx.names, exclude=self.id))
+        await self._keep_hearsay(getattr(out, "heard", []), other, firsts, ctx.names, transcript, now)
         bond = self.bonds.get(other.id, {"talks": 0, "affinity": starting_affinity("neutral")})
         affinity = update_affinity(bond.get("affinity", starting_affinity(bond.get("stance", "neutral"))),
                                    out.feeling, out.importance)
@@ -866,6 +868,25 @@ class Agent:
             previous = old.get(text.lower())
             result.append({"text": text, "since": previous["since"] if previous else day_key(now).isoformat()})
         self.states = result
+
+    async def _keep_hearsay(self, heard: list, other: "Agent", firsts: dict[str, str], names: dict[str, str],
+                            transcript: list[tuple[str, str]], now: datetime) -> None:
+        """What the other said of third people, kept as theirs with how far it was believed. A claim the other never
+        voiced, or one about oneself, is dropped."""
+        said = " ".join(text for who, text in transcript if who == other.name)
+        said_words = set(WORD_RE.findall(said.lower()))
+        for h in heard:
+            subject = firsts.get(h.about)
+            words = {w for w in WORD_RE.findall(h.claim.lower()) if len(w) > 3}
+            if subject is None or subject == self.id or not words or len(words & said_words) / len(words) < 0.75:
+                continue
+            name_words = {w for w in WORD_RE.findall(names.get(subject, "").lower()) if len(w) > 2}
+            if not name_words & set(WORD_RE.findall(h.claim.lower())):
+                continue  # a claim about someone names them, or it is about something else
+            suffix, weight = {"believed": ("", 6), "unsure": (" I am not sure of it.", 4),
+                              "doubted": (" I do not believe it.", 3)}[h.trust]
+            await self._remember("chat", f"{other.first} told me that {h.claim.strip().rstrip('.')}.{suffix}", now,
+                                 weight, f"told:{other.id}", [subject])
 
     async def decide_baby_home(self, ctx: Ctx, child: "Agent", father: "Agent", now: datetime) -> bool:
         """Where the mother puts her goblin child: True to give it to its father's home, False to keep it. Her

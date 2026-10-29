@@ -140,6 +140,8 @@ class FakeLLM:
         if "made_love" in js.get("properties", {}):
             out["made_love"] = False
         out["arrested"] = "no"  # the scripted brain never decides this on its own
+        if "heard" in js.get("properties", {}):
+            out["heard"] = []
         return out
 
     def _agreement(self, js: dict, user: str) -> dict:

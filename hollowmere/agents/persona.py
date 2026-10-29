@@ -51,6 +51,12 @@ CHILD_AGE = 3  # what a newborn becomes when it grows into a child
 MINOR_AGE = 14  # below this: dependent on a parent, no love, no leaving alone
 
 
+def first_name_of(name: str) -> str:
+    """The first name of a full name, past a title ("Captain Roderic Graves" -> "Roderic")."""
+    parts = name.split()
+    return parts[1] if parts[0] in {"Father", "Captain", "Mother", "Ser", "Sister"} and len(parts) > 1 else parts[0]
+
+
 class Persona(BaseModel):
     id: str
     name: str
@@ -106,8 +112,7 @@ class Persona(BaseModel):
 
     @property
     def first_name(self) -> str:
-        parts = self.name.split()
-        return parts[1] if parts[0] in {"Father", "Captain", "Mother", "Ser", "Sister"} and len(parts) > 1 else parts[0]
+        return first_name_of(self.name)
 
     @property
     def bed(self) -> str:

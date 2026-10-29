@@ -13,7 +13,7 @@ from datetime import date, datetime
 from typing import TYPE_CHECKING, Iterable
 
 from hollowmere.agents.gods import GOD_BY_ID, God
-from hollowmere.agents.persona import DATA, RANK, Persona
+from hollowmere.agents.persona import DATA, RANK, Persona, first_name_of
 from hollowmere.memory.stream import Memory
 
 if TYPE_CHECKING:
@@ -129,11 +129,34 @@ def identity(agent: Agent, names: dict[str, str], hide_stance_for: str | None = 
     return text + f"People you know:\n{rel or '- no one well'}"
 
 
-def memories(mems: Iterable[Memory], now: datetime, title: str = "WHAT YOU REMEMBER") -> str:
+def source_label(m: Memory, names: dict[str, str]) -> str:
+    """How the one who remembers came by it, as they would put it; nothing for a memory from before it was kept."""
+    s = m.source
+    if s == "saw":
+        return "you saw it"
+    if s == "lived":
+        return "you lived it"
+    if s.startswith("told:"):
+        who = s.split(":", 1)[1]
+        return f"{first_name_of(names.get(who, who))} told you"
+    if s == "word":
+        return "word going round"
+    if s == "own":
+        return "your own thought"
+    if s == "divine":
+        return "a sign from beyond"
+    return ""
+
+
+def memories(mems: Iterable[Memory], now: datetime, title: str = "WHAT YOU REMEMBER",
+             names: dict[str, str] | None = None) -> str:
     # Observations are kept with their clock time no matter how old: knowing someone was at the
     # tavern "3 days ago" is useless for guessing where they'll be today, but "3 days ago at 19:00" lets
     # a pattern emerge across many such sightings. Thoughts and reflections don't need that precision.
-    lines = [f"[{m.id}] ({when(m.created, now, keep_time=m.kind == 'observation')}) {m.text}" for m in mems]
+    def stamp(m: Memory) -> str:
+        label = source_label(m, names) if names is not None else ""
+        return when(m.created, now, keep_time=m.kind == 'observation') + (f"; {label}" if label else "")
+    lines = [f"[{m.id}] ({stamp(m)}) {m.text}" for m in mems]
     return f"{title} (oldest first)\n" + ("\n".join(lines) if lines else "(nothing relevant)")
 
 
@@ -311,7 +334,12 @@ def converse(agent: Agent, names: dict[str, str], now: datetime, place: str, oth
 {identity(agent, names)}
 {townsfolk(agent, names, known_as)}
 
-{memories(known, now, title="WHAT YOU HAVE SEEN AND HEARD")}
+{memories(known, now, title="WHAT YOU HAVE SEEN AND HEARD", names=names)}
+Passing things on: what {p.first_name} says about a third person is a claim, not the truth. {p.first_name} may
+pass it on, keep it back, bend it or make more of it, as {p.first_name}'s temperament and station would, depending on
+how much {p.first_name} trusts or likes {other_name} and how {p.first_name} feels about the one spoken of. What
+{p.first_name} only heard from someone, {p.first_name} says so ("Ros says ..."); what {p.first_name} saw, they may say
+plainly.
 
 {memories(private, now, title="YOUR PRIVATE THOUGHTS")}
 These are {p.first_name}'s own private thoughts, whatever they hold - a scheme, a fear, a tenderness, a
