@@ -1,0 +1,120 @@
+"""Who knows what, and how they came to know it: read off the memories (their text and where they came from).
+
+No model is asked. The engine knows what is true (a pregnancy, a birth, two lovers, a flight, an arrest, a goblin
+in the hills); for each such fact every memory is read that names the people it is about and says the thing, and the
+earliest one tells how that person came to know it (saw it, lived it, was told by someone, had word of it, or
+worked it out). It is a view for the player, and changes nothing in the town."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from datetime import datetime
+
+from hollowmere.agents.agent import mentions
+from hollowmere.memory.stream import Memory
+
+
+@dataclass
+class Fact:
+    kind: str
+    text: str
+    names: list[str]  # ids a memory must name to be about it (all of them)
+    pattern: re.Pattern  # and one of these words
+    involved: set[str] = field(default_factory=set)  # those who lived it, or the thing is about
+
+
+def _words(*words: str) -> re.Pattern:
+    """Any of the words, at the start of a word ("son" does not match "person")."""
+    return re.compile(r"\b(?:" + "|".join(words) + ")", re.I)
+
+
+def facts_of(engine) -> list[Fact]:
+    """What is true in the town, as far as it is worth asking who knows."""
+    ag, out = engine.agents, []
+    for p in engine.pregnancies:
+        mother, father = ag.get(p["mother_id"]), ag.get(p["father_id"])
+        if mother is None or father is None:
+            continue
+        both = {mother.id, father.id}
+        out.append(Fact("pregnancy", f"{mother.name} is with child" if not p["resolved"]
+                        else f"{mother.name} was with child (the child is born)", [mother.id],
+                        _words("with child", "pregnan", "belly", "expecting", "carrying", "swell"), both))
+        out.append(Fact("father", f"{father.name} is the father of {mother.name}'s child", [mother.id, father.id],
+                        _words("father", "child", "baby", "pregnan", "carrying", "bastard", "heir", "born"), both))
+    for child in ag.values():
+        if len(child.persona.parents) == 2 and all(i in ag for i in child.persona.parents):
+            mother = ag[child.persona.parents[0]]
+            out.append(Fact("birth", f"{mother.name} gave birth to {child.name}", [child.id],
+                            _words(r"born", "birth", "newborn", "gave birth", "baby", "son", "daughter"),
+                            {*child.persona.parents, child.id}))
+    seen = set()
+    for a in ag.values():
+        for bid, bond in a.bonds.items():
+            pair = tuple(sorted((a.id, bid)))
+            if bond.get("intimate") and bid in ag and ag[bid].bonds.get(a.id, {}).get("intimate") and pair not in seen:
+                seen.add(pair)
+                out.append(Fact("lovers", f"{a.name} and {ag[bid].name} are lovers", list(pair),
+                                _words("lover", "made love", "in love", "intimate", "passion", "kiss", "bed"),
+                                set(pair)))
+    for kind, label, words in (("returned", "tried to leave Hollowmere and was turned back",
+                                _words("leave", "left", "fled", "slip", "turned back", "run away", "escape")),
+                               ("arrest", "was locked in the watchhouse cell",
+                                _words("locked", "cell", "arrest", "seiz", "watchhouse")),
+                               ("move", "moved in together", _words("moved in", "moves in", "live with", "den"))):
+        for ev in engine.store.events_of(kind, datetime.min):
+            ids = [i for i in ev["agents"] if i in ag and not ag[i].persona.dependent]
+            if ids:
+                out.append(Fact(kind, ev["text"], ids[:2], words, set(ids)))
+    goblins = [a for a in ag.values() if a.persona.is_goblin]
+    for g in goblins:
+        out.append(Fact("goblin", f"{g.name}, a goblin, lives near Hollowmere", [g.id], _words(".*"), {g.id}))
+    return out
+
+
+def _how(m: Memory, names: dict[str, str]) -> str:
+    s = m.source
+    if s in ("saw", "lived"):
+        return "saw"
+    if s.startswith("told:"):
+        who = s.split(":", 1)[1]
+        return f"told by {names.get(who, who).split()[0]}"
+    if s == "word":
+        return "heard"
+    if s in ("own", "divine"):
+        return "thought"
+    return {"observation": "saw", "chat": "told", "thought": "thought", "reflection": "thought"}.get(m.kind, "memory")
+
+
+def build(engine) -> list[dict]:
+    names = {i: a.name for i, a in engine.agents.items()}
+    grown = [a for a in engine.agents.values() if not a.persona.dependent]
+    facts = []
+    for f in facts_of(engine):
+        knowers, since = [], None
+        for a in grown:
+            hit = None
+            for m in a.memory.items:
+                if m.kind == "plan":
+                    continue
+                named = mentions(m.text, names, exclude=a.id)
+                if a.id in f.names:
+                    named.append(a.id)  # a memory of one's own is about oneself
+                if not (all(n in named for n in f.names) and f.pattern.search(m.text)):
+                    continue
+                hit = m
+                break
+            involved = a.id in f.involved
+            if hit is None and not involved:
+                continue
+            entry = {"agent": a.id, "name": a.name, "color": a.persona.color, "involved": involved,
+                     "how": "involved" if (involved and hit is None) else _how(hit, names),
+                     "since": hit.created.isoformat() if hit else None,
+                     "snippet": hit.text[:140] if hit else ""}
+            knowers.append(entry)
+            if hit and (since is None or hit.created.isoformat() < since):
+                since = hit.created.isoformat()
+        facts.append({"kind": f.kind, "text": f.text, "since": since or "", "count": len(knowers),
+                      "knowers": sorted(knowers, key=lambda k: (not k["involved"], k["since"] or "~")),
+                      "unaware": [a.name for a in grown if a.id not in {k["agent"] for k in knowers}]})
+    return sorted(facts, key=lambda f: f["since"] or "", reverse=True)

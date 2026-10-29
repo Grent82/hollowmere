@@ -58,6 +58,11 @@ class Store:
         self.db = sqlite3.connect(str(path))
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        have = {r["name"] for r in self.db.execute("PRAGMA table_info(memories)")}
+        for column, ddl in (("source", "TEXT NOT NULL DEFAULT ''"), ("about", "TEXT NOT NULL DEFAULT '[]'")):
+            if column not in have:  # a save from before memories said where they came from
+                self.db.execute(f"ALTER TABLE memories ADD COLUMN {column} {ddl}")
+        self.db.commit()
         self.db.execute("PRAGMA journal_mode=WAL")
 
     def close(self) -> None:
@@ -67,12 +72,13 @@ class Store:
     # ---------------------------------------------------------------- memories
 
     def insert_memory(self, agent_id: str, kind: str, text: str, created: datetime,
-                      importance: int, evidence: list[int], embedding: np.ndarray) -> int:
+                      importance: int, evidence: list[int], embedding: np.ndarray, source: str = "",
+                      about: list[str] | None = None) -> int:
         cur = self.db.execute(
-            "INSERT INTO memories(agent_id, kind, text, created, last_accessed, importance, evidence, embedding)"
-            " VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO memories(agent_id, kind, text, created, last_accessed, importance, evidence, embedding,"
+            " source, about) VALUES (?,?,?,?,?,?,?,?,?,?)",
             (agent_id, kind, text, created.isoformat(), created.isoformat(), importance,
-             json.dumps(evidence), embedding.astype(np.float32).tobytes()),
+             json.dumps(evidence), embedding.astype(np.float32).tobytes(), source, json.dumps(about or [])),
         )
         self.db.commit()
         return int(cur.lastrowid)
@@ -124,9 +130,10 @@ class Store:
 
     def events_of(self, kind: str, after: datetime) -> list[dict]:
         """Events of one kind strictly after `after`, oldest first, with their extra fields."""
-        rows = self.db.execute("SELECT time, text, extra FROM events WHERE kind = ? AND time > ? ORDER BY id",
+        rows = self.db.execute("SELECT time, agents, text, extra FROM events WHERE kind = ? AND time > ? ORDER BY id",
                                (kind, after.isoformat())).fetchall()
-        return [{"time": r["time"], "text": r["text"], **json.loads(r["extra"])} for r in rows]
+        return [{"time": r["time"], "text": r["text"], "agents": json.loads(r["agents"]), **json.loads(r["extra"])}
+                for r in rows]
 
     def chat_log_for(self, agent_id: str, limit: int = 200) -> list[dict]:
         """This agent's chat lines and conversation endings, oldest first, each carrying `convo` so

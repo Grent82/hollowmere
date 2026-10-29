@@ -623,11 +623,11 @@ class Engine(Absences, DailyEvents):
                     continue
                 stored += 1
                 known = b.id in a.persona.relationships
-                await a.observe(text, now, 3 if known else 2)
+                await a.observe(text, now, 3 if known else 2, source="saw", about=[b.id])
                 if self.is_showing(b.id):
                     belly = self._belly_text(b)
                     if not a.memory.seen_recently(belly, now, minutes=720):
-                        await a.observe(belly, now, 5)
+                        await a.observe(belly, now, 5, source="saw", about=[b.id])
                 if candidate is None and self._may_react(a, b, now):
                     candidate = b
             if candidate is not None:
@@ -820,7 +820,8 @@ class Engine(Absences, DailyEvents):
             if RANK[bond["stance"]] < RANK["close"]:
                 bond["stance"], bond["affinity"] = "close", starting_affinity("close")
             bond["intimate"] = True
-            await x._remember("chat", f"{y.first} and I talked, and it became more - we made love.", now, 7)
+            await x._remember("chat", f"{y.first} and I talked, and it became more - we made love.", now, 7,
+                              source="lived", about=[y.id])
         if {a.persona.sex, b.persona.sex} == {"male", "female"}:
             mother, father = (a, b) if a.persona.sex == "female" else (b, a)
             already = any(p["mother_id"] == mother.id and not p["resolved"] for p in self.pregnancies)
@@ -848,7 +849,7 @@ class Engine(Absences, DailyEvents):
             bond.setdefault("kin", f"your newborn {word}")
             text = f"{mother.name} gave birth to {child.name}, who is my {word}."
             if not any(m.text == text for m in r.memory.items):
-                await r._remember("observation", text, when, 7)
+                await r._remember("observation", text, when, 7, source="saw", about=[mother.id, child.id])
 
     @staticmethod
     def _belly_text(mother: Agent) -> str:
@@ -863,7 +864,7 @@ class Engine(Absences, DailyEvents):
             if r.id == child.id or r.id in child.persona.parents or r.persona.dependent or any(child.name in m.text for m in r.memory.items):
                 continue
             if any(m.text == belly for m in r.memory.items):
-                await r._remember("observation", text, when, 6)
+                await r._remember("observation", text, when, 6, source="word", about=[mother.id, child.id])
 
     async def backfill_family(self) -> None:
         """Children born before parents carried a family tie and a memory of the birth: give them both, once."""
@@ -884,7 +885,7 @@ class Engine(Absences, DailyEvents):
                 bond.setdefault("kin", f"your newborn {'son' if child.persona.sex == 'male' else 'daughter'}")
                 text = romance.birth_memory(is_mother, child.persona, other.persona)
                 if not any(m.text == text for m in parent.memory.items):
-                    await parent._remember("observation", text, when, 9)
+                    await parent._remember("observation", text, when, 9, source="lived", about=[child.id, other.id])
 
     def _pregnancy_phases(self, now: datetime) -> None:
         """Pregnancy shows in three steps: she notices, the town can see it, the child comes."""
@@ -927,8 +928,10 @@ class Engine(Absences, DailyEvents):
         romance.recognize_child(mother, father, child)
         await self._tell_mothers_family(child, mother, now)
         await self._tell_witnesses(child, mother, now)
-        await mother._remember("observation", romance.birth_memory(True, child.persona, father.persona), now, 9)
-        await father._remember("observation", romance.birth_memory(False, child.persona, mother.persona), now, 9)
+        await mother._remember("observation", romance.birth_memory(True, child.persona, father.persona), now, 9,
+                               source="lived", about=[child.id, father.id])
+        await father._remember("observation", romance.birth_memory(False, child.persona, mother.persona), now, 9,
+                               source="lived", about=[child.id, mother.id])
         generated = self.store.get("generated_personas", [])
         generated.append(child_persona.model_dump(mode="json"))
         self.store.put("generated_personas", generated)

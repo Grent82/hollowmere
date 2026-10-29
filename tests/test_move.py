@@ -277,3 +277,100 @@ async def test_given_a_human_moves_into_the_den_when_the_move_runs_then_she_slee
     # Then her bed is the nest and the den is a place she can name; the tavern stays hers for work
     assert isolde.persona.bed == nib.persona.bed == "goblin_den/nib_nest"
     assert "goblin_den" in isolde.known_areas and isolde.persona.work in isolde.known_areas
+
+
+# ------------------------------------------------------------------ a human moving into a goblin's den
+
+DEN_TALK = [("Nib", "Stay in my burrow for good, Isolde. Make the nest of rags your home."),
+            ("Isolde Vell", "Then I will leave my mother's garret and live in your burrow, Nib.")]
+
+
+async def test_given_isolde_settled_on_living_in_the_den_when_the_talk_ends_then_the_move_is_queued(tmp_path):
+    # Given a talk in which Isolde settles on living in Nib's burrow
+    engine = await town(tmp_path, Brain([move("Isolde", words="I will leave my mother's garret and live in your burrow")]))
+    # When it ends
+    await finished(engine, "nib", "isolde", DEN_TALK)
+    # Then the move of a human into a goblin's den is queued, not refused
+    assert queued(engine) == [(["isolde"], "nib")]
+
+
+async def test_given_the_evening_when_isolde_moves_in_then_the_den_is_her_home_and_bed_and_the_garret_is_not(tmp_path):
+    # Given Isolde's move into Nib's den is due
+    engine = await town(tmp_path, Brain())
+    isolde, nib = engine.agents["isolde"], engine.agents["nib"]
+    old_home = isolde.persona.home
+    engine.schedule_move_in(isolde, nib, LATER - timedelta(hours=3))
+    # When the evening comes
+    await engine._absences(datetime(1347, 11, 6, 20, 0))
+    # Then she lives and sleeps in the den, and the garret is no longer hers to name
+    assert (isolde.persona.home, isolde.persona.home_object) == ("goblin_den", "nib_nest")
+    assert isolde.persona.bed == nib.persona.bed
+    assert "goblin_den" in isolde.known_areas and old_home not in isolde.known_areas
+    assert nib.persona.bed in isolde.place_ids and old_home not in isolde.place_ids
+
+
+async def test_given_isolde_has_moved_in_when_she_goes_to_bed_then_she_can_walk_to_the_nest(tmp_path):
+    # Given Isolde has moved into the den
+    engine = await town(tmp_path, Brain())
+    isolde, nib = engine.agents["isolde"], engine.agents["nib"]
+    engine.schedule_move_in(isolde, nib, LATER - timedelta(hours=3))
+    await engine._absences(datetime(1347, 11, 6, 20, 0))
+    # When we look for her way to bed
+    goal = engine.world.target_tile(isolde.persona.bed)
+    path = engine.world.find_path((isolde.x, isolde.y), goal) if goal else []
+    # Then the nest is a place on the map, she may go there, and a path leads to it
+    assert goal is not None
+    assert isolde.can_go(isolde.persona.bed, engine.world)
+    assert path and path[-1] == goal
+
+
+async def test_given_isolde_slept_in_the_garret_when_she_moves_in_then_tonights_sleep_is_in_the_nest(tmp_path):
+    from hollowmere.agents.agent import Block, Task
+    # Given a plan and a task for the night in her old bed
+    engine = await town(tmp_path, Brain())
+    isolde, nib = engine.agents["isolde"], engine.agents["nib"]
+    old_bed = isolde.persona.bed
+    t0 = datetime(1347, 11, 6, 23, 0)
+    isolde.plan = [Block(t0, t0 + timedelta(hours=6), "goes to sleep", old_bed)]
+    isolde.tasks = [Task(t0, t0 + timedelta(hours=1), "sleeps", old_bed, "z")]
+    # When she moves in
+    engine.schedule_move_in(isolde, nib, LATER - timedelta(hours=3))
+    await engine._absences(datetime(1347, 11, 6, 20, 0))
+    # Then the night's sleep is in the nest
+    assert isolde.plan[0].place == nib.persona.bed and isolde.tasks[0].place == nib.persona.bed
+
+
+async def test_given_isolde_moves_in_when_it_is_done_then_nib_stays_and_the_baby_stays_with_him(tmp_path):
+    # Given a baby of Isolde and Nib that already lives in the den
+    engine = await town(tmp_path, Brain())
+    isolde, nib = engine.agents["isolde"], engine.agents["nib"]
+    preg = {"mother_id": "isolde", "father_id": "nib", "start_day": "1347-11-01", "due_day": "1347-11-05",
+            "resolved": False}
+    engine.pregnancies.append(preg)
+    await engine._give_birth(preg, LATER)
+    baby = next(a for a in engine.agents.values() if "nib" in a.persona.parents)
+    baby.set_home(nib.persona.home, nib.persona.home_object, engine.world)
+    # When Isolde moves in
+    engine.schedule_move_in(isolde, nib, LATER - timedelta(hours=3))
+    await engine._absences(datetime(1347, 11, 6, 20, 0))
+    # Then Nib and the baby are still in the den, and Isolde is with them
+    assert nib.persona.home == "goblin_den" and baby.persona.home == "goblin_den"
+    assert isolde.persona.home == "goblin_den"
+
+
+async def test_given_isolde_in_the_den_when_the_game_is_saved_and_loaded_then_she_still_lives_there(tmp_path):
+    # Given Isolde moved into the den and the game is saved
+    engine = await town(tmp_path, Brain())
+    isolde, nib = engine.agents["isolde"], engine.agents["nib"]
+    engine.schedule_move_in(isolde, nib, LATER - timedelta(hours=3))
+    await engine._absences(datetime(1347, 11, 6, 20, 0))
+    engine.save()
+    cfg = Config()
+    cfg.sim.save_path = str(tmp_path / "move.db")
+    # When it is loaded again
+    again = await build_engine(cfg, llm=Brain(), embedder=HashingEmbedder(128))
+    assert again.load()
+    # Then her home, her bed and the places she knows are the den's
+    i2 = again.agents["isolde"]
+    assert i2.persona.home == "goblin_den" and i2.persona.bed == nib.persona.bed
+    assert "goblin_den" in i2.known_areas and nib.persona.bed in i2.place_ids

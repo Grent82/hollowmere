@@ -146,6 +146,18 @@ def recognised(text: str, god_name: str, clarity: str) -> str:
     return text
 
 
+def mentions(text: str, names: dict[str, str], exclude: str = "") -> list[str]:
+    """Ids of the people a text names, by full name or first name (whole words only), not the one it is exclude."""
+    found = []
+    for aid, name in names.items():
+        if aid == exclude:
+            continue
+        parts = [name, *(w for w in name.split()[:1] if len(w) > 2)]
+        if any(re.search(rf"\b{re.escape(p)}\b", text) for p in parts):
+            found.append(aid)
+    return found
+
+
 def sign_seen(text: str, god_name: str, clarity: str) -> str:
     """An omen as a bystander remembers it: only as sure of the god behind it as the sign allowed."""
     if clarity == "doubt":
@@ -691,7 +703,8 @@ class Agent:
             log.warning("%s: digest failed (%s)", self.id, e)
             await self._remember("chat", f"I spoke with {other.name}.", now, 3)
             return Digest()
-        await self._remember("chat", out.summary, now, out.importance)
+        await self._remember("chat", out.summary, now, out.importance, f"told:{other.id}",
+                             mentions(out.summary, ctx.names, exclude=self.id))
         bond = self.bonds.get(other.id, {"talks": 0, "affinity": starting_affinity("neutral")})
         affinity = update_affinity(bond.get("affinity", starting_affinity(bond.get("stance", "neutral"))),
                                    out.feeling, out.importance)
@@ -914,11 +927,13 @@ class Agent:
                             now)
         self.new_prayers.append({"god": god.id, "form": out.form, "text": out.text, "clarity": out.clarity})
 
-    async def observe(self, text: str, now: datetime, importance: int) -> None:
-        await self._remember("observation", text, now, importance)
+    async def observe(self, text: str, now: datetime, importance: int, source: str = "",
+                      about: list[str] | None = None) -> None:
+        await self._remember("observation", text, now, importance, source, about)
 
-    async def _remember(self, kind, text: str, now: datetime, importance: int) -> None:
-        await self.memory.add(kind, text, now, importance)
+    async def _remember(self, kind, text: str, now: datetime, importance: int, source: str = "",
+                        about: list[str] | None = None) -> None:
+        await self.memory.add(kind, text, now, importance, source=source, about=about)
         if kind in ("observation", "chat"):  # only what was experienced counts toward the next reflection:
             self.importance_acc += importance  # thoughts and reflections never trigger one (as in the original)
 

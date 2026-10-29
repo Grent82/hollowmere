@@ -108,25 +108,31 @@ class Absences:
         elif q["do"] == "arrested":
             who, by = group[0], self.agents[q["by"]]
             await who._remember("observation", f"{by.name} had me seized and locked in the cell of the "
-                                               "watchhouse.", now, 9)
-            await by._remember("observation", f"I had {who.name} locked in the watchhouse cell.", now, 7)
+                                               "watchhouse.", now, 9, source="lived", about=[by.id])
+            await by._remember("observation", f"I had {who.name} locked in the watchhouse cell.", now, 7,
+                               source="lived", about=[who.id])
             for o in self.circle([who]):
                 if o is not by:
                     await o._remember("observation", f"Word is that {who.name} was locked in the watchhouse "
-                                                     f"cell by {by.name}.", now, 7)
+                                                     f"cell by {by.name}.", now, 7, source="word",
+                                      about=[who.id, by.id])
         elif q["do"] == "vanish":
             for o in self.circle(group):
                 await o._remember("observation", f"{_names(group)} {'has' if len(group) == 1 else 'have'} not "
-                                  f"been seen since {q['since']}; no one knows where.", now, 6)
+                                  f"been seen since {q['since']}; no one knows where.", now, 6, source="word",
+                                  about=[x.id for x in group])
 
     async def move_in(self, mover: Agent, host: Agent, now: datetime) -> None:
         """The mover now lives and sleeps where the host does, babies with them; both and those close are told."""
         for x in [mover, *self._dependents([mover.id])]:
             x.set_home(host.persona.home, host.persona.home_object, self.world)
-        await mover._remember("observation", f"I moved into {host.name}'s home to live there.", now, 8)
-        await host._remember("observation", f"{mover.name} moved into my home to live with me.", now, 8)
+        await mover._remember("observation", f"I moved into {host.name}'s home to live there.", now, 8,
+                              source="lived", about=[host.id])
+        await host._remember("observation", f"{mover.name} moved into my home to live with me.", now, 8,
+                             source="lived", about=[mover.id])
         for o in self.circle([mover, host]):
-            await o._remember("observation", f"Word is that {mover.name} moved in with {host.name}.", now, 6)
+            await o._remember("observation", f"Word is that {mover.name} moved in with {host.name}.", now, 6,
+                              source="word", about=[mover.id, host.id])
         self._event("move", [mover.id, host.id], f"{mover.first} moves in with {host.first}.")
 
     def depart(self, group: list[Agent], now: datetime) -> None:
@@ -161,11 +167,12 @@ class Absences:
             others = [y for y in group if y is not x]
             company = f" with {_names(others)}" if others else ""
             await x._remember("observation", f"I tried to leave Hollowmere{company}, but {reason} stopped us, "
-                                             "and we turned back.", now, 8)
+                                             "and we turned back.", now, 8, source="lived",
+                              about=[y.id for y in others])
         for o in self.circle(group):
             await o._remember("observation", f"Word is that {_names(group)} tried to leave Hollowmere and "
                                              f"{'was' if len(group) == 1 else 'were'} turned back by {reason}.",
-                              now, 7)
+                              now, 7, source="word", about=[x.id for x in group])
         self._event("returned", [x.id for x in group], f"{_names(group)} come back to Hollowmere, turned back by {reason}.")
 
     def arrest(self, by: Agent, who: Agent, now: datetime) -> bool:

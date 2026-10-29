@@ -128,6 +128,15 @@ export interface ChatLogEntry {
   with_color: string | null;
 }
 
+export interface KnowledgeFact {
+  kind: string;
+  text: string;
+  since: string;
+  count: number;
+  knowers: { agent: string; name: string; color: string; involved: boolean; how: string; since: string | null; snippet: string }[];
+  unaware: string[];
+}
+
 export interface AgentDetail extends AgentView {
   age: number;
   traits: string;

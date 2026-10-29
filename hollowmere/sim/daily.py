@@ -86,6 +86,6 @@ class DailyEvents:
             for a in list(self.agents.values()):
                 here = e["where"] == "town" or self.world.area_at(a.x, a.y) == e["where"]
                 if a.awake and not a.is_away and not a.persona.dependent and here:
-                    await a.observe(text, now, e["importance"])
+                    await a.observe(text, now, e["importance"], source="saw")
             self._event("daily", [], e["text"], sort=e["kind"], god=e["god"] if god else None, where=e["where"],
                         clarity=e["clarity"])

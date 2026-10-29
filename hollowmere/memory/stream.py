@@ -42,10 +42,13 @@ class Memory:
     last_accessed: datetime
     importance: int
     evidence: list[int] = field(default_factory=list)
+    source: str = ""  # "saw", "lived", "told:<id>", "word", "own" or "divine"; empty for memories from before it was kept
+    about: list[str] = field(default_factory=list)  # whom it is about, as agent ids
 
     def as_dict(self) -> dict:
         return {"id": self.id, "kind": self.kind, "text": self.text, "created": self.created.isoformat(),
-                "importance": self.importance, "evidence": self.evidence}
+                "importance": self.importance, "evidence": self.evidence, "source": self.source,
+                "about": self.about}
 
 
 class MemoryStream:
@@ -63,7 +66,8 @@ class MemoryStream:
         rows = self.store.load_memories(self.agent_id)
         self.items = [
             Memory(r["id"], r["kind"], r["text"], datetime.fromisoformat(r["created"]),
-                   datetime.fromisoformat(r["last_accessed"]), r["importance"], json.loads(r["evidence"]))
+                   datetime.fromisoformat(r["last_accessed"]), r["importance"], json.loads(r["evidence"]),
+                   r["source"], json.loads(r["about"]))
             for r in rows
         ]
         self._index = {m.id: i for i, m in enumerate(self.items)}
@@ -80,11 +84,13 @@ class MemoryStream:
     # ------------------------------------------------------------------ adding
 
     async def add(self, kind: Kind, text: str, now: datetime, importance: int,
-                  evidence: list[int] | None = None) -> Memory:
+                  evidence: list[int] | None = None, source: str = "", about: list[str] | None = None) -> Memory:
         importance = max(1, min(10, int(importance)))
+        source = source or ("own" if kind in OWN_KINDS else "")  # a thought or a reflection is one's own conclusion
         vec = (await self.embedder.embed([text]))[0]
-        mid = self.store.insert_memory(self.agent_id, kind, text, now, importance, evidence or [], vec)
-        mem = Memory(mid, kind, text, now, now, importance, evidence or [])
+        mid = self.store.insert_memory(self.agent_id, kind, text, now, importance, evidence or [], vec, source,
+                                       about or [])
+        mem = Memory(mid, kind, text, now, now, importance, evidence or [], source, list(about or []))
         self._index[mid] = len(self.items)
         self.items.append(mem)
         self._vecs = vec[None, :] if self._vecs is None else np.vstack([self._vecs, vec])

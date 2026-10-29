@@ -1,5 +1,5 @@
 // Sidebar: clock, controls, townsfolk list, chronicle feed, and the villager inspector.
-import type { AgentDetail, AgentView, Bond, ChatLogEntry, SimEvent, StateMsg } from "./types";
+import type { AgentDetail, AgentView, Bond, ChatLogEntry, KnowledgeFact, SimEvent, StateMsg } from "./types";
 
 type DetailTab = "overview" | "bonds" | "chat" | "memory" | "prayers";
 const GODS: Record<string, { name: string; color: string }> = {
@@ -53,6 +53,7 @@ export class UI {
       document.querySelectorAll("#tabs button, .tab").forEach((el) => el.classList.remove("on"));
       $(`[data-tab="${tab}"]`).classList.add("on");
       $(`#${tab}`).classList.add("on");
+      if (tab === "knowledge") void this.loadKnowledge();
     };
     $("#folk").onclick = (e) => {
       const row = (e.target as HTMLElement).closest<HTMLElement>("[data-agent]");
@@ -115,6 +116,24 @@ export class UI {
     while (feed.childElementCount > 300) feed.lastElementChild!.remove();
     if (stick) feed.scrollTop = 0;
     if (this.selected && evs.some((e) => e.agents.includes(this.selected!))) this.refreshDetail();
+  }
+
+  /** Who knows what, and how: read from the server each time the tab is opened. */
+  private async loadKnowledge(): Promise<void> {
+    const box = $("#knowledge");
+    box.innerHTML = `<p class="muted">Reading the town's memories…</p>`;
+    try {
+      const facts: KnowledgeFact[] = await (await fetch("/api/knowledge")).json();
+      box.innerHTML = facts.map((f) => `
+        <details class="fact">
+          <summary><b>${esc(f.text)}</b> <small>${f.count} know${f.since ? ` · since ${f.since.slice(5, 16).replace("T", " ")}` : ""}</small></summary>
+          <ul>${f.knowers.map((k) => `<li><span class="dot" style="background:${k.color}"></span><b>${esc(k.name)}</b>
+            <span class="how ${k.how.split(" ")[0]}">${esc(k.how)}</span>${k.snippet ? `<small>${esc(k.snippet)}</small>` : ""}</li>`).join("")}</ul>
+          ${f.unaware.length ? `<p class="muted">Does not know: ${esc(f.unaware.join(", "))}</p>` : ""}
+        </details>`).join("") || `<p class="muted">Nothing worth asking yet.</p>`;
+    } catch {
+      box.innerHTML = `<p class="muted">The knowledge could not be read.</p>`;
+    }
   }
 
   private eventHtml(e: SimEvent): string {

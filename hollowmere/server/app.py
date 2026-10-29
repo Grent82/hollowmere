@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from hollowmere.sim import knowledge
 from hollowmere.sim.engine import Engine
 
 log = logging.getLogger(__name__)
@@ -54,6 +55,10 @@ def create_app(engine: Engine) -> FastAPI:
         if detail is None:
             raise HTTPException(404, "no such agent")
         return detail
+
+    @app.get("/api/knowledge")
+    async def knowledge_view():
+        return knowledge.build(engine)
 
     @app.get("/api/events")
     async def events(limit: int = 200):
