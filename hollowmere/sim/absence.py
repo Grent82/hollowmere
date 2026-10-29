@@ -20,6 +20,7 @@ DEPARTURE = time(22, 0)
 RETURN = time(17, 0)
 NEWS_AT = time(6, 0)
 RELEASE = time(8, 0)
+MOVE_IN = time(20, 0)
 
 
 log = logging.getLogger(__name__)
@@ -41,6 +42,17 @@ class Absences:
         if at <= now:
             at += timedelta(days=1)
         self._queue.append({"do": "depart", "ids": ids, "at": at.isoformat()})
+
+    def schedule_move_in(self, mover: Agent, host: Agent, now: datetime) -> None:
+        """Settled on living under the host's roof: the mover carries their things over at the next 20:00."""
+        if (mover.persona.is_goblin or host.persona.is_goblin or mover.persona.infant or host.persona.infant
+                or mover.absence or host.absence or mover.persona.home == host.persona.home
+                or any(q["do"] == "move_in" and mover.id in q["ids"] for q in self._queue)):
+            return
+        at = datetime.combine(day_key(now), MOVE_IN)
+        if at <= now:
+            at += timedelta(days=1)
+        self._queue.append({"do": "move_in", "ids": [mover.id], "to": host.id, "at": at.isoformat()})
 
     def _dependents(self, ids: list[str]) -> list[Agent]:
         """Infants stay with their mother, wherever she goes."""
@@ -84,6 +96,10 @@ class Absences:
         if q["do"] == "depart":
             if group and not any(x.absence for x in group):
                 self.depart(group, now)
+        elif q["do"] == "move_in":
+            host = self.agents.get(q["to"])
+            if group and host is not None and not group[0].absence and not host.absence:
+                await self.move_in(group[0], host, now)
         elif q["do"] == "arrested":
             who, by = group[0], self.agents[q["by"]]
             await who._remember("observation", f"{by.name} had me seized and locked in the cell of the "
@@ -97,6 +113,16 @@ class Absences:
             for o in self.circle(group):
                 await o._remember("observation", f"{_names(group)} {'has' if len(group) == 1 else 'have'} not "
                                   f"been seen since {q['since']}; no one knows where.", now, 6)
+
+    async def move_in(self, mover: Agent, host: Agent, now: datetime) -> None:
+        """The mover now lives and sleeps where the host does, babies with them; both and those close are told."""
+        for x in [mover, *self._dependents([mover.id])]:
+            x.set_home(host.persona.home, host.persona.home_object, self.world)
+        await mover._remember("observation", f"I moved into {host.name}'s home to live there.", now, 8)
+        await host._remember("observation", f"{mover.name} moved into my home to live with me.", now, 8)
+        for o in self.circle([mover, host]):
+            await o._remember("observation", f"Word is that {mover.name} moved in with {host.name}.", now, 6)
+        self._event("move", [mover.id, host.id], f"{mover.first} moves in with {host.first}.")
 
     def depart(self, group: list[Agent], now: datetime) -> None:
         """Out of town, with their babies. They are not seen, not planned for, and not sought."""

@@ -21,7 +21,7 @@ from hollowmere.agents.persona import Persona, affinity_label, starting_affinity
 from hollowmere.agents.schemas import (
     TIME_OF_DAY, DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
     agreement_schema, chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
-    leaving_schema,
+    leaving_schema, moving_schema,
 )
 from hollowmere.llm.client import LLM, LLMError
 from hollowmere.memory.stream import MemoryStream, repeats
@@ -235,6 +235,22 @@ async def agreed_departure(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
     return []
 
 
+async def agreed_move(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
+                      transcript: list[tuple[str, str]]) -> tuple["Agent", "Agent"] | None:
+    """(mover, host) if one of the two settled in this talk on moving into the other's home, else None."""
+    try:
+        out = await ctx.llm.structured(
+            prompts.leaving_system_prompt(), prompts.moving(a.first, b.first, now, transcript),
+            moving_schema(a.first, b.first), label="move", temperature=0.2)
+    except LLMError as e:
+        log.warning("%s and %s: moving failed (%s)", a.id, b.id, e)
+        return None
+    for m in out.moves:
+        if m.settled and spoken(m.words, transcript):  # the words are really in the talk
+            return (a, b) if m.who == a.first else (b, a)
+    return None
+
+
 CELL = "guard_cell/cell_pallet"  # where anyone locked up sits
 
 
@@ -306,6 +322,26 @@ class Agent:
     def _places_in(self, world: World) -> tuple[str, ...]:
         return tuple(pid for area in self.known_areas
                      for pid in [area] + [o.place_id for o in world.objects_in(area)])
+
+    def set_home(self, home: str, home_object: str, world: World) -> None:
+        """Live and sleep somewhere else from now on: the old roof is no longer theirs to name, the new one is."""
+        old_bed = self.persona.bed
+        old_home = self.persona.home
+        self.persona.home, self.persona.home_object = home, home_object
+        if old_home != home:
+            area = world.areas.get(old_home)
+            if area is not None and not area.public and old_home != self.persona.work:
+                self.known_areas = [x for x in self.known_areas if x != old_home]
+        if home in world.areas and home not in self.known_areas:
+            self.known_areas.append(home)
+        self.place_ids = self._places_in(world)
+        bed = self.persona.bed
+        for block in self.plan:
+            if block.place == old_bed:
+                block.place = bed
+        for task in [*self.tasks, *([self.task] if self.task else [])]:
+            if task.place == old_bed:
+                task.place = bed
 
     def learn_area(self, area_id: str, world: World) -> None:
         """A place this person was not free to name before, e.g. the goblin's burrow once they swore to protect him."""
@@ -787,7 +823,7 @@ class Agent:
             "seek": self.seek, "seek_block": self.seek_block,
             "drive": self.drive, "situation": self.situation, "town_state": self.town_state,
             "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
-            "absence": self.absence,
+            "absence": self.absence, "home": self.persona.home, "home_object": self.persona.home_object,
         }
 
     def restore(self, d: dict) -> None:

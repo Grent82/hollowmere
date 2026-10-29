@@ -199,6 +199,24 @@ def leaving_schema(first_a: str, first_b: str) -> type[BaseModel]:
 
 
 @lru_cache(maxsize=256)
+def moving_schema(first_a: str, first_b: str) -> type[BaseModel]:
+    """Whether one of two settled in one talk on moving into the other's home, answered once for both."""
+    move = create_model(
+        "Move",
+        words=(str, Field(description="the words from the talk that settle it, copied exactly")),
+        who=(Literal[first_a, first_b], Field(  # type: ignore[valid-type]
+            description="who moves out of their own home to live in the other's")),
+        settled=(bool, Field(description="true only if the one who moves has firmly decided it in this talk and the "
+                                         "other, whose home it will be, said yes")),
+    )
+    return create_model(
+        "Moving",
+        moves=(list[move], Field(  # type: ignore[valid-type]
+            max_length=1, description="a decision made in this talk to live together under one roof for good; "
+                                      "almost always empty")))
+
+
+@lru_cache(maxsize=256)
 def goblin_choice_schema(people: tuple[str, ...]) -> type[BaseModel]:
     return create_model(
         "GoblinChoice",

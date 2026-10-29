@@ -399,6 +399,18 @@ a plan only talked over, hiding for a night, a visit, going home or going to any
 Most talks settle nothing: then leave the list empty."""
 
 
+def moving(first_a: str, first_b: str, now: datetime, transcript: list[tuple[str, str]]) -> str:
+    lines = "\n".join(f'{who}: "{text}"' for who, text in transcript)
+    return f"""{clock_line(now)} {first_a} and {first_b} have just finished talking.
+
+CONVERSATION
+{lines}
+
+Decide whether in this talk one of them settled on moving into the other's home to live there for good, and the
+other agreed. Not a visit, a night's shelter, a meeting at someone's home, a wish, an offer nobody accepted, or
+staying a little longer. Most talks settle nothing: then leave the list empty."""
+
+
 def infant_mind(agent: Agent) -> str:
     """What a baby can wonder and conclude: the body and the few people it knows, never the grown world's affairs."""
     p = agent.persona

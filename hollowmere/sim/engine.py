@@ -31,7 +31,7 @@ from datetime import date, datetime, timedelta
 from typing import Awaitable, Callable
 
 from hollowmere.agents import prompts, romance
-from hollowmere.agents.agent import Agent, Ctx, Digest, Task, agreed_departure, agreed_meetings, day_key, due_at
+from hollowmere.agents.agent import Agent, Ctx, Digest, Task, agreed_departure, agreed_meetings, agreed_move, day_key, due_at
 from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import RANK, starting_affinity
@@ -476,6 +476,7 @@ class Engine(Absences):
         if c.transcript:  # what they agreed to do together is read once, for both of them
             self._spawn(c.a, self._agree(c), f"agree:{c.id}")
             self._spawn(c.a, self._leave(c), f"leave:{c.id}")
+            self._spawn(c.a, self._settle_move(c), f"move:{c.id}")
         if reason not in ("fled", "never_reached"):  # they actually came face to face, not just tried to
             self._sought[c.a.id] = self._sought[c.b.id] = self.now  # either side's seek should back off now, too
         self._event("chat_end", [c.a.id, c.b.id], f"{c.a.first} and {c.b.first} part ways.",
@@ -685,6 +686,12 @@ class Engine(Absences):
         group = await agreed_departure(self.ctx, c.a, c.b, self.now, list(c.transcript))
         if group:
             self.schedule_departure(group, self.now)
+
+    async def _settle_move(self, c: Conversation) -> None:
+        """Whoever settled in the talk on moving into the other's home, read once for both, moves that evening."""
+        moved = await agreed_move(self.ctx, c.a, c.b, self.now, list(c.transcript))
+        if moved:
+            self.schedule_move_in(*moved, self.now)
 
     def _settle(self, c: Conversation, notes: dict[str, Digest]) -> None:
         """Both sides wrote down the talk separately; act on what both of them say happened in it.
@@ -969,6 +976,8 @@ class Engine(Absences):
         for aid, snap in snaps.items():
             if aid in self.agents:
                 self.agents[aid].restore(snap)
+                if snap.get("home"):  # moved since the persona file was written
+                    self.agents[aid].set_home(snap["home"], snap["home_object"], self.world)
         for goblin in self.agents.values():
             for ally_id in goblin.allies:
                 if ally_id in self.agents:

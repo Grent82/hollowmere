@@ -148,6 +148,9 @@ class FakeLLM:
     def _leaving(self, js: dict, user: str) -> dict:
         return {"departures": []}  # the scripted brain never leaves on its own
 
+    def _moving(self, js: dict, user: str) -> dict:
+        return {"moves": []}  # the scripted brain never moves in with anyone on its own
+
     def _focalquestions(self, js: dict, user: str) -> dict:
         return {"questions": ["Who can I trust in this town?", "Will the plague reach my door?"]}
 
