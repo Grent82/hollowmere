@@ -150,29 +150,29 @@ async def test_given_a_missing_item_the_game_already_has_when_the_report_runs_th
     # Given the town has a market stall and the model calls one missing, and also names a truly missing lamp
     ideas = [{"kind": "missing_item", "item": "market stall", "where": "tavern", "what": "a market stall for turnips",
               "evidence": "bare stall"},
-             {"kind": "missing_item", "item": "lamp", "where": "tavern", "what": "a lamp for the ward",
-              "evidence": "lamp flickers"}]
+             {"kind": "missing_item", "item": "bucket", "where": "tavern", "what": "a bucket for the ward",
+              "evidence": "bucket leaks"}]
     engine = await _engine(tmp_path, Scripted(ideas=ideas))
     assert any(o.name == "market stall" for o in engine.world.objects.values())
-    await engine.agents["clemence"].observe("The bare stall stood empty and the lamp flickers.", EVENING, 5)
+    await engine.agents["clemence"].observe("The bare stall stood empty and the bucket leaks.", EVENING, 5)
     # When the evening reports run
     await reports.run(engine, EVENING)
-    # Then only the lamp, which the game lacks, is written
+    # Then only the bucket, which the game lacks, is written
     text = (reports.folder(engine) / "world_ideas.md").read_text(encoding="utf-8")
-    assert "lamp for the ward" in text and "market stall" not in text
+    assert "bucket for the ward" in text and "market stall" not in text
 
 
 async def test_given_an_idea_with_a_place_when_the_report_runs_then_the_file_names_the_item_and_where_it_belongs(tmp_path):
-    # Given Wat remembers feeding the mill, and the model says a hopper belongs at the mill
-    ideas = [{"kind": "missing_item", "item": "hopper", "where": "mill", "what": "a hopper to receive the grain",
-              "evidence": "shovels the barley into the hopper"}]
+    # Given Wat remembers sifting at the mill, and the model says a sieve belongs at the mill
+    ideas = [{"kind": "missing_item", "item": "sieve", "where": "mill", "what": "a sieve for the meal",
+              "evidence": "sifts the meal through a sieve"}]
     engine = await _engine(tmp_path, Scripted(ideas=ideas))
-    await engine.agents["wat"].observe("Wat shovels the barley into the hopper.", EVENING, 5)
+    await engine.agents["wat"].observe("Wat sifts the meal through a sieve.", EVENING, 5)
     # When the evening reports run
     await reports.run(engine, EVENING)
-    # Then the entry reads as Wat's hopper at the old mill
+    # Then the entry reads as Wat's sieve at the old mill
     text = (reports.folder(engine) / "world_ideas.md").read_text(encoding="utf-8")
-    assert "**Wat** [missing_item] hopper (the old mill)" in text
+    assert "**Wat** [missing_item] sieve (the old mill)" in text
 
 
 async def test_given_the_world_scan_when_the_prompt_is_written_then_it_lists_the_places_to_choose_from(tmp_path):

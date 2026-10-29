@@ -158,6 +158,8 @@ def build_town(seed: int = 1347) -> World:
     b.obj("quench_barrel", "quenching barrel", "smithy", 46, 13, "barrel")
     b.obj("weapon_rack", "weapon rack", "smithy", 50, 13, "rack")
     b.obj("workbench", "workbench", "smithy", 50, 15, "table")
+    b.obj("whetstone", "whetstone", "smithy", 48, 15, "whetstone")
+    b.obj("leather_strop", "leather strop", "smithy", 51, 14, "strop")
     b.obj("brannoc_bed", "bed", "brannoc_room", 42, 8, "bed")
     b.obj("war_chest", "old war chest", "brannoc_room", 45, 8, "chest")
     b.obj("tobin_cot", "cot", "tobin_loft", 50, 8, "bed")
@@ -243,6 +245,7 @@ def build_town(seed: int = 1347) -> World:
     b.obj("cauldron", "cauldron", "wenna_hut", 64, 16, "cauldron", (4, CAULDRON))
     b.obj("wenna_bed", "bed", "wenna_hut", 66, 14, "bed")
     b.obj("drying_herbs", "drying herbs", "wenna_hut", 62, 18, "herbs")
+    b.obj("mortar", "mortar and pestle", "wenna_hut", 65, 17, "mortar")
     b.fence(61, 24, 67, 30, gates=[(61, 26)], ground=Tile.FIELD)
     b.area("herb_garden", "the herb garden", "rows of nightshade, feverfew and things with no common name",
            (62, 25, 66, 29), public=True, indoor=False)
@@ -274,6 +277,9 @@ def build_town(seed: int = 1347) -> World:
     b.obj("miller_bed", "bed", "mill", 16, 36, "bed", (2, CANDLE))
     b.obj("millstone", "millstone", "mill", 18, 37, "millstone")
     b.obj("grain_sacks", "grain sacks", "mill", 19, 41, "sacks")
+    b.obj("mill_hopper", "hopper", "mill", 18, 36, "hopper")
+    b.obj("linen_flour_sack", "linen flour sack", "mill", 19, 39, "flour_sack")
+    b.obj("mill_stove", "mill stove", "mill", 16, 40, "stove", (4, HEARTH))
 
     # --- the bakery, off Gate Street ----------------------------------------------------
     b.building(21, 29, 28, 37, Tile.STONE, doors=[(28, 31)])
@@ -286,6 +292,7 @@ def build_town(seed: int = 1347) -> World:
     b.obj("bread_oven", "bread oven", "bakery", 22, 30, "oven", (5, HEARTH))
     b.obj("kneading_table", "kneading table", "bakery", 25, 31, "table")
     b.obj("bread_shelf", "bread shelf", "bakery", 27, 33, "shelf")
+    b.obj("stew_pot", "stew pot", "bakery", 23, 32, "pot")
     b.obj("elsbeth_bed", "bed", "elsbeth_room", 23, 36, "bed")
     b.obj("flour_sacks", "flour sacks", "elsbeth_room", 27, 35, "sacks")
 
@@ -299,6 +306,7 @@ def build_town(seed: int = 1347) -> World:
     b.obj("loom", "loom", "weaver_cottage", 22, 47, "loom")
     b.obj("spinning_wheel", "spinning wheel", "weaver_cottage", 25, 47, "wheel")
     b.obj("shrouds", "stack of shrouds", "weaver_cottage", 26, 50, "cloth")
+    b.obj("wool_bales", "bales of grey wool", "weaver_cottage", 23, 49, "wool")
     b.obj("mara_bed", "bed", "weaver_cottage", 21, 50, "bed", (2, CANDLE))
 
     b.building(33, 45, 44, 53, Tile.STONE, doors=[(38, 45)])
@@ -310,6 +318,7 @@ def build_town(seed: int = 1347) -> World:
     b.obj("sickbeds", "sickbeds", "almshouse", 37, 47, "sickbeds", (3, CANDLE))
     b.obj("water_basin", "basin", "almshouse", 34, 49, "basin")
     b.obj("remedy_table", "remedy table", "almshouse", 42, 47, "table")
+    b.obj("ward_lamp", "lamp", "almshouse", 40, 48, "lamp", (3, CANDLE))
     b.obj("clemence_bed", "pallet", "clemence_cell", 35, 52, "bed")
     b.obj("clemence_book", "hidden book", "clemence_cell", 41, 51, "book")
 
