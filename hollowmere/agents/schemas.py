@@ -416,3 +416,33 @@ def glimpses_schema(n: int) -> type[BaseModel]:
             f"exactly {n} lines, line k being note k in the watcher's own words: the same fact, one or two sentences, "
             "the person named"))),
     )
+
+
+@lru_cache(maxsize=64)
+def journey_schema(names: tuple[str, ...], max_days: int) -> type[BaseModel]:
+    """What befalls those who set out from Hollowmere: one story, and for each of them how it goes on."""
+    fate = create_model(
+        "Fate",
+        who=(Literal[names], Field(description="the first name of one who set out")),  # type: ignore[valid-type]
+        fate=(Literal["returns", "returns_briefly", "stays_away"], Field(
+            description="returns: comes home and stays; returns_briefly: comes home for a short while and is then "
+                        "drawn out again; stays_away: does not come home for now")),
+        after_days=(int, Field(ge=1, le=max_days, description=(
+            "returns, returns_briefly: the days until they are home; stays_away: the days until the town looks at "
+            "them again"))),
+        memory=(str, Field(max_length=300, description=(
+            "returns, returns_briefly: what they carry home of the road, in their own words (I ...); empty if "
+            "they stay away"))),
+        state=(str, Field(max_length=60, description=(
+            "a passing state of mind they come home with, a few words; empty if none"))),
+    )
+    return create_model(
+        "Journey",
+        story=(str, Field(max_length=400, description="what befell them on the road, in one or two plain sentences")),
+        fates=(list[fate], Field(max_length=len(names), description="one for each who set out")),  # type: ignore[valid-type]
+        children=(str, Field(max_length=300, description=(
+            "how the children with them fare and grow on the road, in one or two sentences; empty if there are none"))),
+        rumor=(str, Field(max_length=300, description=(
+            "a rumor that might reach the town of them, true or not; empty almost always"))),
+    )
+

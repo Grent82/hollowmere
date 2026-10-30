@@ -118,16 +118,6 @@ async def test_turning_back_writes_the_reason_into_both_memories(tmp_path):
         assert any(other.first in m.text and reason in m.text and m.importance == 8 for m in me.memory.items)
 
 
-async def test_a_birth_waits_for_an_away_mother(tmp_path):
-    engine = await _engine(tmp_path)
-    _send_away(engine.agents["isolde"])
-    engine.pregnancies.append({"mother_id": "isolde", "father_id": "tobin", "start_day": "1347-11-01",
-                               "due_day": "1347-11-05", "resolved": False})
-    engine.now = NOW
-    engine._background(NOW)
-    assert engine.pregnancies[0]["resolved"] is False and not engine._bg.get("isolde:birth:isolde:1347-11-05")
-
-
 async def test_a_departure_survives_save_and_load(tmp_path):
     engine = await _engine(tmp_path)
     engine.now = NOW

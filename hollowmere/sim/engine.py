@@ -42,7 +42,7 @@ from hollowmere.memory.embed import Embedder
 from hollowmere.memory.store import Store
 from hollowmere.memory.stream import MemoryStream, repeats
 from hollowmere.sim import knowledge, reports
-from hollowmere.sim.absence import Absences
+from hollowmere.sim.absence import WHY_LINES, Absences
 from hollowmere.sim.daily import DailyEvents
 from hollowmere.world.world import World
 
@@ -70,7 +70,7 @@ HIDING_PLACES = ["goblin_den/nib_nest", "witchwood/bramble_thicket", "riverbank/
 # it to the shared narrator would leak it into every agent's town_state - the same boundary enforced by
 # never writing a prayer's effect into anyone's bonds (see Agent.pray()).
 TOWN_EVENT_KINDS = {"showing", "birth", "reflection", "agreement", "ally", "spurn", "warm", "sighting", "intent", "chat_end",
-                    "daily"}
+                    "daily", "missed"}
 
 Listener = Callable[[dict], Awaitable[None]]
 
@@ -279,11 +279,12 @@ class Engine(Absences, DailyEvents):
         if len(pool) < 2:
             return
         low, high = (2, 3) if goblin else (3, 4)
+        away = (child.absence.get("kids") or child.absence["reason"]) if child.is_away else ""  # grown on the road
         schema = child_growth_schema(pool, min(low, len(pool)), min(high, len(pool)))
         try:
             out = await self.ctx.llm.structured(
                 prompts.child_draft_system_prompt(), prompts.child_growth(child, mother.persona, father.persona, p.species,
-                                     self.world.place_name(p.home)),
+                                     self.world.place_name(p.home), away=away),
                 schema, label="child_growth", temperature=0.7)
         except LLMError as e:
             log.warning("%s: growing up failed (%s)", child.id, e)
@@ -308,9 +309,12 @@ class Engine(Absences, DailyEvents):
             if bond and str(bond.get("kin", "")).startswith("your newborn"):
                 bond["kin"] = f"your young {word}"
         for parent in (mother, father):
+            if away and parent.id not in child.absence["with"]:
+                continue  # whoever stayed behind sees the child grown when it is home
             await parent._remember("observation", f"{child.name} has grown from a newborn into a small child, who now "
                                                   f"follows me about and says a few words.", now, 7)
-        self._event("grew", [child.id, mother.id, father.id], f"{child.first} has grown into a small child.")
+        if not away:
+            self._event("grew", [child.id, mother.id, father.id], f"{child.first} has grown into a small child.")
 
     WHISPER_MIN = 3  # unconcerned people who heard of it, before the town can be said to whisper it
     WHISPERS_PER_PERSON = 2
@@ -779,7 +783,7 @@ class Engine(Absences, DailyEvents):
         for preg in self.pregnancies:
             mother = self.agents.get(preg["mother_id"])
             if not preg["resolved"] and date.fromisoformat(preg["due_day"]) <= day_key(now) \
-                    and not (mother is not None and mother.absence):  # away or in the cell: it waits for her
+                    and not (mother is not None and mother.is_jailed):  # in the cell: it waits for her
                 preg["resolved"] = True
                 if mother is not None:
                     self._spawn(mother, self._give_birth(preg, now),
@@ -861,7 +865,7 @@ class Engine(Absences, DailyEvents):
         """Whoever settled in the talk on leaving Hollowmere, read once for both, sets out that night."""
         group = await agreed_departure(self.ctx, c.a, c.b, self.now, list(c.transcript))
         if group:
-            self.schedule_departure(group, self.now)
+            self.schedule_departure(group, self.now, " ".join(f"{who}: {text}" for who, text in list(c.transcript)[-WHY_LINES:]))
 
     async def _settle_move(self, c: Conversation) -> None:
         """Whoever settled in the talk on moving into the other's home, read once for both, moves that evening."""
@@ -1000,17 +1004,24 @@ class Engine(Absences, DailyEvents):
         self.ctx.names[child.id] = child_persona.name
         self.ctx.kin = Kinship({i: x.persona for i, x in self.agents.items()})
         romance.recognize_child(mother, father, child)
-        await self._tell_mothers_family(child, mother, now)
-        await self._tell_witnesses(child, mother, now)
+        away = mother.is_away  # born out of sight: the town hears of it when she comes home
+        if away:
+            self._born_away(child, mother, now)
+        else:
+            await self._tell_mothers_family(child, mother, now)
+            await self._tell_witnesses(child, mother, now)
         await mother._remember("observation", romance.birth_memory(True, child.persona, father.persona), now, 9,
                                source="lived", about=[child.id, father.id])
-        await father._remember("observation", romance.birth_memory(False, child.persona, mother.persona), now, 9,
-                               source="lived", about=[child.id, mother.id])
+        if not away or father.id in mother.absence["with"]:  # at home he knows when it is born; away, if he was there
+            await father._remember("observation", romance.birth_memory(False, child.persona, mother.persona), now, 9,
+                                   source="lived", about=[child.id, mother.id])
         generated = self.store.get("generated_personas", [])
         generated.append(child_persona.model_dump(mode="json"))
         self.store.put("generated_personas", generated)
         from hollowmere.sim.setup import seed_memories  # deferred: setup.py imports this module
         await seed_memories(child, child_persona, self.ctx.names, now)
+        if away:
+            return
         if child_persona.species == "goblin" and not mother.persona.is_goblin:
             await self._place_goblin_child(child, mother, father, now)
         self._event("birth", [mother.id, father.id, child.id],

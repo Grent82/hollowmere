@@ -9,6 +9,7 @@ slots; here each prompt is a small function and the shared parts are written onc
 from __future__ import annotations
 
 import json
+import re
 from datetime import date, datetime
 from typing import TYPE_CHECKING, Iterable
 
@@ -449,6 +450,60 @@ person or into the deep wood to find them, since that is a walk to someone, not 
 Most talks settle nothing: then leave the list empty."""
 
 
+def journey_system_prompt() -> str:
+    return (f"You are the storyteller of Hollowmere. {WORLD_FACTS} You tell, plainly and with a feel for the people "
+            "involved, what becomes of those who set out from the town. No magic and no modern words.")
+
+
+def _traveller(agent: Agent, due: str | None, tried: list[str]) -> str:
+    p = agent.persona
+    line = f"- {p.name}, {p.age}, {p.sex}. Temperament: {p.traits}."
+    if p.abilities:
+        line += f" Gifts and weaknesses: {p.abilities}."
+    line += f" Work: {p.work}. Background: {p.background[:300]}"
+    if due:
+        line += f" Expecting a child, due {due}."
+    if tried:
+        line += f" Set out before and came back: \"{tried[-1]}\" ({len(tried)} time{'s' * (len(tried) != 1)})."
+    return line
+
+
+def _age_of(child: Agent, now: datetime) -> str:
+    p = child.persona
+    if not p.infant:
+        return f"a small child of about {p.age} years"
+    born = re.search(r"born on (\d{4}-\d{2}-\d{2})", p.background)
+    days = (now.date() - date.fromisoformat(born.group(1))).days if born else None
+    return f"a newborn{f', {days} days old' if days is not None else ''}"
+
+
+def journey(travellers: list[Agent], children: list[Agent], now: datetime, why: str, due: dict[str, str],
+            tried: dict[str, list[str]], story: str = "", days_away: int = 0) -> str:
+    who = "\n".join(_traveller(a, due.get(a.id), tried.get(a.id, [])) for a in travellers)
+    kin = "\n".join(f"- {c.name}, {_age_of(c, now)}" for c in children)
+    names = " and ".join(a.persona.first_name for a in travellers)
+    if story:
+        scene = (f"{names} set out from Hollowmere {days_away} day{'s' * (days_away != 1)} ago and have not been "
+                 f"home since. So far: {story}\nTell what has become of them since, and what happens next.")
+    else:
+        scene = (f"{names} set out from Hollowmere tonight, after dark, onto the road or into the wild. Tell what "
+                 f"befalls them, and what comes of it.")
+    return f"""{clock_line(now)}
+
+WHO
+{who}
+{('CHILDREN WITH THEM' + chr(10) + kin + chr(10)) if kin else ''}
+WHY THEY WENT, from their last talk
+{why or 'not known'}
+
+{scene}
+{('The children grow on the road: a newborn becomes a small child some four days after its birth, and a small child learns to walk and talk faster than you think. Tell how the children fare and grow out there, and let them shape the pace and the risks.' + chr(10)) if children else ''}Judge it by who they are: a woodsman or one who knows the Witchwood gets far and may stay out long; small children,
+illness, hunger, cold, fear or a belly near term hold people back. The season matters. A flight need not fail: they
+may come home soon, come home changed, come home only for a short while, or not come home for now. If one of
+them is to stay away, say when the town should look at them again. Nobody dies in this telling, and a birth on the
+road is told elsewhere, so leave it out. Give each person a fate that fits them; two people may part."""
+
+
 def moving(first_a: str, first_b: str, now: datetime, transcript: list[tuple[str, str]]) -> str:
     lines = "\n".join(f'{who}: "{text}"' for who, text in transcript)
     return f"""{clock_line(now)} {first_a} and {first_b} have just finished talking.
@@ -472,7 +527,8 @@ def child_line(agent: Agent) -> str:
             f"guess at them; the child stays close to whoever looks after it.\n")
 
 
-def child_growth(child: Agent, mother: Persona, father: Persona, species: str, home_name: str = "") -> str:
+def child_growth(child: Agent, mother: Persona, father: Persona, species: str, home_name: str = "",
+                 away: str = "") -> str:
     p = child.persona
 
     def who(q: Persona) -> str:
@@ -491,13 +547,13 @@ THE NEWBORN SO FAR
 Looks: {p.appearance or "not yet described"}
 {p.background}
 What has happened to it: {facts}
-{f"It lives at {home_name}." if home_name else ""}
+{f"It lives at {home_name}." if home_name and not away else ""}{f"It is away from Hollowmere with its parents, out on the road or in the wild: {away}" if away else ""}
 
 The child is now about 3 years old: no longer an infant, it walks unsteadily and says a few words.
 Say which of its parents' own traits the child shows (only from the choices given), how it looks and moves now
 (write only what is new, such as size, hair and how it moves; do not repeat the earlier description), what it is and
 does these days, and what a small child's day is like in its parents' care. Invent nothing new about who it is: it is
-a child of these two, and only that. Set its day at its home and name no other place and no one but its parents."""
+a child of these two, and only that. {"Set its day where its parents are now, on the road, and name no one but them." if away else "Set its day at its home and name no other place and no one but its parents."}"""
 
 
 def infant_mind(agent: Agent) -> str:

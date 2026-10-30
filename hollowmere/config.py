@@ -57,6 +57,7 @@ class SimConfig(BaseModel):
     pregnancy_shows_days: int = 2  # and anyone near can see it after this many
     absence_min_days: int = 1  # a flight from the town always fails: they turn back after this many days at least
     absence_max_days: int = 3  # and at most this many
+    away_max_days: int = 21  # the longest stretch the model may give a flight before the town looks at it again
     detention_min_days: int = 1
     detention_max_days: int = 3
     max_jailed: int = 2  # the cell holds only this many at once

@@ -25,6 +25,10 @@ class Control(BaseModel):
     speed: float | None = None
 
 
+class Recall(BaseModel):
+    agent: str
+
+
 class Whisper(BaseModel):
     agent: str
     text: str
@@ -83,6 +87,14 @@ def create_app(engine: Engine) -> FastAPI:
     async def whisper(w: Whisper):
         try:
             await engine.whisper(w.agent, w.text, w.kind)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
+        return {"ok": True}
+
+    @app.post("/api/recall")
+    async def recall(r: Recall):
+        try:
+            await engine.recall(r.agent)
         except ValueError as e:
             raise HTTPException(422, str(e)) from e
         return {"ok": True}

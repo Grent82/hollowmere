@@ -152,4 +152,4 @@ body.inspecting #tabs, body.inspecting .tab.on { display: none; }
 .prayers time { color: var(--muted); font-size: 12px; margin-right: 8px; }
 .whisper-kind, .whisper-text { width: 100%; box-sizing: border-box; margin: 6px 0; background: #17151b; color: var(--text, #e6dccb);
   border: 1px solid var(--line); border-radius: 4px; padding: 6px; font: inherit; }
-.whisper-send { background: none; border: 1px solid var(--gold); color: var(--gold); border-radius: 4px; padding: 5px 12px; cursor: pointer; }
+.whisper-send, .recall-send { background: none; border: 1px solid var(--gold); color: var(--gold); border-radius: 4px; padding: 5px 12px; cursor: pointer; }

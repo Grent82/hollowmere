@@ -68,6 +68,7 @@ export class UI {
       const dtab = target.closest<HTMLElement>("[data-dtab]");
       if (dtab) { this.detailTab = dtab.dataset.dtab as DetailTab; this.renderDetail(true); }
       if (target.closest(".whisper-send")) void this.sendWhisper();
+      if (target.closest(".recall-send")) void this.sendRecall();
     };
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space" && e.target === document.body) { e.preventDefault(); h.control({ paused: !this.paused }); }
@@ -159,6 +160,11 @@ export class UI {
       }
       case "whisper":
         return `<div class="ev daily"><time>${hhmm(e.time)}</time>🤫 ${esc(e.text)}</div>`;
+      case "depart":
+      case "returned":
+      case "missed":
+      case "recall":
+        return `<div class="ev daily"><time>${hhmm(e.time)}</time>🧭 ${esc(e.text)}</div>`;
       case "daily":
         return `<div class="ev daily"><time>${hhmm(e.time)}</time>🌦 ${esc(e.text)}</div>`;
       case "plan":
@@ -226,6 +232,14 @@ export class UI {
     if (res.ok) $<HTMLTextAreaElement>(".whisper-text").value = "";
   }
 
+  private async sendRecall() {
+    if (!this.selected) return;
+    const note = $(".recall-note");
+    const res = await fetch("/api/recall", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent: this.selected }) });
+    note.textContent = res.ok ? "Called home. They are back by evening." : "Only a grown person who is away can be called; a child follows its mother.";
+  }
+
   private renderDetail(resetScroll = false) {
     const d = this.lastDetail;
     if (!d) return;
@@ -255,6 +269,7 @@ export class UI {
       <p class="now">${d.emoji ? esc(d.emoji) + " " : ""}${esc(d.thinking ?? (d.mode === "asleep" ? "Asleep." : d.activity ?? "Idle."))}
         ${now ? `<small>until ${hhmm(now.end)}</small>` : ""}</p>
       <p class="muted">${esc(d.currently)}</p>
+      ${d.mode === "away" && d.age >= 14 ? `<p><button class="recall-send">Call home</button> <small class="recall-note"></small></p>` : ""}
       ${d.drive ? `<p class="drive">${esc(d.drive)}</p>` : ""}
       ${d.history.length ? `<ul class="history">${d.history.map((h) =>
         `<li title="since ${h.since}">${esc(h.text)}</li>`).join("")}</ul>` : ""}

@@ -150,6 +150,12 @@ class FakeLLM:
     def _leaving(self, js: dict, user: str) -> dict:
         return {"departures": []}  # the scripted brain never leaves on its own
 
+    def _journey(self, js: dict, user: str) -> dict:
+        names = js["$defs"]["Fate"]["properties"]["who"]["enum"]
+        return {"story": "a watch patrol at the south gate turned them back",
+                "fates": [{"who": n, "fate": "returns", "after_days": 2, "memory": "", "state": ""} for n in names],
+                "children": "", "rumor": ""}
+
     def _moving(self, js: dict, user: str) -> dict:
         return {"moves": []}  # the scripted brain never moves in with anyone on its own
 
