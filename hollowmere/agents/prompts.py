@@ -370,6 +370,14 @@ def chat_digest(agent: Agent, names: dict[str, str], now: datetime, other_name: 
     owed = "\n".join(f"- {e}" for e in existing) or "- none"
     goblin_limit = (f"\n{p.first_name} would never agree to meet indoors anywhere but {p.home} or {p.work}."
                     if p.is_goblin else "")
+    from hollowmere.agents.agent import mentions  # deferred: agent.py imports this module
+    other_said = " ".join(t for who, t in transcript if who == other_name)
+    third = [first_name_of(names[i]) for i in mentions(other_said, names, exclude=agent.id) if i != other_id]
+    spoke = (f"\n{first_name_of(other_name)} spoke of {', '.join(third)}. If {first_name_of(other_name)} said "
+             f"something about them that {p.first_name} did not know before (what they did, where they are, what "
+             f"they mean to do), set it down under \"heard\", in {first_name_of(other_name)}'s own words, with how "
+             f"far {p.first_name} believes it given what {p.first_name} thinks of {first_name_of(other_name)}. "
+             f"Only what was truly said; leave it out when nothing new was said of them.\n") if third else ""
     return f"""{clock_line(now)} {p.first_name} has just finished talking with {other_name}.
 
 {identity(agent, names, hide_stance_for=other_id)}
@@ -380,7 +388,7 @@ CONVERSATION
 OTHER PROMISES {p.first_name.upper()} ALREADY MADE
 {owed}
 
-Remember this conversation the way {p.first_name} will: what was said, what was learned, how it felt.
+Remember this conversation the way {p.first_name} will: what was said, what was learned, how it felt.{spoke}
 Commitments are only something {p.first_name} and {other_name} specifically agreed on in this talk, for a
 definite time later today or tomorrow: to meet somewhere, to bring or fetch something, to do a task for or
 with the other, or simply to spend time together. Not {p.first_name}'s usual work, not anything already

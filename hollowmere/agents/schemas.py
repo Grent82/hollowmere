@@ -387,7 +387,7 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
         )
         fields["heard"] = (list[heard], Field(  # type: ignore[valid-type]
             default_factory=list, max_length=3, description=(
-                "claims THEY made about other people that you did not know before; usually empty. Only what they "
+                "claims THEY made about other people that you did not know before; empty if they said nothing new of anyone. Only what they "
                 "actually said, never your own guess")))
     fields["arrested"] = (Literal["no", "i_locked_them_up", "they_locked_me_up"], Field(
         default="no", description="only if, in this very conversation, someone was actually seized and locked up, "

@@ -284,6 +284,8 @@ async def agreed_move(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
 MAX_STATES = 3
 GLIMPSE_REPEAT_MINUTES = 90  # the same sight is noted again only after this long
 GLIMPSES_PER_CALL = 12
+FIRST_PERSON = {"i", "me", "my", "mine", "we", "us", "our", "ive", "im", "id"}
+HEARSAY_LOOKBACK = 300  # a claim already held among this many latest memories is not kept again
 GLIMPSE_GROWTH = 1.3  # a rewritten sight may be this much longer than the note, plus a few words
 MAX_HISTORY = 6  # lasting life facts per person
 LIFE_FACT_IMPORTANCE = 8  # a day holds a memory at least this weighty before lasting facts are even asked for
@@ -894,12 +896,17 @@ class Agent:
             if subject is None or subject == self.id or not words or len(words & said_words) / len(words) < 0.75:
                 continue
             name_words = {w for w in WORD_RE.findall(names.get(subject, "").lower()) if len(w) > 2}
-            if not name_words & set(WORD_RE.findall(h.claim.lower())):
+            claim_words = set(WORD_RE.findall(h.claim.lower()))
+            if not name_words & claim_words:
                 continue  # a claim about someone names them, or it is about something else
+            if claim_words & FIRST_PERSON or other.first.lower() in claim_words:
+                continue  # "I saw ..." is the speaker's, and a claim naming the speaker is about the talk, not a third person
             suffix, weight = {"believed": ("", 6), "unsure": (" I am not sure of it.", 4),
                               "doubted": (" I do not believe it.", 3)}[h.trust]
-            await self._remember("chat", f"{other.first} told me that {h.claim.strip().rstrip('.')}.{suffix}", now,
-                                 weight, f"told:{other.id}", [subject])
+            text = f"{other.first} told me that {h.claim.strip().rstrip('.')}.{suffix}"
+            if any(m.text == text for m in self.memory.items[-HEARSAY_LOOKBACK:]):
+                continue
+            await self._remember("chat", text, now, weight, f"told:{other.id}", [subject])
 
     async def decide_baby_home(self, ctx: Ctx, child: "Agent", father: "Agent", now: datetime) -> bool:
         """Where the mother puts her goblin child: True to give it to its father's home, False to keep it. Her

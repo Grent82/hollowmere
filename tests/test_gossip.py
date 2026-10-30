@@ -203,3 +203,58 @@ async def test_given_the_digest_when_the_schema_is_built_then_neither_the_listen
     await _digest(engine, [])
     # Then Ros and Wat are not among those a claim may be about, and Isolde is
     assert "Ros" not in seen[0] and "Wat" not in seen[0] and "Isolde" in seen[0]
+
+
+async def test_given_a_talk_where_the_other_spoke_of_a_third_person_when_the_digest_prompt_is_written_then_it_names_that_person(tmp_path):
+    # Given Wat who heard Ros speak of Isolde, and of no one else
+    engine = await _engine(tmp_path)
+    wat, ros = engine.agents["wat"], engine.agents["ros"]
+    transcript = [("Ros Mourne", "Isolde slipped past the Watch on Tuesday."), ("Wat Milner", "Did she now.")]
+    # When the digest prompt is written
+    text = prompts.chat_digest(wat, engine.ctx.names, NOW, ros.name, transcript)
+    # Then it points at Isolde and asks for what Ros said of her
+    assert "Ros spoke of Isolde" in text and "heard" in text
+
+
+async def test_given_a_talk_where_nobody_else_is_spoken_of_when_the_digest_prompt_is_written_then_there_is_no_such_paragraph(tmp_path):
+    # Given a talk about the two of them only
+    engine = await _engine(tmp_path)
+    wat, ros = engine.agents["wat"], engine.agents["ros"]
+    transcript = [("Ros Mourne", "Mind the peel, Wat."), ("Wat Milner", "Aye.")]
+    # When the digest prompt is written
+    text = prompts.chat_digest(wat, engine.ctx.names, NOW, ros.name, transcript)
+    # Then nothing is said of third persons
+    assert "spoke of" not in text
+
+
+async def test_given_a_claim_in_the_first_person_when_digested_then_it_is_dropped(tmp_path):
+    # Given Ros saying "I saw Isolde ...", which a claim cannot repeat as it stands
+    talk = [("Ros Mourne", "I saw Isolde at the stones this morning."), ("Wat Milner", "Did you.")]
+    heard = [{"about": "Isolde", "claim": "I saw Isolde at the stones this morning", "trust": "believed"}]
+    engine = await _engine(tmp_path, Digesting(heard))
+    # When Wat digests the talk
+    wat = await _digest(engine, heard, talk)
+    # Then no hearsay is kept
+    assert not [m for m in wat.memory.items if m.text.startswith("Ros told me that")]
+
+
+async def test_given_a_claim_that_names_the_speaker_when_digested_then_it_is_dropped(tmp_path):
+    # Given a "claim" that is really about what Ros did or said
+    talk = [("Ros Mourne", "Ros asked if Isolde is strong enough to speak."), ("Wat Milner", "Is she?")]
+    heard = [{"about": "Isolde", "claim": "Ros asked if Isolde is strong enough to speak", "trust": "believed"}]
+    engine = await _engine(tmp_path, Digesting(heard))
+    # When Wat digests the talk
+    wat = await _digest(engine, heard, talk)
+    # Then it is not kept as hearsay
+    assert not [m for m in wat.memory.items if m.text.startswith("Ros told me that")]
+
+
+async def test_given_the_same_claim_twice_when_digested_then_it_is_kept_once(tmp_path):
+    # Given a claim Wat already holds
+    heard = [{"about": "Isolde", "claim": "Isolde is with child", "trust": "believed"}]
+    engine = await _engine(tmp_path, Digesting(heard))
+    wat = await _digest(engine, heard)
+    # When the same talk is digested again
+    wat = await _digest(engine, heard)
+    # Then the claim stands once
+    assert len([m for m in wat.memory.items if m.text == "Ros told me that Isolde is with child."]) == 1
