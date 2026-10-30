@@ -101,3 +101,17 @@ async def test_given_a_human_baby_when_it_is_born_then_the_mother_is_not_asked_w
     await _birth(engine, "agnes", "brannoc")
     # Then no choice is asked for
     assert "baby_home" not in llm.stats.by_label
+
+
+def test_given_a_loop_over_the_town_when_a_child_is_added_midway_then_the_loop_finishes():
+    # Given a town being walked through while a birth, running in the background, adds a person
+    from hollowmere.sim.engine import Town
+    town = Town({"a": 1, "b": 2})
+    seen = []
+    # When the newcomer arrives between two steps of the walk
+    for v in town.values():
+        town["c"] = 3
+        seen.append(v)
+    # Then the walk is not torn down, and sees the people who were there when it began
+    assert seen == [1, 2]
+    assert set(town) == {"a", "b", "c"}

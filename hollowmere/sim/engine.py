@@ -100,12 +100,29 @@ class Conversation:
     love_done: bool = False  # making love is confirmed once per talk, by whichever path gets there first
 
 
+class Town(dict):
+    """The people by id. A birth finishes in the background and adds one while a tick is still walking through the
+    others, so walking goes over a snapshot."""
+
+    def values(self):
+        return list(super().values())
+
+    def items(self):
+        return list(super().items())
+
+    def keys(self):
+        return list(super().keys())
+
+    def __iter__(self):
+        return iter(list(super().keys()))
+
+
 class Engine(Absences, DailyEvents):
     def __init__(self, cfg: SimConfig, world: World, agents: list[Agent], ctx: Ctx, store: Store,
                 embedder: Embedder):
         self.cfg = cfg
         self.world = world
-        self.agents = {a.id: a for a in agents}
+        self.agents = Town({a.id: a for a in agents})
         self.ctx = ctx
         self.store = store
         self.embedder = embedder
