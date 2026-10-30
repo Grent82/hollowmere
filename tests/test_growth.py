@@ -241,3 +241,24 @@ async def test_given_the_childs_home_when_the_growth_prompt_is_written_then_its_
     text = prompts.child_growth(baby, engine.agents["agnes"].persona, engine.agents["brannoc"].persona, "human", home)
     # Then it names the home and keeps the day there, with only the parents mentioned
     assert f"lives at {home}" in text and "no other place" in text
+
+
+def test_given_long_trait_phrases_when_the_pool_is_made_then_only_short_words_a_child_could_show_remain():
+    # Given a mother whose traits include a trade phrase
+    mother = _persona(20).model_copy(update={"traits": "shrewd, taciturn, warm to paying customers"})
+    father = _persona(30).model_copy(update={"traits": "restless, stubborn, proud"})
+    # When the pool is made
+    pool = romance.growth_pool(mother, father)
+    # Then the phrase is not among the choices
+    assert "warm to paying customers" not in pool and "shrewd" in pool
+
+
+async def test_given_an_old_look_that_calls_the_baby_an_infant_when_it_grows_then_the_kept_words_say_small_child(tmp_path):
+    # Given a newborn described as an infant, and a new look that does not repeat it
+    engine = await _engine(tmp_path)
+    baby = await _birth(engine)
+    baby.persona = baby.persona.model_copy(update={"appearance": "The infant has a heavy brow and honey-brown hair."})
+    # When it grows
+    await _grow(engine, 4)
+    # Then the inherited features stay, but no one is called an infant any more
+    assert "heavy brow" in baby.persona.appearance and "infant" not in baby.persona.appearance.lower()

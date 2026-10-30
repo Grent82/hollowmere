@@ -121,3 +121,39 @@ async def test_given_a_word_inside_another_when_the_birth_is_looked_up_then_it_d
     fact = next(f for f in knowledge.build(engine) if f["kind"] == "birth" and child.name in f["text"])
     # Then Ros does not count as knowing of the birth
     assert _knower(fact, "ros") is None
+
+
+async def test_given_a_memory_older_than_the_pregnancy_when_it_is_looked_up_then_it_does_not_count(tmp_path):
+    # Given Wat's talk of a belly from before Isolde conceived, and Ros's from after
+    engine = await _engine(tmp_path)
+    await engine.agents["wat"].memory.add("observation", "Isolde Vell has a round belly, they say.",
+                                          datetime(1347, 11, 2, 9), 5, source="saw")
+    await engine.agents["ros"].memory.add("observation", "Isolde Vell has a round belly.", NOW, 5, source="saw")
+    # When the knowledge is built
+    fact = _fact(engine, "pregnancy")
+    # Then only Ros counts, and the fact starts with her memory
+    assert _knower(fact, "wat") is None and _knower(fact, "ros") is not None
+    assert fact["since"] == NOW.isoformat()
+
+
+async def test_given_two_pregnancies_of_one_pair_when_the_knowledge_is_built_then_the_father_is_listed_once(tmp_path):
+    # Given Isolde and Nib have had one child and are expecting another
+    engine = await _engine(tmp_path)
+    engine.pregnancies.append({"mother_id": "isolde", "father_id": "nib", "start_day": "1347-11-12",
+                               "due_day": "1347-11-17", "resolved": True, "known": True, "showing": True})
+    # When the knowledge is built
+    facts = [f for f in knowledge.build(engine) if f["kind"] == "father"]
+    # Then it is one fact
+    assert len(facts) == 1
+
+
+async def test_given_a_flight_event_when_older_memories_speak_of_leaving_then_they_do_not_count(tmp_path):
+    # Given a return on the 9th, and Wat's earlier remark that Isolde would leave
+    engine = await _engine(tmp_path)
+    engine.store.add_event(NOW, "returned", ["isolde", "wenna"], "Isolde and Wenna come back.", {})
+    await engine.agents["wat"].memory.add("thought", "Isolde Vell and Wenna Thorn may leave Hollowmere one day.",
+                                          datetime(1347, 11, 5, 9), 4, source="own")
+    # When the knowledge is built
+    fact = _fact(engine, "returned")
+    # Then the old remark is no knowledge of it
+    assert _knower(fact, "wat") is None

@@ -23,6 +23,7 @@ class Fact:
     pattern: re.Pattern  # and one of these words
     involved: set[str] = field(default_factory=set)  # those who lived it, or the thing is about
     about: list[str] = field(default_factory=list)  # whom it is said of: where a whisper of it belongs
+    after: datetime | None = None  # nothing before this moment can be knowledge of it
 
 
 def _words(*words: str) -> re.Pattern:
@@ -30,26 +31,37 @@ def _words(*words: str) -> re.Pattern:
     return re.compile(r"\b(?:" + "|".join(words) + ")", re.I)
 
 
+def _when(t) -> datetime | None:
+    return datetime.fromisoformat(t) if isinstance(t, str) else t
+
+
 def facts_of(engine) -> list[Fact]:
     """What is true in the town, as far as it is worth asking who knows."""
     ag, out = engine.agents, []
+    fathers = set()
     for p in engine.pregnancies:
         mother, father = ag.get(p["mother_id"]), ag.get(p["father_id"])
         if mother is None or father is None:
             continue
         both = {mother.id, father.id}
+        began = datetime.fromisoformat(p["start_day"])
         out.append(Fact("pregnancy", f"{mother.name} is with child" if not p["resolved"]
                         else f"{mother.name} was with child (the child is born)", [mother.id],
-                        _words("with child", "pregnan", "belly", "expecting", "carrying", "swell"), both, [mother.id]))
+                        _words("with child", "pregnan", "belly", "expecting", "carrying", "swell"), both, [mother.id],
+                        began))
+        if (mother.id, father.id) in fathers:
+            continue  # one father for all the pair's children
+        fathers.add((mother.id, father.id))
         out.append(Fact("father", f"{father.name} is the father of {mother.name}'s child", [mother.id, father.id],
                         _words("father", "child", "baby", "pregnan", "carrying", "bastard", "heir", "born"), both,
-                        [father.id, mother.id]))
+                        [father.id, mother.id], began))
+    births = {i: ev["time"] for ev in engine.store.events_of("birth", datetime.min) for i in ev["agents"]}
     for child in ag.values():
         if len(child.persona.parents) == 2 and all(i in ag for i in child.persona.parents):
             mother = ag[child.persona.parents[0]]
             out.append(Fact("birth", f"{mother.name} gave birth to {child.name}", [child.id],
                             _words(r"born", "birth", "newborn", "gave birth", "baby", "son", "daughter"),
-                            {*child.persona.parents, child.id}, [mother.id]))
+                            {*child.persona.parents, child.id}, [mother.id], _when(births.get(child.id))))
     seen = set()
     for a in ag.values():
         for bid, bond in a.bonds.items():
@@ -67,7 +79,7 @@ def facts_of(engine) -> list[Fact]:
         for ev in engine.store.events_of(kind, datetime.min):
             ids = [i for i in ev["agents"] if i in ag and not ag[i].persona.dependent]
             if ids:
-                out.append(Fact(kind, ev["text"], ids[:2], words, set(ids), ids[:2]))
+                out.append(Fact(kind, ev["text"], ids[:2], words, set(ids), ids[:2], _when(ev["time"])))
     goblins = [a for a in ag.values() if a.persona.is_goblin]
     for g in goblins:
         out.append(Fact("goblin", f"{g.name}, a goblin, lives near Hollowmere", [g.id], _words(".*"), {g.id}, [g.id]))
@@ -103,7 +115,7 @@ def scan(engine, facts: list[Fact]) -> list[dict]:
         for a in grown:
             hit = None
             for m in list(a.memory.items):
-                if m.kind == "plan":
+                if m.kind == "plan" or (f.after and m.created < f.after):
                     continue
                 if m.id not in named_in:
                     named_in[m.id] = mentions(m.text, names)

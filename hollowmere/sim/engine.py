@@ -292,7 +292,8 @@ class Engine(Absences, DailyEvents):
         traits = [*out.traits, *(t for t in romance.GOBLIN_TRAITS if goblin)]
         look = _latin(out.look_now)
         # the new look goes after the old one, unless the model already carried the old one over
-        appearance = look if p.appearance[:40].lower() in look.lower() else f"{p.appearance} {look}".strip()
+        old_look = re.sub(r"\b(?:infant|newborn)\b", "small child", p.appearance, flags=re.I)
+        appearance = look if p.appearance[:40].lower() in look.lower() else f"{old_look} {look}".strip()
         grown = p.model_copy(update={
             "age": CHILD_AGE, "traits": ", ".join(dict.fromkeys(traits)), "appearance": appearance,
             "currently": _latin(out.currently), "lifestyle": _latin(out.lifestyle)})

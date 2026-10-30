@@ -140,3 +140,37 @@ async def test_given_lonely_haunted_and_afraid_when_the_town_starts_then_they_ar
     # And they are no longer part of the temperament, while what is Nib's nature as a goblin stays
     assert "lonely" not in nib.persona.traits and "horny" in nib.persona.traits and "driven to breed" in nib.persona.traits
     assert "haunted" not in brannoc.persona.traits and "afraid of the plague" not in roderic.persona.traits
+
+
+async def test_given_an_old_state_when_the_day_review_prompt_is_written_then_it_is_asked_to_be_let_go_unless_today_renewed_it(tmp_path):
+    # Given Elsbeth with a grief of twelve days and a fresh state of today
+    engine = await _engine(tmp_path)
+    elsbeth = engine.agents["elsbeth"]
+    elsbeth.states = [{"text": "grieving for her child", "since": "1347-10-24"},
+                      {"text": "weary from the cold", "since": "1347-11-05"}]
+    # When the day review prompt is written
+    text = prompts.day_review(elsbeth, engine.ctx.names, NOW, [])
+    # Then the long-held one is singled out, and the fresh one is not
+    assert "Held long: grieving for her child" in text and "weary from the cold" not in text.split("Held long:")[1]
+
+
+async def test_given_only_fresh_states_when_the_day_review_prompt_is_written_then_nothing_is_singled_out(tmp_path):
+    # Given states that are all new
+    engine = await _engine(tmp_path)
+    elsbeth = engine.agents["elsbeth"]
+    elsbeth.states = [{"text": "weary from the cold", "since": "1347-11-05"}]
+    # When the prompt is written
+    text = prompts.day_review(elsbeth, engine.ctx.names, NOW, [])
+    # Then there is no such line
+    assert "Held long" not in text
+
+
+async def test_given_a_child_when_the_day_review_prompt_is_written_then_its_states_are_a_childs(tmp_path):
+    # Given a small child
+    engine = await _engine(tmp_path)
+    kid = engine.agents["elsbeth"]
+    kid.persona = kid.persona.model_copy(update={"age": 3})
+    # When the day review prompt is written
+    text = prompts.day_review(kid, engine.ctx.names, NOW, [])
+    # Then it is told to feel and notice only what a child does
+    assert "is a small child" in text and "knows nothing of coins" in text

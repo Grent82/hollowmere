@@ -65,13 +65,16 @@ def generate_child_persona(mother: Persona, father: Persona, born_on: date, rng:
     )
 
 
+GROWN_ONLY = ("customer", "money", "desire", "preach")  # a child shows "braver than she lets on", not "warm to paying customers"
+
+
 def growth_pool(mother: Persona, father: Persona) -> tuple[str, ...]:
     """The temperament words a child can inherit: those of both parents, without the three every goblin has."""
     words: list[str] = []
     for p in (mother, father):
         for w in p.traits.split(","):
             w = w.strip()
-            if w and w not in words and w not in GOBLIN_TRAITS:
+            if w and w not in words and w not in GOBLIN_TRAITS and not any(g in w for g in GROWN_ONLY):
                 words.append(w)
     return tuple(words)
 

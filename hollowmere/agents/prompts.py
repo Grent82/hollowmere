@@ -665,15 +665,21 @@ If the day makes a held fact obsolete, leave out a held fact (just that one) whe
 most. Most days nothing qualifies: then repeat the list unchanged and leave the evidence empty."""
 
 
+STATE_HELD_LONG_DAYS = 5  # a state this old is put to the model as one to let go, not decided for it
+
+
 def states_block(agent: Agent, now: datetime) -> str:
     """The passing states held now, with their age, and what the review may do with them."""
     p = agent.persona
     held = "\n".join(f"- {s['text']} ({days} day{'s' * (days != 1)})" for s, days in agent.state_ages(now)) \
         or "(none)"
+    old = [s["text"] for s, days in agent.state_ages(now) if days >= STATE_HELD_LONG_DAYS]
+    long_held = (f"Held long: {'; '.join(old)}. Let each go unless today itself kept it alive or brought it back; "
+                 f"a feeling that only lingers by habit has passed.\n") if old else ""
     return f"""
 HOW {p.first_name.upper()} FEELS, PASSING STATES (not temperament)
 {held}
-"""
+{long_held}"""
 
 
 def day_review(agent: Agent, names: dict[str, str], now: datetime, mems: list[Memory]) -> str:
@@ -698,7 +704,7 @@ And name how {p.first_name} is as the day ends, in the passing states list: repe
 is still as true as it was, leave out one that has eased or ended - grief, fear and weariness do soften with
 time unless something fresh keeps them alive - and add one that today brought. A state can be light as well as
 dark: relieved, hopeful, content, rested, proud, in love, amused, at peace. A good day deserves a good state.
-At most three; the list may be empty."""
+At most three; the list may be empty.{infant_mind(agent)}"""
 
 
 
