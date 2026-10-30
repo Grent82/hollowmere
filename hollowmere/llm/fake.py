@@ -169,6 +169,10 @@ class FakeLLM:
     def _townstate(self, js: dict, user: str) -> dict:
         return {"text": "The plague lingers and the harvest is still thin, but the Watch keeps the peace."}
 
+    def _glimpses(self, js: dict, user: str) -> dict:
+        notes = [ln.split(". ", 1)[1] for ln in user.splitlines() if ln[:1].isdigit() and ". " in ln]
+        return {"lines": notes}
+
     def _dailyevent(self, js: dict, user: str) -> dict:
         return {"quiet": True, "kind": "weather", "text": "", "where": "town", "hour": 9, "god": "none",
                 "clarity": "none", "importance": 3}

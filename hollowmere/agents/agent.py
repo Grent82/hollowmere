@@ -23,13 +23,18 @@ from hollowmere.agents.schemas import (
     LifeFacts,
     TIME_OF_DAY, DayReview, DivineAnswer, FocalQuestions, Insights, Reaction, Utterance, utterance_schema,
     agreement_schema, chat_digest_schema, day_plan_schema, decomposition_schema, goblin_choice_schema,
-    leaving_schema, moving_schema,
+    leaving_schema, moving_schema, glimpses_schema,
 )
 from hollowmere.llm.client import LLM, LLMError
 from hollowmere.memory.stream import MemoryStream, repeats
 from hollowmere.world.world import World
 
 log = logging.getLogger(__name__)
+
+
+def latin(text: str) -> str:
+    """The model now and then lets a word of another script slip into an English text: drop those characters."""
+    return re.sub(r"[\u2e80-\u9fff\uac00-\ud7af]", "", text).strip()
 
 DAY_START = time(4, 0)  # plans are made at 04:00; times before that belong to the previous day
 SLEEP_RE = re.compile(r"\b(sleep|sleeps|asleep|goes to bed|to bed|retires)\b", re.IGNORECASE)
@@ -277,6 +282,9 @@ async def agreed_move(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
 
 
 MAX_STATES = 3
+GLIMPSE_REPEAT_MINUTES = 90  # the same sight is noted again only after this long
+GLIMPSES_PER_CALL = 12
+GLIMPSE_GROWTH = 1.3  # a rewritten sight may be this much longer than the note, plus a few words
 MAX_HISTORY = 6  # lasting life facts per person
 LIFE_FACT_IMPORTANCE = 8  # a day holds a memory at least this weighty before lasting facts are even asked for
 
@@ -336,6 +344,9 @@ class Agent:
         # Passing states of mind: {"text", "since": iso date or None until the first review dates it}.
         # Only the day review ends or adds one; there is no fixed span.
         self.states: list[dict] = [{"text": s, "since": None} for s in persona.states]
+        # What was seen of others this hour, waiting to be put in the watcher's words: {"text","at","importance","about"}.
+        self.glimpses: list[dict] = []
+        self._glimpsed: dict[str, datetime] = {}  # plain text -> when it was last noted, so a sight is not noted twice
         self.history: list[dict] = []  # lasting facts, {"text", "since"}: what happened to them that stays true
         self.condition: str = ""  # what the engine says is true of them now (with child, due in N days); not persisted
         self.situation: str = ""  # carried forward by day reviews; empty until then (the persona's `currently` stands)
@@ -950,6 +961,39 @@ class Agent:
                             now)
         self.new_prayers.append({"god": god.id, "form": out.form, "text": out.text, "clarity": out.clarity})
 
+    def glimpse(self, text: str, now: datetime, importance: int, about: list[str], pronoun: str = "") -> bool:
+        """Note a sight of someone else; it becomes a memory when the hour is written. False if just noted."""
+        last = self._glimpsed.get(text)
+        if last is not None and (now - last).total_seconds() < GLIMPSE_REPEAT_MINUTES * 60:
+            return False
+        self._glimpsed[text] = now
+        self.glimpses.append({"text": text, "at": now.isoformat(), "importance": importance, "about": about,
+                              "pronoun": pronoun})
+        return True
+
+    async def write_glimpses(self, ctx: Ctx, now: datetime) -> None:
+        """Put the waiting sights in this agent's words, one memory each. Whatever fails stays as it was noted."""
+        waiting, self.glimpses = self.glimpses[:GLIMPSES_PER_CALL], self.glimpses[GLIMPSES_PER_CALL:]
+        if not waiting:
+            return
+        lines: list[str] = []
+        try:
+            out = await ctx.llm.structured(
+                prompts.system_prompt(self), prompts.glimpses(self, waiting, ctx.names),
+                glimpses_schema(len(waiting)), label="glimpses", temperature=0.7)
+            lines = [latin(x) for x in out.lines]
+        except LLMError as e:
+            log.warning("%s: glimpses failed (%s)", self.id, e)
+        for i, g in enumerate(waiting):
+            line = lines[i] if i < len(lines) else ""
+            firsts = [first_name_of(ctx.names[b]) for b in g["about"] if b in ctx.names]
+            keeps = (line and all(f.lower() in line.lower() for f in firsts)  # the person must still be in it
+                     and len(line) <= len(g["text"]) * GLIMPSE_GROWTH + 40)  # and the note not spun into a tale
+            await self.observe(line if keeps else g["text"], datetime.fromisoformat(g["at"]), g["importance"],
+                               source="saw", about=g["about"])
+        if self.glimpses:
+            await self.write_glimpses(ctx, now)
+
     async def observe(self, text: str, now: datetime, importance: int, source: str = "",
                       about: list[str] | None = None) -> None:
         await self._remember("observation", text, now, importance, source, about)
@@ -978,7 +1022,7 @@ class Agent:
             "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
             "seek": self.seek, "seek_block": self.seek_block,
             "drive": self.drive, "situation": self.situation, "town_state": self.town_state,
-            "states": self.states, "history": self.history, "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
+            "states": self.states, "glimpses": self.glimpses, "history": self.history, "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
             "absence": self.absence, "home": self.persona.home, "home_object": self.persona.home_object,
         }
 
@@ -1015,6 +1059,8 @@ class Agent:
         self.town_state = d.get("town_state", "")  # older saves lack this
         self.states = d.get("states", self.states)  # older saves lack this: the persona's own stand
         self.history = d.get("history", [])  # older saves lack this
+        self.glimpses = d.get("glimpses", [])  # older saves lack this
+        self._glimpsed = {g["text"]: datetime.fromisoformat(g["at"]) for g in self.glimpses}
         self.favor = d.get("favor")  # older saves lack this
         self.pending_dream = d.get("pending_dream")  # older saves lack this
         self.prayed_block = d.get("prayed_block", -1)  # older saves lack this

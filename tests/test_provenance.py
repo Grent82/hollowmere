@@ -1,5 +1,6 @@
 """Where a memory comes from: seen, lived, told by someone, word going round, or one's own conclusion."""
 
+import asyncio
 import sqlite3
 from datetime import datetime
 
@@ -83,6 +84,8 @@ async def test_given_two_people_in_sight_when_one_looks_then_the_sentence_is_sto
     ros.x, ros.y = wat.x + 1, wat.y
     # When the town is perceived
     await engine._perceive(NOW)
+    engine._write_glimpses(NOW)  # the sight waits for the hour to be written
+    await asyncio.gather(*[t for t in engine._bg.values() if not t.done()])
     # Then what Wat stored of Ros is a sight, about Ros
     seen = [m for m in wat.memory.items if m.text.startswith(ros.name)]
     assert seen and seen[-1].source == "saw" and seen[-1].about == [ros.id]

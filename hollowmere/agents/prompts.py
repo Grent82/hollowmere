@@ -877,3 +877,22 @@ def goblin_aside(listener: Agent, goblin: Agent, now: datetime) -> str:
             "and wild honey hangs about it, and despite every tale you have heard, it seems more pitiable than "
             "dangerous, almost dear, like a half-starved stray. Whether to help it, "
             f"drive it off or raise the alarm is still your own choice.{before}\n")
+
+
+def glimpses(agent: Agent, waiting: list[dict], names: dict[str, str]) -> str:
+    p = agent.persona
+    listed = "\n".join(f"{i}. {g['text']}" for i, g in enumerate(waiting, 1))
+    who = {names[b]: g.get("pronoun", "") for g in waiting for b in g["about"] if b in names}
+    pronouns = "; ".join(f"{n} ({x})" for n, x in who.items() if x)
+    return f"""{identity(agent, {})}
+
+Over the last hour {p.first_name} saw this, set down plainly:
+{listed}
+{f"Who is who: {pronouns}." + chr(10) if pronouns else ""}
+Write each note again as {p.first_name} saw it: other words, and {p.first_name}'s own way of looking, one sentence,
+first person where it fits. Keep to the note: the same fact, nothing added, nothing left out, and the person in it
+named as in the note. Let it sound like {p.first_name}: the words {p.first_name} would use, and what {p.first_name}'s
+trade or temperament would notice first about it, but no figures of speech or comparisons. The fact itself stays as
+the note gives it: add no detail of sight or sound, no feeling, reason, look or judgement of the one seen, and do not guess at what anyone thinks or
+wants. Do not copy the note's wording.
+Answer with one line per note, in order.{infant_mind(agent)}"""

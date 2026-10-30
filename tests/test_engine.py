@@ -1,5 +1,6 @@
 """Run a full simulated day on the offline fake brain."""
 
+import asyncio
 from collections import Counter
 from datetime import datetime, time
 
@@ -120,6 +121,8 @@ async def test_humans_who_know_the_goblin_see_him_plainly(tmp_path):
     place(nib, 0), place(ros, 1)
     ros.bonds["nib"] = {"stance": "fond", "note": "a sad little thing", "talks": 1, "last": None}
     await engine._perceive(engine.now)
+    engine._write_glimpses(engine.now)
+    await asyncio.gather(*[t for t in engine._bg.values() if not t.done()])
     assert not [e for e in engine.events if e["kind"] == "sighting"]
     assert any("Nib" in m.text for m in ros.memory.items)
 

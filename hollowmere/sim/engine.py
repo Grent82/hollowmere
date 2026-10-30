@@ -31,7 +31,7 @@ from datetime import date, datetime, timedelta
 from typing import Awaitable, Callable
 
 from hollowmere.agents import prompts, romance
-from hollowmere.agents.agent import Agent, Ctx, Digest, Task, agreed_departure, agreed_meetings, agreed_move, day_key, due_at
+from hollowmere.agents.agent import latin, Agent, Ctx, Digest, Task, agreed_departure, agreed_meetings, agreed_move, day_key, due_at
 from hollowmere.agents.gods import GOD_BY_ID
 from hollowmere.agents.kinship import Kinship
 from hollowmere.agents.persona import CHILD_AGE, RANK, starting_affinity
@@ -73,11 +73,6 @@ TOWN_EVENT_KINDS = {"showing", "birth", "reflection", "agreement", "ally", "spur
                     "daily"}
 
 Listener = Callable[[dict], Awaitable[None]]
-
-
-def _latin(text: str) -> str:
-    """The model now and then lets a word of another script slip into an English text: drop those characters."""
-    return re.sub(r"[\u2e80-\u9fff\uac00-\ud7af]", "", text).strip()
 
 
 def _add_counts(a: dict[str, int], b: dict[str, int]) -> dict[str, int]:
@@ -127,6 +122,7 @@ class Engine(Absences, DailyEvents):
         self.store = store
         self.embedder = embedder
         self.ctx.kin = Kinship({i: x.persona for i, x in self.agents.items()})
+        self._glimpsed_hour = -1
         self.pregnancies: list[dict] = []  # {"mother_id", "father_id", "start_day", "due_day", "resolved"}
         self.now: datetime = cfg.start
         self.tick_count = 0
@@ -194,6 +190,9 @@ class Engine(Absences, DailyEvents):
         await self._converse(now)
         await self._perceive(now)
         self._background(now)
+        if now.hour != self._glimpsed_hour:
+            self._glimpsed_hour = now.hour
+            self._write_glimpses(now)
         if self._daily_due(now) and (self._daily_task is None or self._daily_task.done()):
             self._daily_task = asyncio.create_task(self._run_daily_event_task(now))
         await self._deliver_events(now)
@@ -290,13 +289,13 @@ class Engine(Absences, DailyEvents):
             log.warning("%s: growing up failed (%s)", child.id, e)
             return
         traits = [*out.traits, *(t for t in romance.GOBLIN_TRAITS if goblin)]
-        look = _latin(out.look_now)
+        look = latin(out.look_now)
         # the new look goes after the old one, unless the model already carried the old one over
         old_look = re.sub(r"\b(?:infant|newborn)\b", "small child", p.appearance, flags=re.I)
         appearance = look if p.appearance[:40].lower() in look.lower() else f"{old_look} {look}".strip()
         grown = p.model_copy(update={
             "age": CHILD_AGE, "traits": ", ".join(dict.fromkeys(traits)), "appearance": appearance,
-            "currently": _latin(out.currently), "lifestyle": _latin(out.lifestyle)})
+            "currently": latin(out.currently), "lifestyle": latin(out.lifestyle)})
         child.persona = grown
         child.plan, child.plan_date, child.tasks, child.tasks_block, child.task = [], None, [], -1, None
         day = day_key(now).isoformat()
@@ -651,6 +650,12 @@ class Engine(Absences, DailyEvents):
                 return b.activity_phrase(self.world, detail=False)
         return b.activity_phrase(self.world)
 
+    def _write_glimpses(self, now: datetime) -> None:
+        """Once an hour each watcher's sightings are put in their own words, in the background."""
+        for a in self.agents.values():
+            if a.glimpses:
+                self._spawn(a, a.write_glimpses(self.ctx, now), "glimpses")
+
     async def _perceive(self, now: datetime) -> None:
         reactions = []
         for a in self.agents.values():
@@ -674,11 +679,11 @@ class Engine(Absences, DailyEvents):
                 if stored >= ATTENTION:
                     break
                 text = f"{b.name} {self._seen_doing(b)}."
-                if a.memory.seen_recently(text, now, minutes=90):
+                known = b.id in a.persona.relationships
+                if not a.glimpse(text, now, 3 if known else 2, [b.id],
+                                 "he" if b.persona.sex == "male" else "she"):
                     continue
                 stored += 1
-                known = b.id in a.persona.relationships
-                await a.observe(text, now, 3 if known else 2, source="saw", about=[b.id])
                 if self.is_showing(b.id):
                     belly = self._belly_text(b)
                     if not a.memory.seen_recently(belly, now, minutes=720):

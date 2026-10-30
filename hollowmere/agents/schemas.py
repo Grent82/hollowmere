@@ -404,3 +404,14 @@ def chat_digest_schema(places: tuple[str, ...], about_goblin: bool = False,
                         "made love - judge strictly from what the transcript actually shows; false by "
                         "default, including whenever nothing like that was said"))
     return create_model("ChatDigest", **fields)
+
+
+@lru_cache(maxsize=32)
+def glimpses_schema(n: int) -> type[BaseModel]:
+    """The hour's sightings, each put in the watcher's words: as many lines as notes, in the same order."""
+    return create_model(
+        "Glimpses",
+        lines=(list[Annotated[str, Field(max_length=300)]], Field(min_length=n, max_length=n, description=(
+            f"exactly {n} lines, line k being note k in the watcher's own words: the same fact, one or two sentences, "
+            "the person named"))),
+    )
