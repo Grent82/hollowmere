@@ -185,9 +185,10 @@ class DivineAnswer(BaseModel):
     form: DivineForm = Field(description="how you answer: a dream, a waking sign, an omen, a mere "
                                          "coincidence, a tangible favor (buff) - choose freely; you "
                                          "always answer")
-    text: str = Field(description="what the praying mortal perceives, in your own voice, kept deniable - "
-                                  "something that could equally be chance, mood, or their own hope, never a "
-                                  "flat statement that you have acted")
+    text: str = Field(max_length=500, description=(
+        "what the praying mortal perceives, in your own voice, kept deniable - something that could equally be "
+        "chance, mood, or their own hope, never a flat statement that you have acted. Two or three sentences, "
+        "no repetition"))
     clarity: DivineClarity = Field(
         default="none",
         description="how surely the mortal recognises this as your answer: none - it seems chance, mood or "
