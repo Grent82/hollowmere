@@ -176,3 +176,38 @@ async def test_given_sightings_when_the_prompt_is_written_then_it_says_who_is_he
     await odo.write_glimpses(_ctx(engine, llm), NOW + timedelta(hours=1))
     # Then the prompt says which pronoun belongs to whom
     assert "Wat Milner (he)" in llm.seen[0] and "Elsbeth Graves (she)" in llm.seen[0]
+
+
+async def test_given_a_child_when_the_same_sight_comes_again_within_hours_then_it_is_not_noted(tmp_path):
+    # Given a child who noted his mother asleep
+    engine = await _engine(tmp_path)
+    dunstan = engine.agents["wat"]
+    dunstan.persona.age = 4
+    dunstan.glimpse("Agnes Vell is asleep.", NOW, 3, ["agnes"])
+    # When the same sight comes four hours later, and again after the day is long past
+    soon = dunstan.glimpse("Agnes Vell is asleep.", NOW + timedelta(hours=4), 3, ["agnes"])
+    later = dunstan.glimpse("Agnes Vell is asleep.", NOW + timedelta(hours=7), 3, ["agnes"])
+    # Then only the late one is noted
+    assert not soon and later
+
+
+async def test_given_an_adult_when_the_same_sight_comes_after_two_hours_then_it_is_noted_again(tmp_path):
+    # Given Wat who noted Isolde in the lane
+    engine = await _engine(tmp_path)
+    wat = engine.agents["wat"]
+    wat.glimpse("Isolde Vell is in the lane.", NOW, 3, ["isolde"])
+    # When the same sight comes two hours later
+    again = wat.glimpse("Isolde Vell is in the lane.", NOW + timedelta(hours=2), 3, ["isolde"])
+    # Then it is noted
+    assert again
+
+
+async def test_given_a_sight_already_in_memory_when_it_comes_again_after_a_restart_then_it_is_not_noted(tmp_path):
+    # Given Wat whose memory holds the sight from an hour ago, and no note of it kept in his head
+    engine = await _engine(tmp_path)
+    wat = engine.agents["wat"]
+    await wat.observe("Isolde Vell is in the lane.", NOW - timedelta(hours=1), 3, source="saw", about=["isolde"])
+    # When the same sight comes
+    noted = wat.glimpse("Isolde Vell is in the lane.", NOW, 3, ["isolde"])
+    # Then it is not noted again
+    assert not noted

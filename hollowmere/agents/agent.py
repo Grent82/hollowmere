@@ -283,6 +283,7 @@ async def agreed_move(ctx: Ctx, a: "Agent", b: "Agent", now: datetime,
 
 MAX_STATES = 3
 GLIMPSE_REPEAT_MINUTES = 90  # the same sight is noted again only after this long
+GLIMPSE_REPEAT_CHILD_MINUTES = 360  # a child at home sees the same mother and siblings all day
 GLIMPSES_PER_CALL = 12
 FIRST_PERSON = {"i", "me", "my", "mine", "we", "us", "our", "ive", "im", "id"}
 HEARSAY_LOOKBACK = 300  # a claim already held among this many latest memories is not kept again
@@ -975,8 +976,10 @@ class Agent:
 
     def glimpse(self, text: str, now: datetime, importance: int, about: list[str], pronoun: str = "") -> bool:
         """Note a sight of someone else; it becomes a memory when the hour is written. False if just noted."""
+        minutes = GLIMPSE_REPEAT_CHILD_MINUTES if self.persona.dependent else GLIMPSE_REPEAT_MINUTES
         last = self._glimpsed.get(text)
-        if last is not None and (now - last).total_seconds() < GLIMPSE_REPEAT_MINUTES * 60:
+        if (last is not None and (now - last).total_seconds() < minutes * 60) \
+                or self.memory.seen_recently(text, now, minutes):  # the head forgets at a restart, the memory does not
             return False
         self._glimpsed[text] = now
         self.glimpses.append({"text": text, "at": now.isoformat(), "importance": importance, "about": about,
