@@ -188,3 +188,73 @@ async def test_given_extra_body_when_calling_then_it_is_sent_with_every_request(
     assert seen[0]["reasoning"] == {"enabled": False}
     assert "chat_template_kwargs" not in seen[0]
     await llm.aclose()
+
+
+async def test_given_unterminated_json_without_length_flag_when_repairing_then_it_asks_for_a_shorter_reply():
+    # Given a reply that stops mid-string although the server reported a normal stop
+    seen = []
+    replies = iter(['{"mood": 4, "pad": "runaway text that never en', '{"mood": 4}'])
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [
+            {"message": {"role": "assistant", "content": next(replies)}, "finish_reason": "stop"}]})
+
+    llm = OpenAICompatLLM(LLMConfig(log_path="", max_tokens=50), transport=httpx.MockTransport(handler))
+    # When the call is repaired
+    out = await llm.structured("sys", "user", Mood, label="t")
+    # Then the repair turn asks for brevity instead of only quoting the parser error
+    assert out.mood == 4
+    assert "much more briefly" in seen[-1]["messages"][-1]["content"]
+    await llm.aclose()
+
+
+async def _record_sleeps(monkeypatch):
+    import hollowmere.llm.client as client_mod
+
+    slept = []
+
+    async def fake_sleep(s):
+        slept.append(s)
+    monkeypatch.setattr(client_mod.asyncio, "sleep", fake_sleep)
+    return slept
+
+
+async def test_given_a_429_with_retry_after_when_calling_then_it_waits_that_long(monkeypatch):
+    # Given a hub that throttles once and names the delay
+    slept = await _record_sleeps(monkeypatch)
+    replies = iter([httpx.Response(429, headers={"Retry-After": "7"}, json={"error": {"code": "429"}}),
+                    httpx.Response(200, json={"choices": [{"message": {"content": '{"mood": 3}'}}]})])
+    llm = OpenAICompatLLM(LLMConfig(log_path=""), transport=httpx.MockTransport(lambda r: next(replies)))
+    # When the call is made
+    out = await llm.structured("sys", "user", Mood, label="t")
+    # Then it waited the stated seconds and succeeded
+    assert out.mood == 3 and slept[0] >= 7
+    await llm.aclose()
+
+
+async def test_given_repeated_429s_without_header_when_calling_then_it_backs_off_and_keeps_trying(monkeypatch):
+    # Given a hub that throttles five times in a row
+    slept = await _record_sleeps(monkeypatch)
+    replies = iter([httpx.Response(429, json={"error": {"code": "429"}})] * 5
+                   + [httpx.Response(200, json={"choices": [{"message": {"content": '{"mood": 3}'}}]})])
+    llm = OpenAICompatLLM(LLMConfig(log_path=""), transport=httpx.MockTransport(lambda r: next(replies)))
+    # When the call is made
+    out = await llm.structured("sys", "user", Mood, label="t")
+    # Then the waits grow and the call still succeeds, past the old four attempts
+    assert out.mood == 3 and len(slept) == 5 and slept[-1] > slept[0]
+    await llm.aclose()
+
+
+async def test_given_endless_429s_when_calling_then_it_gives_up(monkeypatch):
+    from hollowmere.llm.client import LLMError
+
+    # Given a hub that never stops throttling
+    await _record_sleeps(monkeypatch)
+    llm = OpenAICompatLLM(LLMConfig(log_path=""), transport=httpx.MockTransport(
+        lambda r: httpx.Response(429, json={"error": {"code": "429"}})))
+    # When the call is made
+    # Then it fails with a clear error
+    with pytest.raises(LLMError, match="rate limit"):
+        await llm.structured("sys", "user", Mood, label="t")
+    await llm.aclose()

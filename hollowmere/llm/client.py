@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import random
 import re
 import time
 from dataclasses import dataclass, field
@@ -23,6 +24,17 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from hollowmere.config import LLMConfig
+
+_MAX_THROTTLED = 6  # waits on HTTP 429 before giving up, on top of the ordinary retries
+
+
+def _throttle_delay(retry_after: str | None, n: int) -> float:
+    """Seconds to wait after the n-th 429: the hub's Retry-After if it sends one, else 5s doubling, with jitter."""
+    try:
+        base = float(retry_after) if retry_after else 5.0 * 2 ** (n - 1)
+    except ValueError:
+        base = 5.0 * 2 ** (n - 1)
+    return min(base, 60.0) + random.uniform(0, 1.5)
 
 log = logging.getLogger(__name__)
 
@@ -130,6 +142,8 @@ class OpenAICompatLLM:
                 return schema.model_validate(extract_json(content))
             except (ValueError, ValidationError) as e:
                 last_error = str(e)[:600]
+                # A runaway string is cut off even when the server does not say so.
+                truncated = truncated or "Unterminated string" in last_error or "EOF while parsing" in last_error
                 self.stats.repairs += 1
                 self.stats.count(self.stats.repairs_by_label, label)
                 log.debug("invalid reply for %s (attempt %d): %s", label, attempt + 1, last_error)
@@ -191,16 +205,25 @@ class OpenAICompatLLM:
         async with self._sem:
             self.stats.in_flight += 1
             try:
-                for net_attempt in range(4):
+                throttled = 0
+                for net_attempt in range(4 + _MAX_THROTTLED):
                     payload = self._payload(messages, name, json_schema, temperature)
                     started = time.perf_counter()
                     try:
                         resp = await self._http.post("/chat/completions", json=payload)
                     except httpx.HTTPError as e:
                         self._log(label, f"cannot reach server: {e!r}", messages)
-                        if net_attempt == 3:
+                        if net_attempt - throttled == 3:
                             raise LLMError(f"{label}: cannot reach LLM server: {e!r}") from e
-                        await asyncio.sleep(2 * (net_attempt + 1))
+                        await asyncio.sleep(2 * (net_attempt - throttled + 1))
+                        continue
+                    if resp.status_code == 429:
+                        retry_after = resp.headers.get("retry-after")
+                        self._log(label, f"HTTP 429 (retry-after: {retry_after})", messages, resp.text)
+                        throttled += 1
+                        if throttled > _MAX_THROTTLED:
+                            raise LLMError(f"{label}: rate limit still hit after {_MAX_THROTTLED} waits")
+                        await asyncio.sleep(_throttle_delay(retry_after, throttled))
                         continue
                     if resp.status_code >= 400:
                         self._log(label, f"HTTP {resp.status_code}", messages, resp.text)
@@ -214,7 +237,9 @@ class OpenAICompatLLM:
                             continue
                         raise LLMError(f"{label}: HTTP {resp.status_code}: {resp.text[:300]}")
                     if resp.status_code >= 400:
-                        await asyncio.sleep(2 * (net_attempt + 1))
+                        if net_attempt - throttled == 3:
+                            raise LLMError(f"{label}: HTTP {resp.status_code}: {resp.text[:300]}")
+                        await asyncio.sleep(2 * (net_attempt - throttled + 1))
                         continue
                     try:
                         choice = resp.json()["choices"][0]
@@ -223,9 +248,9 @@ class OpenAICompatLLM:
                         # A proxy can answer 200 with an error page or {"error": ...}: retry like a 5xx.
                         log.warning("%s: unusable reply from server: %s", label, resp.text[:200])
                         self._log(label, "unusable reply from server", messages, resp.text)
-                        if net_attempt == 3:
+                        if net_attempt - throttled == 3:
                             raise LLMError(f"{label}: unusable reply from server: {resp.text[:200]}") from None
-                        await asyncio.sleep(2 * (net_attempt + 1))
+                        await asyncio.sleep(2 * (net_attempt - throttled + 1))
                         continue
                     elapsed = time.perf_counter() - started
                     self.stats.calls += 1
