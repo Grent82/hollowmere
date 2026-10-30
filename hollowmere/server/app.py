@@ -25,6 +25,12 @@ class Control(BaseModel):
     speed: float | None = None
 
 
+class Whisper(BaseModel):
+    agent: str
+    text: str
+    kind: str
+
+
 def create_app(engine: Engine) -> FastAPI:
     @contextlib.asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -72,6 +78,14 @@ def create_app(engine: Engine) -> FastAPI:
             engine.speed = max(0.25, min(c.speed, 32.0))
         await engine._broadcast({"type": "tick", **engine.state_view()})
         return {"paused": engine.paused, "speed": engine.speed}
+
+    @app.post("/api/whisper")
+    async def whisper(w: Whisper):
+        try:
+            await engine.whisper(w.agent, w.text, w.kind)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
+        return {"ok": True}
 
     @app.websocket("/ws")
     async def ws(socket: WebSocket):

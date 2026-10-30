@@ -525,7 +525,8 @@ class Agent:
         self.thinking = "planning the day"
         self._drop_old_commitments(now)
         if self.pending_dream:
-            await self.observe(self.pending_dream["text"], now, self.pending_dream["importance"])
+            await self.observe(self.pending_dream["text"], now, self.pending_dream["importance"],
+                               source=self.pending_dream.get("source", ""))
             self.pending_dream = None
         try:
             who_matters = [ctx.names.get(rid, rid) for rid in self.persona.relationships]

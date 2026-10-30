@@ -1,7 +1,7 @@
 // Sidebar: clock, controls, townsfolk list, chronicle feed, and the villager inspector.
 import type { AgentDetail, AgentView, Bond, ChatLogEntry, KnowledgeFact, SimEvent, StateMsg } from "./types";
 
-type DetailTab = "overview" | "bonds" | "chat" | "memory" | "prayers";
+type DetailTab = "overview" | "bonds" | "chat" | "memory" | "prayers" | "whisper";
 const GODS: Record<string, { name: string; color: string }> = {
   caedros: { name: "Caedros", color: "#9fb4c8" },
   yevra: { name: "Yevra", color: "#e08fb0" },
@@ -19,6 +19,7 @@ const DETAIL_TABS: { id: DetailTab; label: string }[] = [
   { id: "chat", label: "Conversations" },
   { id: "memory", label: "Memory" },
   { id: "prayers", label: "Prayers" },
+  { id: "whisper", label: "Whisper" },
 ];
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
@@ -66,6 +67,7 @@ export class UI {
       if (bond) h.select(bond.dataset.id!);  // follow a relationship to that person
       const dtab = target.closest<HTMLElement>("[data-dtab]");
       if (dtab) { this.detailTab = dtab.dataset.dtab as DetailTab; this.renderDetail(true); }
+      if (target.closest(".whisper-send")) void this.sendWhisper();
     };
     window.addEventListener("keydown", (e) => {
       if (e.code === "Space" && e.target === document.body) { e.preventDefault(); h.control({ paused: !this.paused }); }
@@ -155,6 +157,8 @@ export class UI {
           + `🕯 ${tag(e.agents[0])} prays to <b class="god">${esc(godName(god))}</b> <span class="form">${esc(e.form ?? "")}${clarityTag(e.clarity)}</span>`
           + `<div class="answer">${esc(body)}</div></div>`;
       }
+      case "whisper":
+        return `<div class="ev daily"><time>${hhmm(e.time)}</time>🤫 ${esc(e.text)}</div>`;
       case "daily":
         return `<div class="ev daily"><time>${hhmm(e.time)}</time>🌦 ${esc(e.text)}</div>`;
       case "plan":
@@ -199,7 +203,27 @@ export class UI {
     const d: AgentDetail = await res.json();
     if (d.id !== this.selected) return;
     this.lastDetail = d;
-    this.renderDetail();
+    if (this.detailTab !== "whisper") this.renderDetail();  // a typed whisper must not vanish under a refresh
+  }
+
+  private renderWhisper(d: AgentDetail): string {
+    return `<p class="muted">Whisper to ${esc(d.name)}. It reaches only their memory.</p>
+      <select class="whisper-kind"><option value="dream">A dream (comes with the morning)</option>
+        <option value="rumor">A rumor (heard today)</option></select>
+      <textarea class="whisper-text" rows="4" maxlength="300" placeholder="What do you whisper?"></textarea>
+      <button class="whisper-send">Whisper</button> <small class="whisper-note"></small>`;
+  }
+
+  private async sendWhisper() {
+    if (!this.selected) return;
+    const text = $<HTMLTextAreaElement>(".whisper-text").value.trim();
+    const kind = $<HTMLSelectElement>(".whisper-kind").value;
+    const note = $(".whisper-note");
+    if (!text) { note.textContent = "Say something first."; return; }
+    const res = await fetch("/api/whisper", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agent: this.selected, text, kind }) });
+    note.textContent = res.ok ? "Whispered." : "Not heard.";
+    if (res.ok) $<HTMLTextAreaElement>(".whisper-text").value = "";
   }
 
   private renderDetail(resetScroll = false) {
@@ -211,6 +235,7 @@ export class UI {
       : this.detailTab === "chat" ? this.renderChat(d)
       : this.detailTab === "memory" ? this.renderMemory(d)
       : this.detailTab === "prayers" ? this.renderPrayers(d)
+      : this.detailTab === "whisper" ? this.renderWhisper(d)
       : this.renderOverview(d);
     panel.innerHTML = `
       <div class="dhead">

@@ -650,6 +650,21 @@ class Engine(Absences, DailyEvents):
                 return b.activity_phrase(self.world, detail=False)
         return b.activity_phrase(self.world)
 
+    WHISPER_KINDS = {"dream": 7, "rumor": 6}  # what the player may whisper, and how much it weighs
+
+    async def whisper(self, agent_id: str, text: str, kind: str) -> None:
+        """The player's hand in the story: a dream that comes with the morning, or a rumor heard today. It touches only
+        the person's memory (never their bonds), as a god's hand does."""
+        a, text = self.agents.get(agent_id), text.strip()[:300]
+        if a is None or not text or kind not in self.WHISPER_KINDS or a.persona.infant:
+            raise ValueError("whisper to someone who is here, with words and a kind we know")
+        if kind == "rumor":
+            await a.observe(text, self.now, self.WHISPER_KINDS[kind], source="word")
+        else:
+            held = a.pending_dream["text"] + " " if a.pending_dream else ""
+            a.pending_dream = {"text": held + text, "importance": self.WHISPER_KINDS[kind], "source": "own"}
+        self._event("whisper", [a.id], f"You whisper a {kind} to {a.first}: {text}")
+
     def _write_glimpses(self, now: datetime) -> None:
         """Once an hour each watcher's sightings are put in their own words, in the background."""
         for a in self.agents.values():
