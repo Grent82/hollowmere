@@ -369,6 +369,7 @@ class Agent:
         self.favor: dict | None = None  # {"god", "text", "expires"}: a buff from the last god to answer -
                                         # one at a time, always replaced by whichever god answers next
         self.pending_dream: dict | None = None  # {"text", "importance"}, delivered at the next plan_day()
+        self.whispered_dreams: list[dict] = []  # the player's dreams, each its own memory at the next plan_day()
         self.prayed_block: int = -1  # plan index already resolved this day, mirrors tasks_block/seek_block
         self.new_prayers: list[dict] = []  # not yet shown in the event feed
         # {"kind": "away" | "jailed", "since": iso, "until": iso, "reason": str}: out of town, or in the cell.
@@ -528,6 +529,9 @@ class Agent:
             await self.observe(self.pending_dream["text"], now, self.pending_dream["importance"],
                                source=self.pending_dream.get("source", ""))
             self.pending_dream = None
+        for dream in self.whispered_dreams:
+            await self.observe(dream["text"], now, dream["importance"], source="own")
+        self.whispered_dreams = []
         try:
             who_matters = [ctx.names.get(rid, rid) for rid in self.persona.relationships]
             kin = [f"{ctx.names.get(k, k)}, {b['kin']}" for k, b in self.bonds.items() if b.get("kin")]
@@ -1030,7 +1034,7 @@ class Agent:
             "hiding_until": self.hiding_until.isoformat() if self.hiding_until else None,
             "seek": self.seek, "seek_block": self.seek_block,
             "drive": self.drive, "situation": self.situation, "town_state": self.town_state,
-            "states": self.states, "glimpses": self.glimpses, "history": self.history, "favor": self.favor, "pending_dream": self.pending_dream, "prayed_block": self.prayed_block,
+            "states": self.states, "glimpses": self.glimpses, "history": self.history, "favor": self.favor, "pending_dream": self.pending_dream, "whispered_dreams": self.whispered_dreams, "prayed_block": self.prayed_block,
             "absence": self.absence, "home": self.persona.home, "home_object": self.persona.home_object,
         }
 
@@ -1071,6 +1075,7 @@ class Agent:
         self._glimpsed = {g["text"]: datetime.fromisoformat(g["at"]) for g in self.glimpses}
         self.favor = d.get("favor")  # older saves lack this
         self.pending_dream = d.get("pending_dream")  # older saves lack this
+        self.whispered_dreams = d.get("whispered_dreams", [])  # older saves lack this
         self.prayed_block = d.get("prayed_block", -1)  # older saves lack this
         self.absence = d.get("absence")  # older saves lack this
         if self.is_away:

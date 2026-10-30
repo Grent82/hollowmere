@@ -661,8 +661,7 @@ class Engine(Absences, DailyEvents):
         if kind == "rumor":
             await a.observe(text, self.now, self.WHISPER_KINDS[kind], source="word")
         else:
-            held = a.pending_dream["text"] + " " if a.pending_dream else ""
-            a.pending_dream = {"text": held + text, "importance": self.WHISPER_KINDS[kind], "source": "own"}
+            a.whispered_dreams.append({"text": text, "importance": self.WHISPER_KINDS[kind]})
         self._event("whisper", [a.id], f"You whisper a {kind} to {a.first}: {text}")
 
     def _write_glimpses(self, now: datetime) -> None:

@@ -39,18 +39,21 @@ async def test_given_a_dream_when_whispered_then_it_comes_with_the_morning_as_th
     await wat.plan_day(Ctx(engine.ctx.llm, engine.world, engine.ctx.names, {}), engine.now)
     # Then the dream is a memory of his own, and nothing is left waiting
     dream = next(m for m in wat.memory.items[before - 1:] if m.text.startswith("I dreamt"))
-    assert dream.source == "own" and wat.pending_dream is None
+    assert dream.source == "own" and not wat.whispered_dreams
 
 
-async def test_given_two_dreams_before_morning_when_whispered_then_both_are_kept(tmp_path):
-    # Given a first dream waiting
+async def test_given_two_dreams_before_morning_when_the_day_is_planned_then_each_is_its_own_memory(tmp_path):
+    # Given two dreams waiting
     engine = await _engine(tmp_path)
+    wat = engine.agents["wat"]
     await engine.whisper("wat", "I dreamt of rain.", "dream")
-    # When a second is whispered
     await engine.whisper("wat", "I dreamt of fire.", "dream")
-    # Then one dream holds both
-    text = engine.agents["wat"].pending_dream["text"]
-    assert "rain" in text and "fire" in text
+    # When Wat plans the next day
+    await wat.plan_day(Ctx(engine.ctx.llm, engine.world, engine.ctx.names, {}), engine.now)
+    # Then both are separate memories of his own
+    dreams = [m for m in wat.memory.items if m.text.startswith("I dreamt")]
+    assert sorted(m.text for m in dreams) == ["I dreamt of fire.", "I dreamt of rain."]
+    assert all(m.source == "own" for m in dreams) and not wat.whispered_dreams
 
 
 @pytest.mark.parametrize("who, text, kind", [("nobody", "x", "rumor"), ("wat", "  ", "rumor"), ("wat", "x", "prank")])
